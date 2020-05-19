@@ -44,6 +44,7 @@
     <VsdConfigXmlFiles Include="LocalComponent.vsdconfigxml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="LuaConstants.cs" />
     <Compile Include="DebugHelpers.cs" />
     <Compile Include="Guids.cs" />
     <Compile Include="LocalComponent.cs" />

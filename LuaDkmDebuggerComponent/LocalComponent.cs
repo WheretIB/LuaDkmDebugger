@@ -6,6 +6,11 @@ using System.Collections.Generic;
 
 namespace LuaDkmDebuggerComponent
 {
+    internal class LuaStackFilterData : DkmDataItem
+    {
+        public ulong scratchMemory = 0;
+    }
+
     public class LuaStackFilter : IDkmCallStackFilter
     {
         internal string ExecuteExpression(string expression, DkmStackContext stackContext, DkmStackWalkFrame input, bool allowZero, out ulong address)
@@ -86,6 +91,14 @@ namespace LuaDkmDebuggerComponent
 
             if (input.BasicSymbolInfo.MethodName == "luaV_execute")
             {
+                var processData = DebugHelpers.GetOrCreateDataItem<LuaStackFilterData>(stackContext.InspectionSession.Process);
+
+                if (processData.scratchMemory == 0)
+                    processData.scratchMemory = input.Thread.Process.AllocateVirtualMemory(0, 4096, 0x3000, 0x04);
+
+                if (processData.scratchMemory == 0)
+                    return new DkmStackWalkFrame[1] { input };
+
                 const int luaBaseTypeMask = 0xf;
                 const int luaExtendedTypeMask = 0x3f;
 
@@ -112,12 +125,94 @@ namespace LuaDkmDebuggerComponent
 
                     if (frameType.HasValue && (frameType.Value & luaBaseTypeMask) == luaTypeFunction)
                     {
+                        ulong? prevCallInfo = TryEvaluateAddressExpression($"((CallInfo*){currCallInfo.Value})->previous", stackContext, input);
+
                         if ((frameType.Value & luaExtendedTypeMask) == luaTypeLuaFunction)
                         {
+                            // Lua is dynamic so function names are implicit, and we have a fun way of getting them
+                            // TODO: some (almost all) values can be read directly from memory, avoiding expression evaluation costs
+
+                            // Get call status
+                            long? callStatus = TryEvaluateNumberExpression($"((CallInfo*){currCallInfo.Value})->callstatus", stackContext, input);
+
+                            // Should be there, but can timeout or made an internal error
+                            if (!callStatus.HasValue)
+                                break;
+
+                            // Check for finalizer
+                            if ((callStatus.Value & (int)CallStatus.Finalizer) != 0)
+                            {
+                                luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"__gc", input.Registers, input.Annotations));
+
+                                currCallInfo = prevCallInfo;
+                                continue;
+                            }
+
+                            // Can't get function name for tail call
+                            if ((callStatus.Value & (int)CallStatus.TailCall) != 0)
+                            {
+                                luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[name unavailable - tail call]", input.Registers, input.Annotations));
+
+                                currCallInfo = prevCallInfo;
+                                continue;
+                            }
+
+                            // Now we need to know what the previous call info used to call us
+                            if (!prevCallInfo.HasValue || prevCallInfo.Value == 0)
+                                break;
+
+                            long? previousCallStatus = TryEvaluateNumberExpression($"((CallInfo*){prevCallInfo.Value})->callstatus", stackContext, input);
+
+                            // Should be there, but can timeout or made an internal error
+                            if (!previousCallStatus.HasValue)
+                                break;
+
+                            string currFunctionName = "unknown";
+
+                            // Can't get function name if previous call status is not 'Lua'
+                            if ((previousCallStatus.Value & (int)CallStatus.Lua) == 0)
+                            {
+                                currFunctionName = $"[name unavailable - not called from Lua]";
+                            }
+                            else
+                            {
+                                long? previousFrameType = TryEvaluateNumberExpression($"((CallInfo*){prevCallInfo.Value})->func->tt_", stackContext, input);
+
+                                // Check that it's safe to cast previous call info to a Lua Closure
+                                if (!frameType.HasValue || (frameType.Value & luaExtendedTypeMask) != luaTypeFunction)
+                                    break;
+
+                                string functionNameType = TryEvaluateStringExpression($"funcnamefromcode(L, ((CallInfo*){prevCallInfo.Value}), (const char**){processData.scratchMemory})", stackContext, input);
+
+                                if (functionNameType != null)
+                                {
+                                    string functionName = TryEvaluateStringExpression($"*(const char**){processData.scratchMemory}", stackContext, input);
+
+                                    if (functionName != null)
+                                        currFunctionName = functionName;
+                                }
+                            }
+
                             ulong? currProto = TryEvaluateAddressExpression($"((LClosure*)((CallInfo*){currCallInfo.Value})->func->value_.gc)->p", stackContext, input);
 
                             // Should be there, but can timeout or made an internal error
                             if (!currProto.HasValue)
+                                break;
+
+                            // Find instruction pointer of the _call_ to the current function
+                            long? currInstructionPointer = TryEvaluateNumberExpression($"((CallInfo*){currCallInfo.Value})->u.l.savedpc - ((Proto*){currProto.Value})->code", stackContext, input);
+
+                            // Should be there, but can timeout or made an internal error
+                            if (!currInstructionPointer.HasValue)
+                                break;
+
+                            // If the call was already made, savedpc will be offset by 1 (return location)
+                            int prevInstructionPointer = currInstructionPointer.Value == 0 ? 0 : (int)currInstructionPointer.Value - 1;
+
+                            long? currLine = TryEvaluateNumberExpression($"((Proto*){currProto.Value})->lineinfo[{prevInstructionPointer}]", stackContext, input);
+
+                            // Should be there, but can timeout or made an internal error
+                            if (!currLine.HasValue)
                                 break;
 
                             string sourceName = TryEvaluateStringExpression($"(char*)((Proto*){currProto.Value})->source + {luaStringOffset}", stackContext, input);
@@ -125,21 +220,24 @@ namespace LuaDkmDebuggerComponent
 
                             if (sourceName != null && lineDefined.HasValue)
                             {
-                                luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"{sourceName} unknown() Line {lineDefined}", input.Registers, input.Annotations));
+                                if (lineDefined == 0)
+                                    currFunctionName = "__global";
+
+                                luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"{sourceName} {currFunctionName}() Line {currLine}", input.Registers, input.Annotations));
                             }
                         }
                         else if ((frameType.Value & luaExtendedTypeMask) == luaTypeExternalFunction)
                         {
                             // TODO: iirc, Lua has a single call stack with external function entries, when stack filter is performed, we should break up these parts to avoid duplication
-                            luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"C function", input.Registers, input.Annotations));
+                            luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[name unavailable - C function]", input.Registers, input.Annotations));
                         }
                         else if ((frameType.Value & luaExtendedTypeMask) == luaTypeExternalClosure)
                         {
                             // TODO: iirc, Lua has a single call stack with external function entries, when stack filter is performed, we should break up these parts to avoid duplication
-                            luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"C closure", input.Registers, input.Annotations));
+                            luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[name unavailable - C closure]", input.Registers, input.Annotations));
                         }
 
-                        currCallInfo = TryEvaluateAddressExpression($"((CallInfo*){currCallInfo.Value})->previous", stackContext, input);
+                        currCallInfo = prevCallInfo;
                     }
                     else
                     {
