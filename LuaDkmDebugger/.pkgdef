@@ -1,0 +1,15 @@
+; Language name
+"Language"="Lua"
+
+; Language service (optional)
+;   If the adapter has an associated VS Language Service, specify its GUID in the "LanguageId" property
+;"LanguageId"="{C241D4C1-BC0C-45F7-99D3-D5264155BD05}"
+
+[$RootKey$\AD7Metrics\ExpressionEvaluator\{C241D4C1-BC0C-45F7-99D3-D5264155BD05}\{DD79A808-7001-4458-99D9-469BB771B9B4}]
+"Language"="Lua"
+"Name"="Lua"
+
+[$RootKey$\AD7Metrics\ExpressionEvaluator\{C241D4C1-BC0C-45F7-99D3-D5264155BD05}\{DD79A808-7001-4458-99D9-469BB771B9B4}\Engine]
+"0"="{449EC4CC-30D2-4032-9256-EE18EB41B62B}"
+"1"="{92EF0900-2251-11D2-B72E-0000F87572EF}"
+"2"="{3B476D35-A401-11D2-AAD4-00C04F990171}"
