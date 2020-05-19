@@ -44,6 +44,8 @@
     <VsdConfigXmlFiles Include="LocalComponent.vsdconfigxml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DebugHelpers.cs" />
+    <Compile Include="Guids.cs" />
     <Compile Include="LocalComponent.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
