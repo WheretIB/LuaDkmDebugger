@@ -5,3 +5,4 @@ This extensions enables limited support for inspection of lua (Vanilla 5.3.5) st
 
 ## Features:
  * Lua 'inline' stack frame insertion into the Call Stack
+ * Mark Lua stack frames as non-user code
