@@ -63,6 +63,11 @@ namespace LuaDkmDebuggerComponent
             return 16u;
         }
 
+        internal static ulong GetNodeSize(DkmProcess process)
+        {
+            return 32u;
+        }
+
         internal static LuaValueDataBase ReadValue(DkmProcess process, ulong address)
         {
             var typeTag = DebugHelpers.ReadIntVariable(process, address + 8);
@@ -630,6 +635,18 @@ namespace LuaDkmDebuggerComponent
         public ulong targetAddress;
     }
 
+    internal class LuaNodeData
+    {
+        public LuaValueDataBase value;
+        public LuaValueDataBase key;
+
+        public void ReadFrom(DkmProcess process, ulong address)
+        {
+            value = LuaHelpers.ReadValue(process, address);
+            key = LuaHelpers.ReadValue(process, address + LuaHelpers.GetValueSize(process));
+        }
+    }
+
     internal class LuaTableData
     {
         public byte flags;
@@ -642,6 +659,7 @@ namespace LuaDkmDebuggerComponent
         public ulong gclistAddress; // GCObject
 
         public List<LuaValueDataBase> arrayElements;
+        public List<LuaNodeData> nodeElements;
         public LuaTableData metaTable;
 
         public void ReadFrom(DkmProcess process, ulong address)
@@ -691,6 +709,22 @@ namespace LuaDkmDebuggerComponent
                     arrayElements.Add(LuaHelpers.ReadValue(process, address));
                 }
             }
+            nodeElements = new List<LuaNodeData>();
+
+            if (nodeDataAddress != 0)
+            {
+                for (int i = 0; i < (1 << nodeArraySizeLog2); i++)
+                {
+                    ulong address = nodeDataAddress + (ulong)i * LuaHelpers.GetNodeSize(process);
+
+                    LuaNodeData node = new LuaNodeData();
+
+                    node.ReadFrom(process, address);
+
+                    if (node.key as LuaValueDataNil == null)
+                        nodeElements.Add(node);
+                }
+            }
         }
 
         public void LoadMetaTable(DkmProcess process)
@@ -713,6 +747,9 @@ namespace LuaDkmDebuggerComponent
     {
         public ulong state; // Address of the Lua state, called 'L' in Lua library
 
+        public ulong registryAddress; // Address of the Lua global registry, accessible as '&L->l_G->l_registry' in Lua library
+        public double version;
+
         public ulong callInfo; // Address of the CallInfo struct, called 'ci' in Lua library
 
         public ulong functionAddress; // Address of the Proto struct, accessible as '((LClosure*)ci->func->value_.gc)->p' in Lua library
@@ -730,6 +767,9 @@ namespace LuaDkmDebuggerComponent
                 using (var writer = new BinaryWriter(stream))
                 {
                     writer.Write(state);
+
+                    writer.Write(registryAddress);
+                    writer.Write(version);
 
                     writer.Write(callInfo);
 
@@ -755,6 +795,9 @@ namespace LuaDkmDebuggerComponent
                 using (var reader = new BinaryReader(stream))
                 {
                     state = reader.ReadUInt64();
+
+                    registryAddress = reader.ReadUInt64();
+                    version = reader.ReadDouble();
 
                     callInfo = reader.ReadUInt64();
 

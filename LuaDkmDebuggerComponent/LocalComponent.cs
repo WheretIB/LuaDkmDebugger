@@ -180,6 +180,10 @@ namespace LuaDkmDebuggerComponent
                 luaFrameFlags = luaFrameFlags | DkmStackWalkFrameFlags.InlineOptimized;
 
                 ulong? stateAddress = TryEvaluateAddressExpression($"L", stackContext, input);
+
+                ulong? registryAddress = TryEvaluateAddressExpression($"&L->l_G->l_registry", stackContext, input);
+                long? version = TryEvaluateNumberExpression($"(int)*L->l_G->version", stackContext, input);
+
                 ulong? currCallInfo = TryEvaluateAddressExpression($"L->ci", stackContext, input);
 
                 while (stateAddress.HasValue && currCallInfo.HasValue && currCallInfo.Value != 0)
@@ -303,6 +307,9 @@ namespace LuaDkmDebuggerComponent
                                 LuaFrameData frameData = new LuaFrameData();
 
                                 frameData.state = stateAddress.Value;
+
+                                frameData.registryAddress = registryAddress.GetValueOrDefault(0);
+                                frameData.version = version.GetValueOrDefault(503);
 
                                 frameData.callInfo = currCallInfo.Value;
 
@@ -502,7 +509,24 @@ namespace LuaDkmDebuggerComponent
                 value.value.LoadMetaTable(process);
 
                 flags |= DkmEvaluationResultFlags.ReadOnly | DkmEvaluationResultFlags.Expandable;
-                return $"table with {value.value.arrayElements.Count} elements and {value.value.nodeArraySizeLog2} log2 nodes";
+
+                if (value.value.arrayElements.Count != 0 && value.value.nodeElements.Count != 0)
+                    return $"table [{value.value.arrayElements.Count} elements and {value.value.nodeElements.Count} keys]";
+
+                if (value.value.arrayElements.Count != 0)
+                    return $"table [{value.value.arrayElements.Count} elements]";
+
+                if (value.value.nodeElements.Count != 0)
+                    return $"table [{value.value.nodeElements.Count} keys]";
+
+                if (value.value.metaTable == null)
+                {
+                    flags &= ~DkmEvaluationResultFlags.Expandable;
+
+                    return "table [empty]";
+                }
+
+                return "table";
             }
 
             if (valueBase as LuaValueDataLuaFunction != null)
@@ -629,6 +653,58 @@ namespace LuaDkmDebuggerComponent
             completionRoutine(new DkmEvaluateExpressionAsyncResult(DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, expression.Text, expression.Text, "Not implemented", DkmEvaluationResultFlags.Invalid, null)));
         }
 
+        DkmEvaluationResult GetTableChildAtIndex(DkmInspectionContext inspectionContext, DkmStackWalkFrame stackFrame, string fullName, LuaValueDataTable value, int index)
+        {
+            var process = stackFrame.Process;
+
+            if (index < value.value.arrayElements.Count)
+            {
+                var element = value.value.arrayElements[index];
+
+                return EvaluateDataAtLuaValue(inspectionContext, stackFrame, $"[{index}]", $"{fullName}[{index}]", element, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+            }
+
+            index = index - value.value.arrayElements.Count;
+
+            if (index < value.value.nodeElements.Count)
+            {
+                var node = value.value.nodeElements[index];
+
+                DkmEvaluationResultFlags flags = DkmEvaluationResultFlags.None;
+                string name = EvaluateValueAtLuaValue(process, node.key, 10, out _, ref flags, out _, out _);
+
+                var keyString = node.key as LuaValueDataString;
+
+                if (keyString != null)
+                    name = keyString.value;
+
+                if (name == null)
+                    name = "%error-name%";
+
+                return EvaluateDataAtLuaValue(inspectionContext, stackFrame, name, $"{fullName}.{name}", node.value, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+            }
+
+            index = index - value.value.nodeElements.Count;
+
+            if (index == 0)
+            {
+                var metaTableValue = new LuaValueDataTable
+                {
+                    baseType = LuaBaseType.Table,
+                    extendedType = LuaExtendedType.Table,
+                    originalAddress = 0, // Not available as TValue
+                    value = value.value.metaTable,
+                    targetAddress = value.value.metaTableDataAddress
+                };
+
+                return EvaluateDataAtLuaValue(inspectionContext, stackFrame, "!metatable", $"{fullName}.!metatable", metaTableValue, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+            }
+
+            Debug.Assert(false, "Invalid child index");
+
+            return null;
+        }
+
         void IDkmLanguageExpressionEvaluator.GetChildren(DkmEvaluationResult result, DkmWorkList workList, int initialRequestSize, DkmInspectionContext inspectionContext, DkmCompletionRoutine<DkmGetChildrenAsyncResult> completionRoutine)
         {
             var process = result.StackFrame.Process;
@@ -649,18 +725,17 @@ namespace LuaDkmDebuggerComponent
                 value.value.LoadValues(process);
                 value.value.LoadMetaTable(process);
 
-                int actualSize = value.value.arrayElements.Count;
+                int actualSize = value.value.arrayElements.Count + value.value.nodeElements.Count;
+
+                if (value.value.metaTable != null)
+                    actualSize += 1;
 
                 int finalInitialSize = initialRequestSize < actualSize ? initialRequestSize : actualSize;
 
                 DkmEvaluationResult[] initialResults = new DkmEvaluationResult[finalInitialSize];
 
                 for (int i = 0; i < initialResults.Length; i++)
-                {
-                    var element = value.value.arrayElements[i];
-
-                    initialResults[i] = EvaluateDataAtLuaValue(inspectionContext, result.StackFrame, $"[{i}]", $"{result.FullName}[{i}]", element, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
-                }
+                    initialResults[i] = GetTableChildAtIndex(inspectionContext, result.StackFrame, result.FullName, value, i);
 
                 var enumerator = DkmEvaluationResultEnumContext.Create(actualSize, result.StackFrame, inspectionContext, evalData);
 
@@ -709,7 +784,7 @@ namespace LuaDkmDebuggerComponent
 
             functionData.ReadLocals(process, frameData.instructionPointer);
 
-            int count = functionData.activeLocals.Count;
+            int count = 1 + functionData.activeLocals.Count; // 1 pseudo variable for '[registry]' table
 
             completionRoutine(new DkmGetFrameLocalsAsyncResult(DkmEvaluationResultEnumContext.Create(functionData.localVariableSize, stackFrame, inspectionContext, frameLocalsEnumData)));
         }
@@ -725,7 +800,7 @@ namespace LuaDkmDebuggerComponent
                 frameLocalsEnumData.function.ReadLocals(process, frameLocalsEnumData.frameData.instructionPointer);
 
                 // Visual Studio doesn't respect enumeration size for GetFrameLocals, so we need to limit it back
-                var actualCount = frameLocalsEnumData.function.activeLocals.Count;
+                var actualCount = 1 + frameLocalsEnumData.function.activeLocals.Count;
 
                 int finalCount = actualCount - startIndex;
 
@@ -735,12 +810,25 @@ namespace LuaDkmDebuggerComponent
 
                 for (int i = startIndex; i < startIndex + finalCount; i++)
                 {
-                    // Base stack contains arguments and locals that are live at the current instruction
-                    ulong address = frameLocalsEnumData.callInfo.stackBaseAddress + (ulong)i * LuaHelpers.GetValueSize(process);
+                    if (i == 0)
+                    {
+                        ulong address = frameLocalsEnumData.frameData.registryAddress;
 
-                    string name = frameLocalsEnumData.function.activeLocals[i].name;
+                        string name = "[registry]";
 
-                    results[i - startIndex] = EvaluateDataAtAddress(enumContext.InspectionContext, enumContext.StackFrame, name, name, address, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+                        results[i - startIndex] = EvaluateDataAtAddress(enumContext.InspectionContext, enumContext.StackFrame, name, name, address, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+                    }
+                    else
+                    {
+                        int index = i - 1;
+
+                        // Base stack contains arguments and locals that are live at the current instruction
+                        ulong address = frameLocalsEnumData.callInfo.stackBaseAddress + (ulong)index * LuaHelpers.GetValueSize(process);
+
+                        string name = frameLocalsEnumData.function.activeLocals[index].name;
+
+                        results[i - startIndex] = EvaluateDataAtAddress(enumContext.InspectionContext, enumContext.StackFrame, name, name, address, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+                    }
                 }
 
                 completionRoutine(new DkmEvaluationEnumAsyncResult(results));
@@ -765,11 +853,7 @@ namespace LuaDkmDebuggerComponent
                 var results = new DkmEvaluationResult[count];
 
                 for (int i = startIndex; i < startIndex + count; i++)
-                {
-                    var element = value.value.arrayElements[i];
-
-                    results[i - startIndex] = EvaluateDataAtLuaValue(enumContext.InspectionContext, enumContext.StackFrame, $"[{i}]", $"{evalData.fullName}[{i}]", element, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
-                }
+                    results[i - startIndex] = GetTableChildAtIndex(enumContext.InspectionContext, enumContext.StackFrame, evalData.fullName, value, i);
 
                 completionRoutine(new DkmEvaluationEnumAsyncResult(results));
                 return;
