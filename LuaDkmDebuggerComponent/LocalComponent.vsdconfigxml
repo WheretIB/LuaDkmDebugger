@@ -17,6 +17,8 @@
 						<SymbolProviderId RequiredValue="guidLuaSymbolProvider"/>
 					</Filter>
 					<Interface Name="IDkmSymbolQuery"/>
+					<Interface Name="IDkmSymbolCompilerIdQuery"/>
+					<Interface Name="IDkmSymbolDocumentCollectionQuery"/>
 				</InterfaceGroup>
 
 				<InterfaceGroup>

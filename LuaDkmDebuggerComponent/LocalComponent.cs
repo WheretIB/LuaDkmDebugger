@@ -51,7 +51,7 @@ namespace LuaDkmDebuggerComponent
         public LuaValueDataBase luaValueData;
     }
 
-    public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmLanguageExpressionEvaluator
+    public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator
     {
         internal string ExecuteExpression(string expression, DkmStackContext stackContext, DkmStackWalkFrame input, bool allowZero, out ulong address)
         {
@@ -1075,6 +1075,17 @@ namespace LuaDkmDebuggerComponent
         void IDkmLanguageExpressionEvaluator.SetValueAsString(DkmEvaluationResult result, string value, int timeout, out string errorText)
         {
             errorText = "Missing evaluation data";
+        }
+
+        DkmCompilerId IDkmSymbolCompilerIdQuery.GetCompilerId(DkmInstructionSymbol instruction, DkmInspectionSession inspectionSession)
+        {
+            return new DkmCompilerId(Guids.luaCompilerGuid, Guids.luaLanguageGuid);
+        }
+
+        DkmResolvedDocument[] IDkmSymbolDocumentCollectionQuery.FindDocuments(DkmModule module, DkmSourceFileId sourceFileId)
+        {
+            // TODO: can we find a mapping from source line to loaded Lua scripts?
+            return module.FindDocuments(sourceFileId);
         }
     }
 }
