@@ -431,6 +431,7 @@ namespace LuaDkmDebuggerComponent
         public ulong gclistAddress; // GCObject
 
         public List<LuaLocalVariableData> locals;
+        public List<LuaLocalVariableData> activeLocals;
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
@@ -486,13 +487,14 @@ namespace LuaDkmDebuggerComponent
             address += pointerSize;
         }
 
-        public void ReadLocals(DkmProcess process)
+        public void ReadLocals(DkmProcess process, int instructionPointer)
         {
             // Check if alraedy loaded
             if (locals != null)
                 return;
 
             locals = new List<LuaLocalVariableData>();
+            activeLocals = new List<LuaLocalVariableData>();
 
             for (int i = 0; i < localVariableSize; i++)
             {
@@ -501,6 +503,16 @@ namespace LuaDkmDebuggerComponent
                 local.ReadFrom(process, localVariableDataAddress + (ulong)(i * LuaLocalVariableData.StructSize(process)));
 
                 locals.Add(local);
+
+                if (i < argumentCount || instructionPointer == -1)
+                {
+                    activeLocals.Add(local);
+                }
+                else
+                {
+                    if (instructionPointer >= local.lifetimeStartInstruction && instructionPointer < local.lifetimeEndInstruction)
+                        activeLocals.Add(local);
+                }
             }
         }
     }

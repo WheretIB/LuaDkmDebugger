@@ -24,6 +24,7 @@ namespace LuaDkmDebuggerComponent
 
     internal class LuaFrameLocalsEnumData : DkmDataItem
     {
+        public LuaFrameData frameData;
         public LuaFunctionCallInfoData callInfo;
         public LuaFunctionData function;
     }
@@ -501,7 +502,7 @@ namespace LuaDkmDebuggerComponent
                 value.value.LoadMetaTable(process);
 
                 flags |= DkmEvaluationResultFlags.ReadOnly | DkmEvaluationResultFlags.Expandable;
-                return $"table with {value.value.arrayElements.Count} elements";
+                return $"table with {value.value.arrayElements.Count} elements and {value.value.nodeArraySizeLog2} log2 nodes";
             }
 
             if (valueBase as LuaValueDataLuaFunction != null)
@@ -701,11 +702,14 @@ namespace LuaDkmDebuggerComponent
 
             var frameLocalsEnumData = new LuaFrameLocalsEnumData
             {
+                frameData = frameData,
                 callInfo = callInfoData,
                 function = functionData
             };
 
-            int count = functionData.argumentCount; // TODO: localVariableSize, but how do you actually find locals on the stack?
+            functionData.ReadLocals(process, frameData.instructionPointer);
+
+            int count = functionData.activeLocals.Count;
 
             completionRoutine(new DkmGetFrameLocalsAsyncResult(DkmEvaluationResultEnumContext.Create(functionData.localVariableSize, stackFrame, inspectionContext, frameLocalsEnumData)));
         }
@@ -718,8 +722,10 @@ namespace LuaDkmDebuggerComponent
 
             if (frameLocalsEnumData != null)
             {
+                frameLocalsEnumData.function.ReadLocals(process, frameLocalsEnumData.frameData.instructionPointer);
+
                 // Visual Studio doesn't respect enumeration size for GetFrameLocals, so we need to limit it back
-                var actualCount = frameLocalsEnumData.function.argumentCount; // TODO: localVariableSize, but how do you actually find locals on the stack?
+                var actualCount = frameLocalsEnumData.function.activeLocals.Count;
 
                 int finalCount = actualCount - startIndex;
 
@@ -727,13 +733,12 @@ namespace LuaDkmDebuggerComponent
 
                 var results = new DkmEvaluationResult[finalCount];
 
-                frameLocalsEnumData.function.ReadLocals(process);
-
                 for (int i = startIndex; i < startIndex + finalCount; i++)
                 {
+                    // Base stack contains arguments and locals that are live at the current instruction
                     ulong address = frameLocalsEnumData.callInfo.stackBaseAddress + (ulong)i * LuaHelpers.GetValueSize(process);
 
-                    string name = frameLocalsEnumData.function.locals[i].name;
+                    string name = frameLocalsEnumData.function.activeLocals[i].name;
 
                     results[i - startIndex] = EvaluateDataAtAddress(enumContext.InspectionContext, enumContext.StackFrame, name, name, address, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
                 }
