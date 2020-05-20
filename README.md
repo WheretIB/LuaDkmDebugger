@@ -7,6 +7,7 @@ This extensions enables limited support for inspection of lua (Vanilla 5.3.5) st
  * Lua 'inline' stack frame insertion into the Call Stack
  * Mark Lua library stack frames as non-user code
  * Jump to Lua source/line from Lua stack frames
+ * Function argument display in the 'Locals' watch section
 
  ## Known Issues:
  * This extension will always add Lua module to the application (can be seen in 'Modules' section of the debugger) even when debugging applications with no Lua code (check notes in RemoteComponent.cs)
