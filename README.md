@@ -3,6 +3,8 @@
 ---
 This Visual Studio extension enables limited support for inspection of Lua (Version 5.3) state in C++ applications during debug.
 
+[Extension on Visual Studio Marketplace](https://marketplace.visualstudio.com/manage/publishers/wheretib?src=wheretib.lua-dkm-debug)
+
 ## Features:
  * Lua 'inline' stack frame insertion into the Call Stack
  * Mark Lua library stack frames as non-user code
