@@ -393,10 +393,12 @@ namespace LuaDkmDebuggerComponent
 
             if (frameData.source.StartsWith("@"))
             {
+                string winSourcePath = frameData.source.Replace('/', '\\');
+
                 if (processData.workingDirectory != null)
-                    filePath = $"{processData.workingDirectory}\\{frameData.source.Substring(1)}";
+                    filePath = $"{processData.workingDirectory}\\{winSourcePath.Substring(1)}";
                 else
-                    filePath = frameData.source.Substring(1);
+                    filePath = winSourcePath.Substring(1);
             }
             else
             {
