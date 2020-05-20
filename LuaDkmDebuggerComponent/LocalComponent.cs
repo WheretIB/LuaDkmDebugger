@@ -24,13 +24,133 @@ namespace LuaDkmDebuggerComponent
         public string workingDirectory = null;
     }
 
+    internal class LuaLocalVariable
+    {
+        public ulong nameAddress; // TString
+        public string name;
+
+        public int lifetimeStartInstruction;
+        public int lifetimeEndInstruction;
+
+        public static int StructSize(DkmProcess process)
+        {
+            return DebugHelpers.Is64Bit(process) ? 16 : 12;
+        }
+
+        public void ReadFrom(DkmProcess process, ulong address)
+        {
+            nameAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+            address += (ulong)DebugHelpers.GetPointerSize(process);
+
+            if (nameAddress != 0)
+            {
+                int luaStringOffset = DebugHelpers.GetPointerSize(process) * 2 + 8;
+
+                byte[] nameData = process.ReadMemoryString(nameAddress + (ulong)luaStringOffset, DkmReadMemoryFlags.None, 1, 256);
+
+                if (nameData != null && nameData.Length != 0)
+                    name = System.Text.Encoding.UTF8.GetString(nameData, 0, nameData.Length - 1);
+                else
+                    name = "failed_to_read_name";
+            }
+            else
+            {
+                name = "nil";
+            }
+
+            lifetimeStartInstruction = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+            address += sizeof(int);
+            lifetimeEndInstruction = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+            address += sizeof(int);
+        }
+    }
+
+    internal class LuaFunctionData
+    {
+        public byte argumentCount;
+        public byte isVarargs;
+        public byte maxStackSize;
+        // 3 byte padding!
+        public int upvalueSize;
+        public int constantSize;
+        public int codeSize;
+        public int lineInfoSize;
+        public int localFunctionSize;
+        public int localVariableSize;
+        public int definitionStartLine;
+        public int definitionEndLine;
+        public ulong constantDataAddress; // TValue[]
+        public ulong codeDataAddress; // Opcode list (unsigned[])
+        public ulong localFunctionDataAddress; // (Proto*[])
+        public ulong lineInfoDataAddress; // For each opcode (int[])
+        public ulong localVariableDataAddress; // LocVar[]
+        public ulong upvalueDataAddress; // Upvaldesc[]
+        public ulong lastClosureCache; // LClosure
+        public ulong sourceAddress; // TString
+        public ulong gclistAddress; // GCObject
+
+        public void ReadFrom(DkmProcess process, ulong address)
+        {
+            ulong pointerSize = (ulong)DebugHelpers.GetPointerSize(process);
+
+            address += pointerSize; // Skip CommonHeader
+            address += 2;
+
+            argumentCount = DebugHelpers.ReadByteVariable(process, address).GetValueOrDefault(0);
+            address += sizeof(byte);
+            isVarargs = DebugHelpers.ReadByteVariable(process, address).GetValueOrDefault(0);
+            address += sizeof(byte);
+            maxStackSize = DebugHelpers.ReadByteVariable(process, address).GetValueOrDefault(0);
+            address += sizeof(byte);
+            address += 3; // Padding
+
+            Debug.Assert((address & 0x3) == 0);
+
+            upvalueSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+            address += sizeof(int);
+            constantSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+            address += sizeof(int);
+            codeSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+            address += sizeof(int);
+            lineInfoSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+            address += sizeof(int);
+            localFunctionSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+            address += sizeof(int);
+            localVariableSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+            address += sizeof(int);
+            definitionStartLine = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+            address += sizeof(int);
+            definitionEndLine = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+            address += sizeof(int);
+
+            constantDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+            address += pointerSize;
+            codeDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+            address += pointerSize;
+            localFunctionDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+            address += pointerSize;
+            lineInfoDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+            address += pointerSize;
+            localVariableDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+            address += pointerSize;
+            upvalueDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+            address += pointerSize;
+            lastClosureCache = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+            address += pointerSize;
+            sourceAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+            address += pointerSize;
+            gclistAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+            address += pointerSize;
+        }
+    }
+
     internal class LuaFrameData
     {
         public ulong state; // Address of the Lua state, called 'L' in Lua library
 
         public ulong callInfo; // Address of the CallInfo struct, called 'ci' in Lua library
 
-        public ulong function; // Address of the Proto struct, accessible as '((LClosure*)ci->func->value_.gc)->p' in Lua library
+        public ulong functionAddress; // Address of the Proto struct, accessible as '((LClosure*)ci->func->value_.gc)->p' in Lua library
         public string functionName;
 
         public int instructionLine;
@@ -48,7 +168,7 @@ namespace LuaDkmDebuggerComponent
 
                     writer.Write(callInfo);
 
-                    writer.Write(function);
+                    writer.Write(functionAddress);
                     writer.Write(functionName);
 
                     writer.Write(instructionLine);
@@ -73,7 +193,7 @@ namespace LuaDkmDebuggerComponent
 
                     callInfo = reader.ReadUInt64();
 
-                    function = reader.ReadUInt64();
+                    functionAddress = reader.ReadUInt64();
                     functionName = reader.ReadString();
 
                     instructionLine = reader.ReadInt32();
@@ -335,13 +455,27 @@ namespace LuaDkmDebuggerComponent
                                 if (lineDefined == 0)
                                     currFunctionName = "__global";
 
+                                LuaFunctionData protoData = new LuaFunctionData();
+                                protoData.ReadFrom(process, currProto.Value);
+
+                                string argumentList = "";
+
+                                for (int i = 0; i < protoData.argumentCount; i++)
+                                {
+                                    LuaLocalVariable argument = new LuaLocalVariable();
+
+                                    argument.ReadFrom(process, protoData.localVariableDataAddress + (ulong)(i * LuaLocalVariable.StructSize(process)));
+
+                                    argumentList += (i == 0 ? "" : ", ") + argument.name;
+                                }
+
                                 LuaFrameData frameData = new LuaFrameData();
 
                                 frameData.state = stateAddress.Value;
 
                                 frameData.callInfo = currCallInfo.Value;
 
-                                frameData.function = currProto.Value;
+                                frameData.functionAddress = currProto.Value;
                                 frameData.functionName = currFunctionName;
 
                                 frameData.instructionLine = (int)currLine;
@@ -353,7 +487,9 @@ namespace LuaDkmDebuggerComponent
 
                                 DkmInstructionAddress instructionAddress = DkmCustomInstructionAddress.Create(processData.runtimeInstance, processData.moduleInstance, frameDataBytes, (ulong)currInstructionPointer.Value, frameDataBytes, null);
 
-                                DkmStackWalkFrame frame = DkmStackWalkFrame.Create(stackContext.Thread, instructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"{sourceName} {currFunctionName}() Line {currLine}", input.Registers, input.Annotations);
+                                var description = $"{sourceName} {currFunctionName}({argumentList}) Line {currLine}";
+
+                                DkmStackWalkFrame frame = DkmStackWalkFrame.Create(stackContext.Thread, instructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, description, input.Registers, input.Annotations);
 
                                 luaFrames.Add(frame);
                             }
