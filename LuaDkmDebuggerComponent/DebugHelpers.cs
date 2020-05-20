@@ -137,6 +137,16 @@ namespace LuaDkmDebuggerComponent
             return ReadUlongVariable(process, address);
         }
 
+        internal static string ReadStringVariable(DkmProcess process, ulong address, int limit)
+        {
+            byte[] nameData = process.ReadMemoryString(address, DkmReadMemoryFlags.AllowPartialRead, 1, limit);
+
+            if (nameData != null && nameData.Length != 0)
+                return System.Text.Encoding.UTF8.GetString(nameData, 0, nameData.Length - 1);
+
+            return null;
+        }
+
         internal static ulong? ReadPointerVariable(DkmProcess process, string name)
         {
             var runtimeInstance = process.GetNativeRuntimeInstance();

@@ -6,9 +6,7 @@ using Microsoft.VisualStudio.Debugger.Evaluation;
 using Microsoft.VisualStudio.Debugger.Symbols;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 
 namespace LuaDkmDebuggerComponent
@@ -24,188 +22,20 @@ namespace LuaDkmDebuggerComponent
         public string workingDirectory = null;
     }
 
-    internal class LuaLocalVariable
+    internal class LuaFrameLocalsEnumData : DkmDataItem
     {
-        public ulong nameAddress; // TString
-        public string name;
-
-        public int lifetimeStartInstruction;
-        public int lifetimeEndInstruction;
-
-        public static int StructSize(DkmProcess process)
-        {
-            return DebugHelpers.Is64Bit(process) ? 16 : 12;
-        }
-
-        public void ReadFrom(DkmProcess process, ulong address)
-        {
-            nameAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += (ulong)DebugHelpers.GetPointerSize(process);
-
-            if (nameAddress != 0)
-            {
-                int luaStringOffset = DebugHelpers.GetPointerSize(process) * 2 + 8;
-
-                byte[] nameData = process.ReadMemoryString(nameAddress + (ulong)luaStringOffset, DkmReadMemoryFlags.None, 1, 256);
-
-                if (nameData != null && nameData.Length != 0)
-                    name = System.Text.Encoding.UTF8.GetString(nameData, 0, nameData.Length - 1);
-                else
-                    name = "failed_to_read_name";
-            }
-            else
-            {
-                name = "nil";
-            }
-
-            lifetimeStartInstruction = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
-            lifetimeEndInstruction = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
-        }
+        public LuaFunctionCallInfoData callInfo;
+        public LuaFunctionData function;
     }
 
-    internal class LuaFunctionData
+    internal class LuaEvaluationDataItem : DkmDataItem
     {
-        public byte argumentCount;
-        public byte isVarargs;
-        public byte maxStackSize;
-        // 3 byte padding!
-        public int upvalueSize;
-        public int constantSize;
-        public int codeSize;
-        public int lineInfoSize;
-        public int localFunctionSize;
-        public int localVariableSize;
-        public int definitionStartLine;
-        public int definitionEndLine;
-        public ulong constantDataAddress; // TValue[]
-        public ulong codeDataAddress; // Opcode list (unsigned[])
-        public ulong localFunctionDataAddress; // (Proto*[])
-        public ulong lineInfoDataAddress; // For each opcode (int[])
-        public ulong localVariableDataAddress; // LocVar[]
-        public ulong upvalueDataAddress; // Upvaldesc[]
-        public ulong lastClosureCache; // LClosure
-        public ulong sourceAddress; // TString
-        public ulong gclistAddress; // GCObject
-
-        public void ReadFrom(DkmProcess process, ulong address)
-        {
-            ulong pointerSize = (ulong)DebugHelpers.GetPointerSize(process);
-
-            address += pointerSize; // Skip CommonHeader
-            address += 2;
-
-            argumentCount = DebugHelpers.ReadByteVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(byte);
-            isVarargs = DebugHelpers.ReadByteVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(byte);
-            maxStackSize = DebugHelpers.ReadByteVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(byte);
-            address += 3; // Padding
-
-            Debug.Assert((address & 0x3) == 0);
-
-            upvalueSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
-            constantSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
-            codeSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
-            lineInfoSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
-            localFunctionSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
-            localVariableSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
-            definitionStartLine = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
-            definitionEndLine = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
-
-            constantDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            codeDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            localFunctionDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            lineInfoDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            localVariableDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            upvalueDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            lastClosureCache = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            sourceAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            gclistAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-        }
+        public ulong address;
+        public string type;
+        public string fullName;
     }
 
-    internal class LuaFrameData
-    {
-        public ulong state; // Address of the Lua state, called 'L' in Lua library
-
-        public ulong callInfo; // Address of the CallInfo struct, called 'ci' in Lua library
-
-        public ulong functionAddress; // Address of the Proto struct, accessible as '((LClosure*)ci->func->value_.gc)->p' in Lua library
-        public string functionName;
-
-        public int instructionLine;
-        public int instructionPointer; // Current instruction within the Lua Closure, evaluated as 'ci->u.l.savedpc - p->code' in Lua library (TODO: do we need to subtract 1?)
-
-        public string source;
-
-        public ReadOnlyCollection<byte> Encode()
-        {
-            using (var stream = new MemoryStream())
-            {
-                using (var writer = new BinaryWriter(stream))
-                {
-                    writer.Write(state);
-
-                    writer.Write(callInfo);
-
-                    writer.Write(functionAddress);
-                    writer.Write(functionName);
-
-                    writer.Write(instructionLine);
-                    writer.Write(instructionPointer);
-
-                    writer.Write(source);
-
-                    writer.Flush();
-
-                    return new ReadOnlyCollection<byte>(stream.ToArray());
-                }
-            }
-        }
-
-        public void ReadFrom(byte[] data)
-        {
-            using (var stream = new MemoryStream(data))
-            {
-                using (var reader = new BinaryReader(stream))
-                {
-                    state = reader.ReadUInt64();
-
-                    callInfo = reader.ReadUInt64();
-
-                    functionAddress = reader.ReadUInt64();
-                    functionName = reader.ReadString();
-
-                    instructionLine = reader.ReadInt32();
-                    instructionPointer = reader.ReadInt32();
-
-                    source = reader.ReadString();
-                }
-            }
-        }
-    }
-
-    public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery
+    public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmLanguageExpressionEvaluator
     {
         internal string ExecuteExpression(string expression, DkmStackContext stackContext, DkmStackWalkFrame input, bool allowZero, out ulong address)
         {
@@ -330,6 +160,7 @@ namespace LuaDkmDebuggerComponent
                     }
                 }
 
+                // TODO: Replace with enumerations from Bytecode.cs
                 const int luaBaseTypeMask = 0xf;
                 const int luaExtendedTypeMask = 0x3f;
 
@@ -338,8 +169,6 @@ namespace LuaDkmDebuggerComponent
                 const int luaTypeLuaFunction = luaTypeFunction + (0 << 4);
                 const int luaTypeExternalFunction = luaTypeFunction + (1 << 4);
                 const int luaTypeExternalClosure = luaTypeFunction + (2 << 4);
-
-                int luaStringOffset = DebugHelpers.GetPointerSize(process) * 2 + 8;
 
                 List<DkmStackWalkFrame> luaFrames = new List<DkmStackWalkFrame>();
 
@@ -447,7 +276,7 @@ namespace LuaDkmDebuggerComponent
                             if (!currLine.HasValue)
                                 break;
 
-                            string sourceName = TryEvaluateStringExpression($"(char*)((Proto*){currProto.Value})->source + {luaStringOffset}", stackContext, input);
+                            string sourceName = TryEvaluateStringExpression($"(char*)((Proto*){currProto.Value})->source + {LuaHelpers.GetStringDataOffset(process)}", stackContext, input);
                             long? lineDefined = TryEvaluateNumberExpression($"((Proto*){currProto.Value})->linedefined", stackContext, input);
 
                             if (sourceName != null && lineDefined.HasValue)
@@ -455,16 +284,16 @@ namespace LuaDkmDebuggerComponent
                                 if (lineDefined == 0)
                                     currFunctionName = "__global";
 
-                                LuaFunctionData protoData = new LuaFunctionData();
-                                protoData.ReadFrom(process, currProto.Value);
+                                LuaFunctionData functionData = new LuaFunctionData();
+                                functionData.ReadFrom(process, currProto.Value);
 
                                 string argumentList = "";
 
-                                for (int i = 0; i < protoData.argumentCount; i++)
+                                for (int i = 0; i < functionData.argumentCount; i++)
                                 {
-                                    LuaLocalVariable argument = new LuaLocalVariable();
+                                    LuaLocalVariableData argument = new LuaLocalVariableData();
 
-                                    argument.ReadFrom(process, protoData.localVariableDataAddress + (ulong)(i * LuaLocalVariable.StructSize(process)));
+                                    argument.ReadFrom(process, functionData.localVariableDataAddress + (ulong)(i * LuaLocalVariableData.StructSize(process)));
 
                                     argumentList += (i == 0 ? "" : ", ") + argument.name;
                                 }
@@ -576,6 +405,306 @@ namespace LuaDkmDebuggerComponent
         object IDkmSymbolQuery.GetSymbolInterface(DkmModule module, Guid interfaceID)
         {
             return module.GetSymbolInterface(interfaceID);
+        }
+
+        string EvaluateValueAtAddress(DkmProcess process, ulong address, out string editableValue, ref DkmEvaluationResultFlags flags, out DkmDataAddress dataAddress, out string type)
+        {
+            editableValue = null;
+            dataAddress = null;
+            type = "unknown";
+
+            var typeTag = DebugHelpers.ReadIntVariable(process, address + 8);
+
+            if (typeTag == null)
+                return null;
+
+            switch (LuaHelpers.GetExtendedType(typeTag.Value))
+            {
+                case LuaExtendedType.Nil:
+                    type = "nil";
+                    return "nil";
+                case LuaExtendedType.Boolean:
+                    {
+                        type = "bool";
+
+                        var value = DebugHelpers.ReadIntVariable(process, address);
+
+                        if (value.HasValue)
+                        {
+                            if (value.Value != 0)
+                            {
+                                flags |= DkmEvaluationResultFlags.Boolean | DkmEvaluationResultFlags.BooleanTrue;
+                                editableValue = $"{value.Value}";
+                                return "true";
+                            }
+                            else
+                            {
+                                flags |= DkmEvaluationResultFlags.Boolean;
+                                editableValue = $"{value.Value}";
+                                return "false";
+                            }
+                        }
+                    }
+
+                    return null;
+                case LuaExtendedType.LightUserData:
+                    {
+                        type = "user_data";
+
+                        var value = DebugHelpers.ReadPointerVariable(process, address);
+
+                        if (value.HasValue)
+                        {
+                            flags |= DkmEvaluationResultFlags.IsBuiltInType;
+                            editableValue = $"{value.Value}";
+                            return $"0x{value.Value:x}";
+                        }
+                    }
+
+                    return null;
+                case LuaExtendedType.FloatNumber:
+                    {
+                        type = "double";
+
+                        var value = DebugHelpers.ReadDoubleVariable(process, address);
+
+                        if (value.HasValue)
+                        {
+                            flags |= DkmEvaluationResultFlags.IsBuiltInType;
+                            editableValue = $"{value.Value}";
+                            return $"{value.Value}";
+                        }
+                    }
+
+                    return null;
+                case LuaExtendedType.IntegerNumber:
+                    {
+                        type = "int";
+
+                        var value = DebugHelpers.ReadIntVariable(process, address);
+
+                        if (value.HasValue)
+                        {
+                            flags |= DkmEvaluationResultFlags.IsBuiltInType;
+                            editableValue = $"{value.Value}";
+                            return $"{value.Value}";
+                        }
+                    }
+
+                    return null;
+                case LuaExtendedType.ShortString:
+                    {
+                        type = "short_string";
+
+                        var value = DebugHelpers.ReadPointerVariable(process, address);
+
+                        if (value.HasValue)
+                        {
+                            ulong luaStringOffset = LuaHelpers.GetStringDataOffset(process);
+
+                            var target = DebugHelpers.ReadStringVariable(process, value.Value + luaStringOffset, 256);
+
+                            if (target != null)
+                            {
+                                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.RawString | DkmEvaluationResultFlags.ReadOnly;
+                                dataAddress = DkmDataAddress.Create(process.GetNativeRuntimeInstance(), value.Value + luaStringOffset, null);
+                                return $"0x{value.Value + luaStringOffset:x} \"{target}\"";
+                            }
+                        }
+                    }
+
+                    return null;
+                case LuaExtendedType.LongString:
+                    {
+                        type = "long_string";
+
+                        var value = DebugHelpers.ReadPointerVariable(process, address);
+
+                        if (value.HasValue)
+                        {
+                            ulong luaStringOffset = LuaHelpers.GetStringDataOffset(process);
+
+                            var target = DebugHelpers.ReadStringVariable(process, value.Value + luaStringOffset, 256);
+
+                            if (target != null)
+                            {
+                                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.RawString | DkmEvaluationResultFlags.ReadOnly;
+                                dataAddress = DkmDataAddress.Create(process.GetNativeRuntimeInstance(), value.Value + luaStringOffset, null);
+                                return $"0x{value.Value + luaStringOffset:x} \"{target}\"";
+                            }
+                        }
+                    }
+
+                    return null;
+                case LuaExtendedType.Table:
+                    {
+                        type = "table";
+                    }
+
+                    return null;
+                case LuaExtendedType.LuaFunction:
+                    {
+                        type = "lua_function";
+                    }
+
+                    return null;
+                case LuaExtendedType.ExternalFunction:
+                    {
+                        type = "c_function";
+                    }
+
+                    return null;
+                case LuaExtendedType.ExternalClosure:
+                    {
+                        type = "c_closure";
+                    }
+
+                    return null;
+                case LuaExtendedType.UserData:
+                    {
+                        type = "user_data";
+                    }
+
+                    return null;
+                case LuaExtendedType.Thread:
+                    {
+                        type = "thread";
+                    }
+
+                    return null;
+            }
+
+            return null;
+        }
+
+        DkmEvaluationResult EvaluateDataAtAddress(DkmInspectionContext inspectionContext, DkmStackWalkFrame stackFrame, string name, string fullName, ulong address, DkmEvaluationResultFlags flags, DkmEvaluationResultAccessType access, DkmEvaluationResultStorageType storage)
+        {
+            var process = stackFrame.Process;
+
+            if (address == 0)
+                return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, name, fullName, "Failed to read value", DkmEvaluationResultFlags.Invalid, null);
+
+            string value = EvaluateValueAtAddress(process, address, out string editableValue, ref flags, out DkmDataAddress dataAddress, out string type);
+
+            if (value == null)
+                return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, name, fullName, "Failed to read value", DkmEvaluationResultFlags.Invalid, null);
+
+            DkmEvaluationResultCategory category = DkmEvaluationResultCategory.Data;
+            DkmEvaluationResultTypeModifierFlags typeModifiers = DkmEvaluationResultTypeModifierFlags.None;
+
+            var dataItem = new LuaEvaluationDataItem
+            {
+                address = address,
+                type = type,
+                fullName = fullName
+            };
+
+            return DkmSuccessEvaluationResult.Create(inspectionContext, stackFrame, name, fullName, flags, value, editableValue, type, category, access, storage, typeModifiers, dataAddress, null, null, dataItem);
+        }
+
+        void IDkmLanguageExpressionEvaluator.EvaluateExpression(DkmInspectionContext inspectionContext, DkmWorkList workList, DkmLanguageExpression expression, DkmStackWalkFrame stackFrame, DkmCompletionRoutine<DkmEvaluateExpressionAsyncResult> completionRoutine)
+        {
+            completionRoutine(new DkmEvaluateExpressionAsyncResult(DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, expression.Text, expression.Text, "Not implemented", DkmEvaluationResultFlags.Invalid, null)));
+        }
+
+        void IDkmLanguageExpressionEvaluator.GetChildren(DkmEvaluationResult result, DkmWorkList workList, int initialRequestSize, DkmInspectionContext inspectionContext, DkmCompletionRoutine<DkmGetChildrenAsyncResult> completionRoutine)
+        {
+            completionRoutine(new DkmGetChildrenAsyncResult(new DkmEvaluationResult[0], DkmEvaluationResultEnumContext.Create(0, result.StackFrame, inspectionContext, null)));
+        }
+
+        void IDkmLanguageExpressionEvaluator.GetFrameArguments(DkmInspectionContext inspectionContext, DkmWorkList workList, DkmStackWalkFrame frame, DkmCompletionRoutine<DkmGetFrameArgumentsAsyncResult> completionRoutine)
+        {
+            completionRoutine(new DkmGetFrameArgumentsAsyncResult(new DkmEvaluationResult[0]));
+        }
+
+        void IDkmLanguageExpressionEvaluator.GetFrameLocals(DkmInspectionContext inspectionContext, DkmWorkList workList, DkmStackWalkFrame stackFrame, DkmCompletionRoutine<DkmGetFrameLocalsAsyncResult> completionRoutine)
+        {
+            var process = stackFrame.Process;
+
+            // Load frame data from instruction
+            var instructionAddress = stackFrame.InstructionAddress as DkmCustomInstructionAddress;
+
+            Debug.Assert(instructionAddress != null);
+
+            var frameData = new LuaFrameData();
+
+            frameData.ReadFrom(instructionAddress.AdditionalData.ToArray());
+
+            // Load call info data
+            LuaFunctionCallInfoData callInfoData = new LuaFunctionCallInfoData();
+
+            callInfoData.ReadFrom(process, frameData.callInfo); // TODO: cache?
+
+            // Load function data
+            LuaFunctionData functionData = new LuaFunctionData();
+
+            functionData.ReadFrom(process, frameData.functionAddress); // TODO: cache?
+
+            var frameLocalsEnumData = new LuaFrameLocalsEnumData
+            {
+                callInfo = callInfoData,
+                function = functionData
+            };
+
+            int count = functionData.argumentCount; // TODO: localVariableSize, but how do you actually find locals on the stack?
+
+            completionRoutine(new DkmGetFrameLocalsAsyncResult(DkmEvaluationResultEnumContext.Create(functionData.localVariableSize, stackFrame, inspectionContext, frameLocalsEnumData)));
+        }
+
+        void IDkmLanguageExpressionEvaluator.GetItems(DkmEvaluationResultEnumContext enumContext, DkmWorkList workList, int startIndex, int count, DkmCompletionRoutine<DkmEvaluationEnumAsyncResult> completionRoutine)
+        {
+            var process = enumContext.StackFrame.Process;
+
+            var frameLocalsEnumData = enumContext.GetDataItem<LuaFrameLocalsEnumData>();
+
+            if (frameLocalsEnumData != null)
+            {
+                // Visual Studio doesn't respect enumeration size for GetFrameLocals, so we need to limit it back
+                var actualCount = frameLocalsEnumData.function.argumentCount; // TODO: localVariableSize, but how do you actually find locals on the stack?
+
+                int finalCount = actualCount - startIndex;
+
+                finalCount = finalCount < 0 ? 0 : (finalCount < count ? finalCount : count);
+
+                var results = new DkmEvaluationResult[finalCount];
+
+                frameLocalsEnumData.function.ReadLocals(process);
+
+                for (int i = startIndex; i < startIndex + finalCount; i++)
+                {
+                    ulong address = frameLocalsEnumData.callInfo.stackBaseAddress + (ulong)i * LuaHelpers.GetValueSize(process);
+
+                    string name = frameLocalsEnumData.function.locals[i].name;
+
+                    results[i - startIndex] = EvaluateDataAtAddress(enumContext.InspectionContext, enumContext.StackFrame, name, name, address, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+                }
+
+                completionRoutine(new DkmEvaluationEnumAsyncResult(results));
+            }
+
+            completionRoutine(new DkmEvaluationEnumAsyncResult(new DkmEvaluationResult[0]));
+        }
+
+        string IDkmLanguageExpressionEvaluator.GetUnderlyingString(DkmEvaluationResult result)
+        {
+            var process = result.StackFrame.Process;
+
+            var success = result as DkmSuccessEvaluationResult;
+
+            if (success == null)
+                return "Failed to evaluate";
+
+            var target = DebugHelpers.ReadStringVariable(process, success.Address.Value, 32 * 1024);
+
+            if (target != null)
+                return target;
+
+            return "Failed to read data";
+        }
+
+        void IDkmLanguageExpressionEvaluator.SetValueAsString(DkmEvaluationResult result, string value, int timeout, out string errorText)
+        {
+            errorText = "Missing evaluation data";
         }
     }
 }
