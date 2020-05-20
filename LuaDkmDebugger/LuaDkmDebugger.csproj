@@ -61,7 +61,9 @@
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="16.5.2047" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include=".pkgdef" />
+    <Content Include=".pkgdef">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
     <Content Include="license.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <IncludeInVSIX>true</IncludeInVSIX>
