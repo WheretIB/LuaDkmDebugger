@@ -2,7 +2,7 @@
 <Configuration xmlns="http://schemas.microsoft.com/vstudio/vsdconfig/2008">
 	<DefineGuid Name="guidLuaLocalDebuggerComponent" Value="CF3F5D48-EFBB-49CB-916A-F19812A322ED"/>
 
-	<ManagedComponent ComponentId="guidLuaLocalDebuggerComponent" ComponentLevel="9995000" AssemblyName="LuaDkmDebuggerComponent">
+	<ManagedComponent ComponentId="guidLuaLocalDebuggerComponent" ComponentLevel="1999000" AssemblyName="LuaDkmDebuggerComponent">
 		<Class Name="LuaDkmDebuggerComponent.LocalComponent">
 			<Implements>
 				<InterfaceGroup>
