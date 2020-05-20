@@ -1,17 +1,23 @@
 ﻿using Microsoft.VisualStudio.Debugger;
 using Microsoft.VisualStudio.Debugger.CallStack;
 using Microsoft.VisualStudio.Debugger.ComponentInterfaces;
+using Microsoft.VisualStudio.Debugger.CustomRuntimes;
 using Microsoft.VisualStudio.Debugger.Evaluation;
+using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace LuaDkmDebuggerComponent
 {
     internal class LuaStackFilterData : DkmDataItem
     {
+        public DkmCustomRuntimeInstance runtime = null;
+        public DkmCustomModuleInstance moduleInstance = null;
+
         public ulong scratchMemory = 0;
     }
 
-    public class LuaStackFilter : IDkmCallStackFilter
+    public class LocalComponent : IDkmCallStackFilter
     {
         internal string ExecuteExpression(string expression, DkmStackContext stackContext, DkmStackWalkFrame input, bool allowZero, out ulong address)
         {
@@ -91,10 +97,31 @@ namespace LuaDkmDebuggerComponent
 
             if (input.BasicSymbolInfo.MethodName == "luaV_execute")
             {
-                var processData = DebugHelpers.GetOrCreateDataItem<LuaStackFilterData>(stackContext.InspectionSession.Process);
+                var process = stackContext.InspectionSession.Process;
+
+                var processData = DebugHelpers.GetOrCreateDataItem<LuaStackFilterData>(process);
 
                 if (processData.scratchMemory == 0)
-                    processData.scratchMemory = input.Thread.Process.AllocateVirtualMemory(0, 4096, 0x3000, 0x04);
+                    processData.scratchMemory = process.AllocateVirtualMemory(0, 4096, 0x3000, 0x04);
+
+                if (processData.runtime == null)
+                {
+                    // Request the RemoteComponent to create the runtime and a module
+                    // NOTE: Due to issues with Visual Studio debugger, runtime and module were already created as soon as application launched
+                    var message = DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.createRuntime, null, null);
+
+                    message.SendLower();
+
+                    processData.runtime = process.GetRuntimeInstances().OfType<DkmCustomRuntimeInstance>().FirstOrDefault(el => el.Id.RuntimeType == Guids.luaRuntimeGuid);
+
+                    if (processData.runtime == null)
+                        return new DkmStackWalkFrame[1] { input };
+
+                    processData.moduleInstance = processData.runtime.GetModuleInstances().OfType<DkmCustomModuleInstance>().FirstOrDefault(el => el.Module != null && el.Module.CompilerId.VendorId == Guids.luaCompilerGuid);
+
+                    if (processData.moduleInstance == null)
+                        return new DkmStackWalkFrame[1] { input };
+                }
 
                 if (processData.scratchMemory == 0)
                     return new DkmStackWalkFrame[1] { input };
@@ -108,7 +135,7 @@ namespace LuaDkmDebuggerComponent
                 const int luaTypeExternalFunction = luaTypeFunction + (1 << 4);
                 const int luaTypeExternalClosure = luaTypeFunction + (2 << 4);
 
-                int luaStringOffset = DebugHelpers.GetPointerSize(input.Thread.Process) * 2 + 8;
+                int luaStringOffset = DebugHelpers.GetPointerSize(process) * 2 + 8;
 
                 List<DkmStackWalkFrame> luaFrames = new List<DkmStackWalkFrame>();
 
