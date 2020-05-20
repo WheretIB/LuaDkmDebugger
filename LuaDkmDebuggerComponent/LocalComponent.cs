@@ -3,21 +3,89 @@ using Microsoft.VisualStudio.Debugger.CallStack;
 using Microsoft.VisualStudio.Debugger.ComponentInterfaces;
 using Microsoft.VisualStudio.Debugger.CustomRuntimes;
 using Microsoft.VisualStudio.Debugger.Evaluation;
+using Microsoft.VisualStudio.Debugger.Symbols;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 
 namespace LuaDkmDebuggerComponent
 {
-    internal class LuaStackFilterData : DkmDataItem
+    internal class LuaLocalProcessData : DkmDataItem
     {
-        public DkmCustomRuntimeInstance runtime = null;
+        public DkmCustomRuntimeInstance runtimeInstance = null;
         public DkmCustomModuleInstance moduleInstance = null;
 
         public ulong scratchMemory = 0;
+
+        public bool workingDirectoryRequested = false;
+        public string workingDirectory = null;
     }
 
-    public class LocalComponent : IDkmCallStackFilter
+    internal class LuaFrameData
+    {
+        public ulong state; // Address of the Lua state, called 'L' in Lua library
+
+        public ulong callInfo; // Address of the CallInfo struct, called 'ci' in Lua library
+
+        public ulong function; // Address of the Proto struct, accessible as '((LClosure*)ci->func->value_.gc)->p' in Lua library
+        public string functionName;
+
+        public int instructionLine;
+        public int instructionPointer; // Current instruction within the Lua Closure, evaluated as 'ci->u.l.savedpc - p->code' in Lua library (TODO: do we need to subtract 1?)
+
+        public string source;
+
+        public ReadOnlyCollection<byte> Encode()
+        {
+            using (var stream = new MemoryStream())
+            {
+                using (var writer = new BinaryWriter(stream))
+                {
+                    writer.Write(state);
+
+                    writer.Write(callInfo);
+
+                    writer.Write(function);
+                    writer.Write(functionName);
+
+                    writer.Write(instructionLine);
+                    writer.Write(instructionPointer);
+
+                    writer.Write(source);
+
+                    writer.Flush();
+
+                    return new ReadOnlyCollection<byte>(stream.ToArray());
+                }
+            }
+        }
+
+        public void ReadFrom(byte[] data)
+        {
+            using (var stream = new MemoryStream(data))
+            {
+                using (var reader = new BinaryReader(stream))
+                {
+                    state = reader.ReadUInt64();
+
+                    callInfo = reader.ReadUInt64();
+
+                    function = reader.ReadUInt64();
+                    functionName = reader.ReadString();
+
+                    instructionLine = reader.ReadInt32();
+                    instructionPointer = reader.ReadInt32();
+
+                    source = reader.ReadString();
+                }
+            }
+        }
+    }
+
+    public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery
     {
         internal string ExecuteExpression(string expression, DkmStackContext stackContext, DkmStackWalkFrame input, bool allowZero, out ulong address)
         {
@@ -99,12 +167,9 @@ namespace LuaDkmDebuggerComponent
             {
                 var process = stackContext.InspectionSession.Process;
 
-                var processData = DebugHelpers.GetOrCreateDataItem<LuaStackFilterData>(process);
+                var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
 
-                if (processData.scratchMemory == 0)
-                    processData.scratchMemory = process.AllocateVirtualMemory(0, 4096, 0x3000, 0x04);
-
-                if (processData.runtime == null)
+                if (processData.runtimeInstance == null)
                 {
                     // Request the RemoteComponent to create the runtime and a module
                     // NOTE: Due to issues with Visual Studio debugger, runtime and module were already created as soon as application launched
@@ -112,19 +177,38 @@ namespace LuaDkmDebuggerComponent
 
                     message.SendLower();
 
-                    processData.runtime = process.GetRuntimeInstances().OfType<DkmCustomRuntimeInstance>().FirstOrDefault(el => el.Id.RuntimeType == Guids.luaRuntimeGuid);
+                    processData.runtimeInstance = process.GetRuntimeInstances().OfType<DkmCustomRuntimeInstance>().FirstOrDefault(el => el.Id.RuntimeType == Guids.luaRuntimeGuid);
 
-                    if (processData.runtime == null)
+                    if (processData.runtimeInstance == null)
                         return new DkmStackWalkFrame[1] { input };
 
-                    processData.moduleInstance = processData.runtime.GetModuleInstances().OfType<DkmCustomModuleInstance>().FirstOrDefault(el => el.Module != null && el.Module.CompilerId.VendorId == Guids.luaCompilerGuid);
+                    processData.moduleInstance = processData.runtimeInstance.GetModuleInstances().OfType<DkmCustomModuleInstance>().FirstOrDefault(el => el.Module != null && el.Module.CompilerId.VendorId == Guids.luaCompilerGuid);
 
                     if (processData.moduleInstance == null)
                         return new DkmStackWalkFrame[1] { input };
                 }
 
                 if (processData.scratchMemory == 0)
+                    processData.scratchMemory = process.AllocateVirtualMemory(0, 4096, 0x3000, 0x04);
+
+                if (processData.scratchMemory == 0)
                     return new DkmStackWalkFrame[1] { input };
+
+                if (processData.workingDirectory == null && !processData.workingDirectoryRequested)
+                {
+                    processData.workingDirectoryRequested = true;
+
+                    // Jumping through hoops, kernel32.dll should be loaded
+                    string callAddress = DebugHelpers.FindFunctionAddress(process.GetNativeRuntimeInstance(), "GetCurrentDirectoryA");
+
+                    if (callAddress != null)
+                    {
+                        long? length = TryEvaluateNumberExpression($"((int(*)(int, char*)){callAddress})(4095, (char*){processData.scratchMemory})", stackContext, input);
+
+                        if (length.HasValue && length.Value != 0)
+                            processData.workingDirectory = TryEvaluateStringExpression($"(const char*){processData.scratchMemory}", stackContext, input);
+                    }
+                }
 
                 const int luaBaseTypeMask = 0xf;
                 const int luaExtendedTypeMask = 0x3f;
@@ -144,82 +228,83 @@ namespace LuaDkmDebuggerComponent
                 luaFrameFlags = luaFrameFlags & ~(DkmStackWalkFrameFlags.NonuserCode | DkmStackWalkFrameFlags.UserStatusNotDetermined);
                 luaFrameFlags = luaFrameFlags | DkmStackWalkFrameFlags.InlineOptimized;
 
+                ulong? stateAddress = TryEvaluateAddressExpression($"L", stackContext, input);
                 ulong? currCallInfo = TryEvaluateAddressExpression($"L->ci", stackContext, input);
 
-                while (currCallInfo.HasValue && currCallInfo.Value != 0)
+                while (stateAddress.HasValue && currCallInfo.HasValue && currCallInfo.Value != 0)
                 {
+                    // TODO: some (almost all) values can be read directly from memory, avoiding expression evaluation costs
                     long? frameType = TryEvaluateNumberExpression($"((CallInfo*){currCallInfo.Value})->func->tt_", stackContext, input);
 
                     if (frameType.HasValue && (frameType.Value & luaBaseTypeMask) == luaTypeFunction)
                     {
                         ulong? prevCallInfo = TryEvaluateAddressExpression($"((CallInfo*){currCallInfo.Value})->previous", stackContext, input);
 
+                        // Lua is dynamic so function names are implicit, and we have a fun way of getting them
+
+                        // Get call status
+                        long? callStatus = TryEvaluateNumberExpression($"((CallInfo*){currCallInfo.Value})->callstatus", stackContext, input);
+
+                        // Should be there, but can timeout or made an internal error
+                        if (!callStatus.HasValue)
+                            break;
+
+                        // Check for finalizer
+                        if ((callStatus.Value & (int)CallStatus.Finalizer) != 0)
+                        {
+                            luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"__gc", input.Registers, input.Annotations));
+
+                            currCallInfo = prevCallInfo;
+                            continue;
+                        }
+
+                        // Can't get function name for tail call
+                        if ((callStatus.Value & (int)CallStatus.TailCall) != 0)
+                        {
+                            luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[name unavailable - tail call]", input.Registers, input.Annotations));
+
+                            currCallInfo = prevCallInfo;
+                            continue;
+                        }
+
+                        // Now we need to know what the previous call info used to call us
+                        if (!prevCallInfo.HasValue || prevCallInfo.Value == 0)
+                            break;
+
+                        long? previousCallStatus = TryEvaluateNumberExpression($"((CallInfo*){prevCallInfo.Value})->callstatus", stackContext, input);
+
+                        // Should be there, but can timeout or made an internal error
+                        if (!previousCallStatus.HasValue)
+                            break;
+
+                        string currFunctionName = "name unavailable";
+
+                        // Can't get function name if previous call status is not 'Lua'
+                        if ((previousCallStatus.Value & (int)CallStatus.Lua) == 0)
+                        {
+                            currFunctionName = $"[name unavailable - not called from Lua]";
+                        }
+                        else
+                        {
+                            long? previousFrameType = TryEvaluateNumberExpression($"((CallInfo*){prevCallInfo.Value})->func->tt_", stackContext, input);
+
+                            // Check that it's safe to cast previous call info to a Lua Closure
+                            if (!previousFrameType.HasValue || (previousFrameType.Value & luaExtendedTypeMask) != luaTypeFunction)
+                                break;
+
+                            string functionNameType = TryEvaluateStringExpression($"funcnamefromcode(L, ((CallInfo*){prevCallInfo.Value}), (const char**){processData.scratchMemory})", stackContext, input);
+
+                            if (functionNameType != null)
+                            {
+                                string functionName = TryEvaluateStringExpression($"*(const char**){processData.scratchMemory}", stackContext, input);
+
+                                if (functionName != null)
+                                    currFunctionName = functionName;
+                            }
+                        }
+
                         if ((frameType.Value & luaExtendedTypeMask) == luaTypeLuaFunction)
                         {
-                            // Lua is dynamic so function names are implicit, and we have a fun way of getting them
-                            // TODO: some (almost all) values can be read directly from memory, avoiding expression evaluation costs
-
-                            // Get call status
-                            long? callStatus = TryEvaluateNumberExpression($"((CallInfo*){currCallInfo.Value})->callstatus", stackContext, input);
-
-                            // Should be there, but can timeout or made an internal error
-                            if (!callStatus.HasValue)
-                                break;
-
-                            // Check for finalizer
-                            if ((callStatus.Value & (int)CallStatus.Finalizer) != 0)
-                            {
-                                luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"__gc", input.Registers, input.Annotations));
-
-                                currCallInfo = prevCallInfo;
-                                continue;
-                            }
-
-                            // Can't get function name for tail call
-                            if ((callStatus.Value & (int)CallStatus.TailCall) != 0)
-                            {
-                                luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[name unavailable - tail call]", input.Registers, input.Annotations));
-
-                                currCallInfo = prevCallInfo;
-                                continue;
-                            }
-
-                            // Now we need to know what the previous call info used to call us
-                            if (!prevCallInfo.HasValue || prevCallInfo.Value == 0)
-                                break;
-
-                            long? previousCallStatus = TryEvaluateNumberExpression($"((CallInfo*){prevCallInfo.Value})->callstatus", stackContext, input);
-
-                            // Should be there, but can timeout or made an internal error
-                            if (!previousCallStatus.HasValue)
-                                break;
-
-                            string currFunctionName = "unknown";
-
-                            // Can't get function name if previous call status is not 'Lua'
-                            if ((previousCallStatus.Value & (int)CallStatus.Lua) == 0)
-                            {
-                                currFunctionName = $"[name unavailable - not called from Lua]";
-                            }
-                            else
-                            {
-                                long? previousFrameType = TryEvaluateNumberExpression($"((CallInfo*){prevCallInfo.Value})->func->tt_", stackContext, input);
-
-                                // Check that it's safe to cast previous call info to a Lua Closure
-                                if (!frameType.HasValue || (frameType.Value & luaExtendedTypeMask) != luaTypeFunction)
-                                    break;
-
-                                string functionNameType = TryEvaluateStringExpression($"funcnamefromcode(L, ((CallInfo*){prevCallInfo.Value}), (const char**){processData.scratchMemory})", stackContext, input);
-
-                                if (functionNameType != null)
-                                {
-                                    string functionName = TryEvaluateStringExpression($"*(const char**){processData.scratchMemory}", stackContext, input);
-
-                                    if (functionName != null)
-                                        currFunctionName = functionName;
-                                }
-                            }
-
                             ulong? currProto = TryEvaluateAddressExpression($"((LClosure*)((CallInfo*){currCallInfo.Value})->func->value_.gc)->p", stackContext, input);
 
                             // Should be there, but can timeout or made an internal error
@@ -250,18 +335,38 @@ namespace LuaDkmDebuggerComponent
                                 if (lineDefined == 0)
                                     currFunctionName = "__global";
 
-                                luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"{sourceName} {currFunctionName}() Line {currLine}", input.Registers, input.Annotations));
+                                LuaFrameData frameData = new LuaFrameData();
+
+                                frameData.state = stateAddress.Value;
+
+                                frameData.callInfo = currCallInfo.Value;
+
+                                frameData.function = currProto.Value;
+                                frameData.functionName = currFunctionName;
+
+                                frameData.instructionLine = (int)currLine;
+                                frameData.instructionPointer = (int)currInstructionPointer.Value;
+
+                                frameData.source = sourceName;
+
+                                var frameDataBytes = frameData.Encode();
+
+                                DkmInstructionAddress instructionAddress = DkmCustomInstructionAddress.Create(processData.runtimeInstance, processData.moduleInstance, frameDataBytes, (ulong)currInstructionPointer.Value, frameDataBytes, null);
+
+                                DkmStackWalkFrame frame = DkmStackWalkFrame.Create(stackContext.Thread, instructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"{sourceName} {currFunctionName}() Line {currLine}", input.Registers, input.Annotations);
+
+                                luaFrames.Add(frame);
                             }
                         }
                         else if ((frameType.Value & luaExtendedTypeMask) == luaTypeExternalFunction)
                         {
                             // TODO: iirc, Lua has a single call stack with external function entries, when stack filter is performed, we should break up these parts to avoid duplication
-                            luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[name unavailable - C function]", input.Registers, input.Annotations));
+                            luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[{currFunctionName} C function]", input.Registers, input.Annotations));
                         }
                         else if ((frameType.Value & luaExtendedTypeMask) == luaTypeExternalClosure)
                         {
                             // TODO: iirc, Lua has a single call stack with external function entries, when stack filter is performed, we should break up these parts to avoid duplication
-                            luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[name unavailable - C closure]", input.Registers, input.Annotations));
+                            luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[{currFunctionName} C closure]", input.Registers, input.Annotations));
                         }
 
                         currCallInfo = prevCallInfo;
@@ -284,6 +389,57 @@ namespace LuaDkmDebuggerComponent
             }
 
             return new DkmStackWalkFrame[1] { input };
+        }
+
+        DkmSourcePosition IDkmSymbolQuery.GetSourcePosition(DkmInstructionSymbol instruction, DkmSourcePositionFlags flags, DkmInspectionSession inspectionSession, out bool startOfLine)
+        {
+            var process = inspectionSession?.Process;
+
+            if (process == null)
+            {
+                DkmCustomModuleInstance moduleInstance = instruction.Module.GetModuleInstances().OfType<DkmCustomModuleInstance>().FirstOrDefault(el => el.Module.CompilerId.VendorId == Guids.luaCompilerGuid);
+
+                if (moduleInstance == null)
+                    return instruction.GetSourcePosition(flags, inspectionSession, out startOfLine);
+
+                process = moduleInstance.Process;
+            }
+
+            var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
+
+            var instructionSymbol = instruction as DkmCustomInstructionSymbol;
+
+            Debug.Assert(instructionSymbol != null);
+
+            var frameData = new LuaFrameData();
+
+            frameData.ReadFrom(instructionSymbol.AdditionalData.ToArray());
+
+            string filePath;
+
+            if (frameData.source.StartsWith("@"))
+            {
+                if (processData.workingDirectory != null)
+                    filePath = $"{processData.workingDirectory}\\{frameData.source.Substring(1)}";
+                else
+                    filePath = frameData.source.Substring(1);
+            }
+            else
+            {
+                // TODO: how can we display internal scripts in the debugger?
+                if (processData.workingDirectory != null)
+                    filePath = $"{processData.workingDirectory}\\internal.lua";
+                else
+                    filePath = "internal.lua";
+            }
+
+            startOfLine = true;
+            return DkmSourcePosition.Create(DkmSourceFileId.Create(filePath, null, null, null), new DkmTextSpan(frameData.instructionLine, frameData.instructionLine, 0, 0));
+        }
+
+        object IDkmSymbolQuery.GetSymbolInterface(DkmModule module, Guid interfaceID)
+        {
+            return module.GetSymbolInterface(interfaceID);
         }
     }
 }

@@ -8,7 +8,7 @@ using System.Diagnostics;
 
 namespace LuaDkmDebuggerComponent
 {
-    internal class LuaProcessData : DkmDataItem
+    internal class LuaRemoteProcessData : DkmDataItem
     {
         public bool unrelatedRuntimeLoaded = false;
 
@@ -24,7 +24,7 @@ namespace LuaDkmDebuggerComponent
     {
         void IDkmProcessExecutionNotification.OnProcessPause(DkmProcess process, DkmProcessExecutionCounters processCounters)
         {
-            var processData = DebugHelpers.GetOrCreateDataItem<LuaProcessData>(process);
+            var processData = DebugHelpers.GetOrCreateDataItem<LuaRemoteProcessData>(process);
 
             if (processData.language == null)
             {
@@ -65,7 +65,7 @@ namespace LuaDkmDebuggerComponent
 
         void IDkmRuntimeInstanceLoadCompleteNotification.OnRuntimeInstanceLoadComplete(DkmRuntimeInstance runtimeInstance, DkmWorkList workList, DkmEventDescriptor eventDescriptor)
         {
-            var processData = DebugHelpers.GetOrCreateDataItem<LuaProcessData>(runtimeInstance.Process);
+            var processData = DebugHelpers.GetOrCreateDataItem<LuaRemoteProcessData>(runtimeInstance.Process);
 
             processData.unrelatedRuntimeLoaded = true;
         }

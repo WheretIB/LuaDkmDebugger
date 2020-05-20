@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <Configuration xmlns="http://schemas.microsoft.com/vstudio/vsdconfig/2008">
 	<DefineGuid Name="guidLuaLocalDebuggerComponent" Value="CF3F5D48-EFBB-49CB-916A-F19812A322ED"/>
+	<DefineGuid Name="guidLuaSymbolProvider" Value="00BB9B25-E5EA-4B0F-AD3D-C017B16F4FA1"/>
 
 	<ManagedComponent ComponentId="guidLuaLocalDebuggerComponent" ComponentLevel="1999000" AssemblyName="LuaDkmDebuggerComponent">
 		<Class Name="LuaDkmDebuggerComponent.LocalComponent">
@@ -8,6 +9,13 @@
 				<InterfaceGroup>
 					<NoFilter/>
 					<Interface Name="IDkmCallStackFilter"/>
+				</InterfaceGroup>
+
+				<InterfaceGroup>
+					<Filter>
+						<SymbolProviderId RequiredValue="guidLuaSymbolProvider"/>
+					</Filter>
+					<Interface Name="IDkmSymbolQuery"/>
 				</InterfaceGroup>
 			</Implements>
 		</Class>
