@@ -7,10 +7,17 @@ using Microsoft.VisualStudio.Debugger.Symbols;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Web.Script.Serialization;
 
 namespace LuaDkmDebuggerComponent
 {
+    internal class LuaDebugConfiguration
+    {
+        public List<string> ScriptPaths = new List<string>();
+    }
+
     internal class LuaLocalProcessData : DkmDataItem
     {
         public DkmCustomRuntimeInstance runtimeInstance = null;
@@ -20,6 +27,8 @@ namespace LuaDkmDebuggerComponent
 
         public bool workingDirectoryRequested = false;
         public string workingDirectory = null;
+
+        public LuaDebugConfiguration configuration;
 
         // Stack walk data for multiple switches between Lua and C++
         public bool seenLuaFrame = false;
@@ -113,6 +122,45 @@ namespace LuaDkmDebuggerComponent
             return ExecuteExpression(expression + ",sb", stackContext, input, false, out _);
         }
 
+        internal void LoadConfigurationFile(DkmProcess process, LuaLocalProcessData processData)
+        {
+            // Check if already loaded
+            if (processData.configuration != null)
+                return;
+
+            bool TryLoad(string path)
+            {
+                if (File.Exists(path))
+                {
+                    var serializer = new JavaScriptSerializer();
+
+                    try
+                    {
+                        processData.configuration = serializer.Deserialize<LuaDebugConfiguration>(File.ReadAllText(path));
+
+                        return processData.configuration != null;
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.WriteLine("Failed to load configuration: " + e.Message);
+                    }
+                }
+
+                return false;
+            }
+
+            string pathA = $"{Path.GetDirectoryName(process.Path)}\\";
+
+            if (TryLoad(pathA + "lua_dkm_debug.json"))
+                return;
+
+            if (processData.workingDirectory == null)
+                return;
+
+            if (TryLoad($"{processData.workingDirectory}\\" + "lua_dkm_debug.json"))
+                return;
+        }
+
         DkmStackWalkFrame[] IDkmCallStackFilter.FilterNextFrame(DkmStackContext stackContext, DkmStackWalkFrame input)
         {
             // null input frame indicates the end of the call stack
@@ -168,6 +216,7 @@ namespace LuaDkmDebuggerComponent
                 if (processData.scratchMemory == 0)
                     return new DkmStackWalkFrame[1] { input };
 
+                // Find out the current process working directory (Lua script files will be resolved from that location)
                 if (processData.workingDirectory == null && !processData.workingDirectoryRequested)
                 {
                     processData.workingDirectoryRequested = true;
@@ -183,6 +232,8 @@ namespace LuaDkmDebuggerComponent
                             processData.workingDirectory = TryEvaluateStringExpression($"(const char*){processData.scratchMemory}", stackContext, input);
                     }
                 }
+
+                LoadConfigurationFile(process, processData);
 
                 // TODO: Replace with enumerations from Bytecode.cs
                 const int luaBaseTypeMask = 0xf;
@@ -436,24 +487,74 @@ namespace LuaDkmDebuggerComponent
 
             frameData.ReadFrom(instructionSymbol.AdditionalData.ToArray());
 
+            string CheckConfigPaths(string winSourcePath)
+            {
+                if (processData.configuration != null && processData.configuration.ScriptPaths != null)
+                {
+                    foreach (var path in processData.configuration.ScriptPaths)
+                    {
+                        var finalPath = path.Replace('/', '\\');
+
+                        if (!Path.IsPathRooted(finalPath))
+                        {
+                            if (processData.workingDirectory != null)
+                            {
+                                string test = Path.GetFullPath(Path.Combine(processData.workingDirectory, finalPath)) + winSourcePath.Substring(1);
+
+                                if (File.Exists(test))
+                                    return test;
+                            }
+
+                            {
+                                string test = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(process.Path), finalPath)) + winSourcePath.Substring(1);
+
+                                if (File.Exists(test))
+                                    return test;
+                            }
+                        }
+                        else
+                        {
+                            string test = finalPath + winSourcePath.Substring(1);
+
+                            if (File.Exists(test))
+                                return test;
+                        }
+                    }
+                }
+
+                return null;
+            }
+
             string filePath;
 
             if (frameData.source.StartsWith("@"))
             {
                 string winSourcePath = frameData.source.Replace('/', '\\');
 
-                if (processData.workingDirectory != null)
-                    filePath = $"{processData.workingDirectory}\\{winSourcePath.Substring(1)}";
-                else
-                    filePath = winSourcePath.Substring(1);
+                filePath = CheckConfigPaths(winSourcePath);
+
+                if (filePath == null)
+                {
+                    if (processData.workingDirectory != null)
+                        filePath = $"{processData.workingDirectory}\\{winSourcePath.Substring(1)}";
+                    else
+                        filePath = winSourcePath.Substring(1);
+                }
             }
             else
             {
-                // TODO: how can we display internal scripts in the debugger?
-                if (processData.workingDirectory != null)
-                    filePath = $"{processData.workingDirectory}\\internal.lua";
-                else
-                    filePath = "internal.lua";
+                string winSourcePath = frameData.source.Replace('/', '\\');
+
+                filePath = CheckConfigPaths(winSourcePath);
+
+                if (filePath == null)
+                {
+                    // TODO: how can we display internal scripts in the debugger?
+                    if (processData.workingDirectory != null)
+                        filePath = $"{processData.workingDirectory}\\internal.lua";
+                    else
+                        filePath = "internal.lua";
+                }
             }
 
             startOfLine = true;
