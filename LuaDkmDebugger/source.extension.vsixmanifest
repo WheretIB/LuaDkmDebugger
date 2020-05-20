@@ -6,7 +6,6 @@
         <Description xml:space="preserve">This extensions enables limited support for inspection of lua (Vanilla 5.3.5) state in C++ applications during debugging in Visual Studio. </Description>
         <License>license.txt</License>
         <Tags>lua, 5.3, debugger</Tags>
-        <Preview>true</Preview>
     </Metadata>
     <Installation>
         <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[16.0, 17.0)" />
