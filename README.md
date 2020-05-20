@@ -1,4 +1,4 @@
-# Debugger extensions for C++/Lua
+# C++ Debugger Extensions for Lua
 
 ---
 This extensions enables limited support for inspection of lua (Vanilla 5.3.5) state in C++ applications during debugging in Visual Studio.
