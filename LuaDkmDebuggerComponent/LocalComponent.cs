@@ -20,6 +20,11 @@ namespace LuaDkmDebuggerComponent
 
         public bool workingDirectoryRequested = false;
         public string workingDirectory = null;
+
+        // Stack walk data for multiple switches between Lua and C++
+        public bool seenLuaFrame = false;
+        public int skipFrames = 0; // How many Lua frames to skip
+        public int seenFrames = 0; // How many Lua frames we have seen
     }
 
     internal class LuaFrameLocalsEnumData : DkmDataItem
@@ -49,29 +54,37 @@ namespace LuaDkmDebuggerComponent
 
             var workList = DkmWorkList.Create(null);
 
-            string resultText = null;
-            ulong resultAddress = 0;
-
-            inspectionContext.EvaluateExpression(workList, languageExpression, input, res =>
+            try
             {
-                if (res.ErrorCode == 0)
+                string resultText = null;
+                ulong resultAddress = 0;
+
+                inspectionContext.EvaluateExpression(workList, languageExpression, input, res =>
                 {
-                    var result = res.ResultObject as DkmSuccessEvaluationResult;
-
-                    if (result != null && result.TagValue == DkmEvaluationResult.Tag.SuccessResult && (allowZero || result.Address.Value != 0))
+                    if (res.ErrorCode == 0)
                     {
-                        resultText = result.Value;
-                        resultAddress = result.Address.Value;
+                        var result = res.ResultObject as DkmSuccessEvaluationResult;
+
+                        if (result != null && result.TagValue == DkmEvaluationResult.Tag.SuccessResult && (allowZero || result.Address.Value != 0))
+                        {
+                            resultText = result.Value;
+                            resultAddress = result.Address.Value;
+                        }
+
+                        res.ResultObject.Close();
                     }
+                });
 
-                    res.ResultObject.Close();
-                }
-            });
+                workList.Execute();
 
-            workList.Execute();
-
-            address = resultAddress;
-            return resultText;
+                address = resultAddress;
+                return resultText;
+            }
+            catch (OperationCanceledException)
+            {
+                address = 0;
+                return null;
+            }
         }
 
         internal ulong? TryEvaluateAddressExpression(string expression, DkmStackContext stackContext, DkmStackWalkFrame input)
@@ -104,7 +117,16 @@ namespace LuaDkmDebuggerComponent
         {
             // null input frame indicates the end of the call stack
             if (input == null)
+            {
+                var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(stackContext.InspectionSession.Process);
+
+                // Reset stack walk frame position
+                processData.seenLuaFrame = false;
+                processData.skipFrames = 0;
+                processData.seenFrames = 0;
+
                 return null;
+            }
 
             if (input.InstructionAddress == null)
                 return new DkmStackWalkFrame[1] { input };
@@ -195,6 +217,14 @@ namespace LuaDkmDebuggerComponent
                     {
                         ulong? prevCallInfo = TryEvaluateAddressExpression($"((CallInfo*){currCallInfo.Value})->previous", stackContext, input);
 
+                        if (processData.skipFrames != 0)
+                        {
+                            processData.skipFrames--;
+
+                            currCallInfo = prevCallInfo;
+                            continue;
+                        }
+
                         // Lua is dynamic so function names are implicit, and we have a fun way of getting them
 
                         // Get call status
@@ -260,6 +290,9 @@ namespace LuaDkmDebuggerComponent
 
                         if ((frameType.Value & luaExtendedTypeMask) == luaTypeLuaFunction)
                         {
+                            processData.seenLuaFrame = true;
+                            processData.seenFrames++;
+
                             ulong? currProto = TryEvaluateAddressExpression($"((LClosure*)((CallInfo*){currCallInfo.Value})->func->value_.gc)->p", stackContext, input);
 
                             // Should be there, but can timeout or made an internal error
@@ -334,11 +367,25 @@ namespace LuaDkmDebuggerComponent
                         }
                         else if ((frameType.Value & luaExtendedTypeMask) == luaTypeExternalFunction)
                         {
+                            if (processData.seenLuaFrame)
+                            {
+                                processData.seenLuaFrame = false;
+                                processData.skipFrames = processData.seenFrames;
+                                break;
+                            }
+
                             // TODO: iirc, Lua has a single call stack with external function entries, when stack filter is performed, we should break up these parts to avoid duplication
                             luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[{currFunctionName} C function]", input.Registers, input.Annotations));
                         }
                         else if ((frameType.Value & luaExtendedTypeMask) == luaTypeExternalClosure)
                         {
+                            if (processData.seenLuaFrame)
+                            {
+                                processData.seenLuaFrame = false;
+                                processData.skipFrames = processData.seenFrames;
+                                break;
+                            }
+
                             // TODO: iirc, Lua has a single call stack with external function entries, when stack filter is performed, we should break up these parts to avoid duplication
                             luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[{currFunctionName} C closure]", input.Registers, input.Annotations));
                         }
