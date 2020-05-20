@@ -699,6 +699,49 @@ namespace LuaDkmDebuggerComponent
 
         void IDkmLanguageExpressionEvaluator.EvaluateExpression(DkmInspectionContext inspectionContext, DkmWorkList workList, DkmLanguageExpression expression, DkmStackWalkFrame stackFrame, DkmCompletionRoutine<DkmEvaluateExpressionAsyncResult> completionRoutine)
         {
+            var process = stackFrame.Process;
+
+            // Load frame data from instruction
+            var instructionAddress = stackFrame.InstructionAddress as DkmCustomInstructionAddress;
+
+            Debug.Assert(instructionAddress != null);
+
+            var frameData = new LuaFrameData();
+
+            frameData.ReadFrom(instructionAddress.AdditionalData.ToArray());
+
+            // Load call info data
+            LuaFunctionCallInfoData callInfoData = new LuaFunctionCallInfoData();
+
+            callInfoData.ReadFrom(process, frameData.callInfo); // TODO: cache?
+
+            // Load function data
+            LuaFunctionData functionData = new LuaFunctionData();
+
+            functionData.ReadFrom(process, frameData.functionAddress); // TODO: cache?
+
+            // At the moment we only handle standalone references to local variables
+            string finalExpression = expression.Text;
+
+            functionData.ReadLocals(process, frameData.instructionPointer);
+
+            for (int i = 0; i < functionData.activeLocals.Count; i++)
+            {
+                var local = functionData.activeLocals[i];
+
+                if (local.name == finalExpression)
+                {
+                    ulong address = callInfoData.stackBaseAddress + (ulong)i * LuaHelpers.GetValueSize(process);
+
+                    string name = functionData.activeLocals[i].name;
+
+                    var result = EvaluateDataAtAddress(inspectionContext, stackFrame, name, name, address, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+
+                    completionRoutine(new DkmEvaluateExpressionAsyncResult(result));
+                    return;
+                }
+            }
+
             completionRoutine(new DkmEvaluateExpressionAsyncResult(DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, expression.Text, expression.Text, "Not implemented", DkmEvaluationResultFlags.Invalid, null)));
         }
 
