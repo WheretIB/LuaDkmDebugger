@@ -309,7 +309,7 @@ namespace LuaDkmDebuggerComponent
                                 frameData.state = stateAddress.Value;
 
                                 frameData.registryAddress = registryAddress.GetValueOrDefault(0);
-                                frameData.version = version.GetValueOrDefault(503);
+                                frameData.version = (int)version.GetValueOrDefault(503);
 
                                 frameData.callInfo = currCallInfo.Value;
 

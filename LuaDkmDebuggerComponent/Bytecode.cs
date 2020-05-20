@@ -748,7 +748,7 @@ namespace LuaDkmDebuggerComponent
         public ulong state; // Address of the Lua state, called 'L' in Lua library
 
         public ulong registryAddress; // Address of the Lua global registry, accessible as '&L->l_G->l_registry' in Lua library
-        public double version;
+        public int version;
 
         public ulong callInfo; // Address of the CallInfo struct, called 'ci' in Lua library
 
@@ -797,7 +797,7 @@ namespace LuaDkmDebuggerComponent
                     state = reader.ReadUInt64();
 
                     registryAddress = reader.ReadUInt64();
-                    version = reader.ReadDouble();
+                    version = reader.ReadInt32();
 
                     callInfo = reader.ReadUInt64();
 
