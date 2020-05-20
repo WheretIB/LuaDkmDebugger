@@ -408,7 +408,7 @@ namespace LuaDkmDebuggerComponent
             return module.GetSymbolInterface(interfaceID);
         }
 
-        string EvaluateValueAtLuaValue(DkmProcess process, LuaValueDataBase valueBase, out string editableValue, ref DkmEvaluationResultFlags flags, out DkmDataAddress dataAddress, out string type)
+        string EvaluateValueAtLuaValue(DkmProcess process, LuaValueDataBase valueBase, uint radix, out string editableValue, ref DkmEvaluationResultFlags flags, out DkmDataAddress dataAddress, out string type)
         {
             editableValue = null;
             dataAddress = null;
@@ -473,6 +473,10 @@ namespace LuaDkmDebuggerComponent
 
                 flags |= DkmEvaluationResultFlags.IsBuiltInType;
                 editableValue = $"{value.value}";
+
+                if (radix == 16)
+                    return $"0x{value.value:x}";
+
                 return $"{value.value}";
             }
 
@@ -553,7 +557,7 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
-        string EvaluateValueAtAddress(DkmProcess process, ulong address, out string editableValue, ref DkmEvaluationResultFlags flags, out DkmDataAddress dataAddress, out string type, out LuaValueDataBase luaValueData)
+        string EvaluateValueAtAddress(DkmProcess process, ulong address, uint radix, out string editableValue, ref DkmEvaluationResultFlags flags, out DkmDataAddress dataAddress, out string type, out LuaValueDataBase luaValueData)
         {
             editableValue = null;
             dataAddress = null;
@@ -564,7 +568,7 @@ namespace LuaDkmDebuggerComponent
             if (luaValueData == null)
                 return null;
 
-            return EvaluateValueAtLuaValue(process, luaValueData, out editableValue, ref flags, out dataAddress, out type);
+            return EvaluateValueAtLuaValue(process, luaValueData, radix, out editableValue, ref flags, out dataAddress, out type);
         }
 
         DkmEvaluationResult EvaluateDataAtAddress(DkmInspectionContext inspectionContext, DkmStackWalkFrame stackFrame, string name, string fullName, ulong address, DkmEvaluationResultFlags flags, DkmEvaluationResultAccessType access, DkmEvaluationResultStorageType storage)
@@ -574,7 +578,7 @@ namespace LuaDkmDebuggerComponent
             if (address == 0)
                 return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, name, fullName, "Null pointer access", DkmEvaluationResultFlags.Invalid, null);
 
-            string value = EvaluateValueAtAddress(process, address, out string editableValue, ref flags, out DkmDataAddress dataAddress, out string type, out LuaValueDataBase luaValueData);
+            string value = EvaluateValueAtAddress(process, address, inspectionContext.Radix, out string editableValue, ref flags, out DkmDataAddress dataAddress, out string type, out LuaValueDataBase luaValueData);
 
             if (value == null)
                 return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, name, fullName, "Failed to read value", DkmEvaluationResultFlags.Invalid, null);
@@ -600,7 +604,7 @@ namespace LuaDkmDebuggerComponent
             if (luaValue == null)
                 return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, name, fullName, "Null pointer access", DkmEvaluationResultFlags.Invalid, null);
 
-            string value = EvaluateValueAtLuaValue(process, luaValue, out string editableValue, ref flags, out DkmDataAddress dataAddress, out string type);
+            string value = EvaluateValueAtLuaValue(process, luaValue, inspectionContext.Radix, out string editableValue, ref flags, out DkmDataAddress dataAddress, out string type);
 
             if (value == null)
                 return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, name, fullName, "Failed to read value", DkmEvaluationResultFlags.Invalid, null);
