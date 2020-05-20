@@ -217,7 +217,7 @@ namespace LuaDkmDebuggerComponent
                                     extendedType = GetExtendedType(typeTag.Value),
                                     originalAddress = address,
                                     value = target,
-                                    targetAddress = value.Value
+                                    targetAddress = value.Value + luaStringOffset
                                 };
                             }
                         }
