@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0] - 2020-05-22
+
+### Added
+
+- Complex expression evaluation
+- Support for relative Lua script source paths
+
 ## [0.2.6] - 2020-05-21
 
 ### Changed
@@ -14,7 +21,7 @@
 
 ## [0.2.4] - 2020-05-21
 
-### Added 
+### Added
 
 - Support for configuration file with additional script search directories
 
@@ -22,6 +29,7 @@
 
 ### First Release
 
+[0.3.0]https://github.com/WheretIB/LuaDkmDebugger/commit/cfe2f159c700790c23d24ef986dad49b62cb92bf
 [0.2.6]https://github.com/WheretIB/LuaDkmDebugger/commit/90c303512f3fd85e518ac3bbb14f9585bdc57fb2
 [0.2.5]https://github.com/WheretIB/LuaDkmDebugger/commit/93b8abe68f9a572b59637df7dca97738f8cbe259
 [0.2.4]https://github.com/WheretIB/LuaDkmDebugger/commit/48c028f1757c05925f3da0dbff511c10e6c0f3ed
