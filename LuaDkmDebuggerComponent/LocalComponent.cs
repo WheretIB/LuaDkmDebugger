@@ -401,7 +401,7 @@ namespace LuaDkmDebuggerComponent
                                 frameData.functionName = currFunctionName;
 
                                 frameData.instructionLine = (int)currLine;
-                                frameData.instructionPointer = (int)currInstructionPointer.Value;
+                                frameData.instructionPointer = prevInstructionPointer;
 
                                 frameData.source = sourceName;
 

@@ -7,6 +7,10 @@
 - Complex expression evaluation
 - Support for relative Lua script source paths
 
+### Changed
+
+- Adjusted frame instruction pointer value to point on the currently executing instruction (fixes missing locals)
+
 ## [0.2.6] - 2020-05-21
 
 ### Changed
