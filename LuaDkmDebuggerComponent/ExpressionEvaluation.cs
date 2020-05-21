@@ -41,7 +41,7 @@ namespace LuaDkmDebuggerComponent
 
             if (string.Compare(expression, pos, token, 0, token.Length) == 0)
             {
-                if (char.IsLetterOrDigit(expression[pos + token.Length]))
+                if (pos + token.Length < expression.Length && char.IsLetterOrDigit(expression[pos + token.Length]))
                     return false;
 
                 return true;
@@ -134,6 +134,9 @@ namespace LuaDkmDebuggerComponent
 
         public LuaValueDataBase LookupVariable(string name)
         {
+            if (process == null || functionData == null)
+                return Report($"Can't lookup variable - process memory is not available");
+
             for (int i = 0; i < functionData.activeLocals.Count; i++)
             {
                 var local = functionData.activeLocals[i];
@@ -235,6 +238,9 @@ namespace LuaDkmDebuggerComponent
                 if (table == null)
                     return Report("Value is not a table");
 
+                if (process == null)
+                    return Report("Can't load table - process memory is not available");
+
                 table.value.LoadValues(process);
 
                 foreach (var element in table.value.nodeElements)
@@ -262,6 +268,9 @@ namespace LuaDkmDebuggerComponent
 
                 if (index as LuaValueDataError != null)
                     return index;
+
+                if (process == null)
+                    return Report("Can't load table - process memory is not available");
 
                 table.value.LoadValues(process);
 
@@ -414,7 +423,7 @@ namespace LuaDkmDebuggerComponent
                 if (lhs as LuaValueDataError != null)
                     return lhs;
 
-                return new LuaValueDataBool(CoerceToBool(lhs));
+                return new LuaValueDataBool(!CoerceToBool(lhs));
             }
 
             if (TryTakeToken("-"))
@@ -558,7 +567,7 @@ namespace LuaDkmDebuggerComponent
                     return Report("rhs of a concatenation operator must be a number or a string");
 
                 string lhsString = lhsAsNumber != null ? (lhsAsNumber.extendedType == LuaExtendedType.IntegerNumber ? $"{(int)lhsAsNumber.value}" : $"{lhsAsNumber.value}") : lhsAsString.value;
-                string rhsString = rhsAsNumber != null ? (rhsAsNumber.extendedType == LuaExtendedType.IntegerNumber ? $"{(int)rhsAsNumber.value}" : $"{rhsAsNumber.value}") : lhsAsString.value;
+                string rhsString = rhsAsNumber != null ? (rhsAsNumber.extendedType == LuaExtendedType.IntegerNumber ? $"{(int)rhsAsNumber.value}" : $"{rhsAsNumber.value}") : rhsAsString.value;
 
                 return new LuaValueDataString(lhsString + rhsString);
             }
@@ -635,16 +644,16 @@ namespace LuaDkmDebuggerComponent
                         return Report("lhs of a comparison operator is string but rhs is a number");
 
                     if (token == "<=")
-                        return new LuaValueDataBool(lhsAsNumber.value <= rhsAsNumber.value);
+                        return new LuaValueDataBool(lhsAsString.value.CompareTo(rhsAsString.value) <= 0);
 
                     if (token == ">=")
-                        return new LuaValueDataBool(lhsAsNumber.value >= rhsAsNumber.value);
+                        return new LuaValueDataBool(lhsAsString.value.CompareTo(rhsAsString.value) >= 0);
 
                     if (token == "<")
-                        return new LuaValueDataBool(lhsAsNumber.value < rhsAsNumber.value);
+                        return new LuaValueDataBool(lhsAsString.value.CompareTo(rhsAsString.value) < 0);
 
                     if (token == ">")
-                        return new LuaValueDataBool(lhsAsNumber.value > rhsAsNumber.value);
+                        return new LuaValueDataBool(lhsAsString.value.CompareTo(rhsAsString.value) > 0);
                 }
             }
 

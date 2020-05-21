@@ -3,3 +3,7 @@
 /LuaDkmDebuggerComponent/bin
 /LuaDkmDebuggerComponent/obj
 /.vs
+/Tests/bin
+/Tests/obj
+/TestResults
+/packages
