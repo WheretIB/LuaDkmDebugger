@@ -612,30 +612,30 @@ namespace LuaDkmDebuggerComponent
                 return $"0x{value.value:x}";
             }
 
-            if (valueBase as LuaValueDataDouble != null)
+            if (valueBase as LuaValueDataNumber != null)
             {
-                var value = valueBase as LuaValueDataDouble;
+                var value = valueBase as LuaValueDataNumber;
 
-                type = "double";
+                if (value.extendedType == LuaExtendedType.IntegerNumber)
+                {
+                    type = "int";
 
-                flags |= DkmEvaluationResultFlags.IsBuiltInType;
-                editableValue = $"{value.value}";
-                return $"{value.value}";
-            }
+                    flags |= DkmEvaluationResultFlags.IsBuiltInType;
+                    editableValue = $"{value.value}";
 
-            if (valueBase as LuaValueDataInt != null)
-            {
-                var value = valueBase as LuaValueDataInt;
+                    if (radix == 16)
+                        return $"0x{value.value:x}";
 
-                type = "int";
+                    return $"{value.value}";
+                }
+                else
+                {
+                    type = "double";
 
-                flags |= DkmEvaluationResultFlags.IsBuiltInType;
-                editableValue = $"{value.value}";
-
-                if (radix == 16)
-                    return $"0x{value.value:x}";
-
-                return $"{value.value}";
+                    flags |= DkmEvaluationResultFlags.IsBuiltInType;
+                    editableValue = $"{value.value}";
+                    return $"{value.value}";
+                }
             }
 
             if (valueBase as LuaValueDataString != null)
@@ -821,29 +821,65 @@ namespace LuaDkmDebuggerComponent
 
             functionData.ReadFrom(process, frameData.functionAddress); // TODO: cache?
 
-            // At the moment we only handle standalone references to local variables
-            string finalExpression = expression.Text;
-
             functionData.ReadLocals(process, frameData.instructionPointer);
 
-            for (int i = 0; i < functionData.activeLocals.Count; i++)
+            ExpressionEvaluation evaluation = new ExpressionEvaluation(process, functionData, callInfoData.stackBaseAddress);
+
+            var result = evaluation.Evaluate(expression.Text);
+
+            if (result as LuaValueDataError != null)
             {
-                var local = functionData.activeLocals[i];
+                var resultAsError = result as LuaValueDataError;
 
-                if (local.name == finalExpression)
-                {
-                    ulong address = callInfoData.stackBaseAddress + (ulong)i * LuaHelpers.GetValueSize(process);
-
-                    string name = functionData.activeLocals[i].name;
-
-                    var result = EvaluateDataAtAddress(inspectionContext, stackFrame, name, name, address, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
-
-                    completionRoutine(new DkmEvaluateExpressionAsyncResult(result));
-                    return;
-                }
+                completionRoutine(new DkmEvaluateExpressionAsyncResult(DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, expression.Text, expression.Text, resultAsError.value, DkmEvaluationResultFlags.Invalid, null)));
+                return;
             }
 
-            completionRoutine(new DkmEvaluateExpressionAsyncResult(DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, expression.Text, expression.Text, "Not implemented", DkmEvaluationResultFlags.Invalid, null)));
+            // If result is an 'l-value' re-evaluate as a Lua value at address
+            if (result.originalAddress != 0)
+            {
+                completionRoutine(new DkmEvaluateExpressionAsyncResult(EvaluateDataAtLuaValue(inspectionContext, stackFrame, expression.Text, expression.Text, result, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None)));
+                return;
+            }
+
+            var resultStr = result.AsSimpleDisplayString(inspectionContext.Radix);
+            var type = result.GetLuaType();
+
+            DkmEvaluationResultCategory category = DkmEvaluationResultCategory.Data;
+            DkmEvaluationResultAccessType accessType = DkmEvaluationResultAccessType.None;
+            DkmEvaluationResultStorageType storageType = DkmEvaluationResultStorageType.None;
+            DkmEvaluationResultTypeModifierFlags typeModifiers = DkmEvaluationResultTypeModifierFlags.None;
+
+            DkmDataAddress dataAddress = null;
+
+            if (result as LuaValueDataString != null)
+            {
+                var resultAsString = result as LuaValueDataString;
+
+                if (resultAsString.targetAddress != 0)
+                    dataAddress = DkmDataAddress.Create(process.GetNativeRuntimeInstance(), resultAsString.targetAddress, null);
+            }
+
+            if (result as LuaValueDataTable != null)
+            {
+                var resultAsTable = result as LuaValueDataTable;
+
+                resultAsTable.value.LoadValues(process);
+                resultAsTable.value.LoadMetaTable(process);
+
+                if (resultAsTable.value.arrayElements.Count == 0 && resultAsTable.value.nodeElements.Count == 0 && resultAsTable.value.metaTable == null)
+                    result.evaluationFlags &= ~DkmEvaluationResultFlags.Expandable;
+            }
+
+            var dataItem = new LuaEvaluationDataItem
+            {
+                address = result.originalAddress,
+                type = type,
+                fullName = expression.Text,
+                luaValueData = result
+            };
+
+            completionRoutine(new DkmEvaluateExpressionAsyncResult(DkmSuccessEvaluationResult.Create(inspectionContext, stackFrame, expression.Text, expression.Text, result.evaluationFlags, resultStr, null, type, category, accessType, storageType, typeModifiers, dataAddress, null, null, dataItem)));
         }
 
         DkmEvaluationResult GetTableChildAtIndex(DkmInspectionContext inspectionContext, DkmStackWalkFrame stackFrame, string fullName, LuaValueDataTable value, int index)
@@ -854,7 +890,7 @@ namespace LuaDkmDebuggerComponent
             {
                 var element = value.value.arrayElements[index];
 
-                return EvaluateDataAtLuaValue(inspectionContext, stackFrame, $"[{index}]", $"{fullName}[{index}]", element, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+                return EvaluateDataAtLuaValue(inspectionContext, stackFrame, $"[{index + 1}]", $"{fullName}[{index + 1}]", element, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
             }
 
             index = index - value.value.arrayElements.Count;
@@ -871,10 +907,26 @@ namespace LuaDkmDebuggerComponent
                 if (keyString != null)
                     name = keyString.value;
 
-                if (name == null)
+                if (name == null || name.Length == 0)
                     name = "%error-name%";
 
-                return EvaluateDataAtLuaValue(inspectionContext, stackFrame, name, $"{fullName}.{name}", node.value, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+                // Check if name is an identifier
+                bool isIdentifierName = false;
+
+                if (char.IsLetter(name[0]))
+                {
+                    int pos = 1;
+
+                    while (pos < name.Length && char.IsLetterOrDigit(name[pos]))
+                        pos++;
+
+                    isIdentifierName = pos == name.Length;
+                }
+
+                if (isIdentifierName)
+                    return EvaluateDataAtLuaValue(inspectionContext, stackFrame, name, $"{fullName}.{name}", node.value, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+
+                return EvaluateDataAtLuaValue(inspectionContext, stackFrame, $"\"{name}\"", $"{fullName}[\"{name}\"]", node.value, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
             }
 
             index = index - value.value.nodeElements.Count;
@@ -885,6 +937,7 @@ namespace LuaDkmDebuggerComponent
                 {
                     baseType = LuaBaseType.Table,
                     extendedType = LuaExtendedType.Table,
+                    evaluationFlags = DkmEvaluationResultFlags.ReadOnly,
                     originalAddress = 0, // Not available as TValue
                     value = value.value.metaTable,
                     targetAddress = value.value.metaTableDataAddress
@@ -1063,6 +1116,9 @@ namespace LuaDkmDebuggerComponent
 
             if (success == null)
                 return "Failed to evaluate";
+
+            if (success.Address.Value == 0)
+                return "Null pointer access";
 
             var target = DebugHelpers.ReadStringVariable(process, success.Address.Value, 32 * 1024);
 

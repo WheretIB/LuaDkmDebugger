@@ -10,7 +10,7 @@ This Visual Studio extension enables limited support for inspection of Lua (Vers
  * Mark Lua library stack frames as non-user code
  * Jump to Lua source/line from Lua stack frames
  * Function argument and local variable display in the 'Locals' watch section
- * Local variable lookup in Watch, Immediate and similar elements
+ * Local variable lookup and expression evaluation in Watch, Immediate and similar elements
 
 ![Example debug session](https://github.com/WheretIB/LuaDkmDebugger/blob/master/resource/front_image.png?raw=true)
 
