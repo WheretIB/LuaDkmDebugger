@@ -8,7 +8,7 @@ using System.Windows.Markup;
 
 namespace LuaDkmDebuggerComponent
 {
-    internal enum LuaBaseType
+    public enum LuaBaseType
     {
         Nil,
         Boolean,
@@ -21,7 +21,7 @@ namespace LuaDkmDebuggerComponent
         Thread
     }
 
-    internal enum LuaExtendedType
+    public enum LuaExtendedType
     {
         Nil = LuaBaseType.Nil,
         Boolean = LuaBaseType.Boolean,
@@ -404,7 +404,7 @@ namespace LuaDkmDebuggerComponent
         }
     }
 
-    internal class LuaLocalVariableData
+    public class LuaLocalVariableData
     {
         public ulong nameAddress; // TString
         public string name;
@@ -443,7 +443,7 @@ namespace LuaDkmDebuggerComponent
         }
     }
 
-    internal class LuaFunctionData
+    public class LuaFunctionData
     {
         public byte argumentCount;
         public byte isVarargs;
@@ -554,7 +554,7 @@ namespace LuaDkmDebuggerComponent
         }
     }
 
-    internal class LuaFunctionCallInfoData
+    public class LuaFunctionCallInfoData
     {
         public ulong funcAddress; // TValue*
         public ulong stackTopAddress; // TValue*
@@ -582,7 +582,7 @@ namespace LuaDkmDebuggerComponent
         }
     }
 
-    internal class LuaNodeData
+    public class LuaNodeData
     {
         public LuaValueDataBase value;
         public LuaValueDataBase key;
@@ -594,7 +594,7 @@ namespace LuaDkmDebuggerComponent
         }
     }
 
-    internal class LuaTableData
+    public class LuaTableData
     {
         public byte flags;
         public byte nodeArraySizeLog2;
@@ -690,7 +690,7 @@ namespace LuaDkmDebuggerComponent
         }
     }
 
-    internal class LuaFrameData
+    public class LuaFrameData
     {
         public ulong state; // Address of the Lua state, called 'L' in Lua library
 

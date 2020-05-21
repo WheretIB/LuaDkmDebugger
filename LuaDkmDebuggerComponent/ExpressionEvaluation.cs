@@ -3,7 +3,7 @@ using System.Diagnostics;
 
 namespace LuaDkmDebuggerComponent
 {
-    internal class ExpressionEvaluation
+    public class ExpressionEvaluation
     {
         public ExpressionEvaluation(DkmProcess process, LuaFunctionData functionData, ulong frameBaseAddress)
         {

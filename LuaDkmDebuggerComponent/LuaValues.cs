@@ -3,7 +3,7 @@ using System.Diagnostics;
 
 namespace LuaDkmDebuggerComponent
 {
-    abstract class LuaValueDataBase
+    public abstract class LuaValueDataBase
     {
         public LuaBaseType baseType;
         public LuaExtendedType extendedType;
@@ -16,7 +16,7 @@ namespace LuaDkmDebuggerComponent
     }
 
     [DebuggerDisplay("error ({extendedType})")]
-    internal class LuaValueDataError : LuaValueDataBase
+    public class LuaValueDataError : LuaValueDataBase
     {
         public LuaValueDataError()
         {
@@ -55,7 +55,7 @@ namespace LuaDkmDebuggerComponent
     }
 
     [DebuggerDisplay("nil ({extendedType})")]
-    internal class LuaValueDataNil : LuaValueDataBase
+    public class LuaValueDataNil : LuaValueDataBase
     {
         public LuaValueDataNil()
         {
@@ -87,7 +87,7 @@ namespace LuaDkmDebuggerComponent
     }
 
     [DebuggerDisplay("value = {value} ({extendedType})")]
-    internal class LuaValueDataBool : LuaValueDataBase
+    public class LuaValueDataBool : LuaValueDataBase
     {
         public LuaValueDataBool()
         {
@@ -126,7 +126,7 @@ namespace LuaDkmDebuggerComponent
     }
 
     [DebuggerDisplay("value = 0x{value,x} ({extendedType})")]
-    internal class LuaValueDataLightUserData : LuaValueDataBase
+    public class LuaValueDataLightUserData : LuaValueDataBase
     {
         public LuaValueDataLightUserData()
         {
@@ -165,7 +165,7 @@ namespace LuaDkmDebuggerComponent
     }
 
     [DebuggerDisplay("value = {value} ({extendedType})")]
-    internal class LuaValueDataNumber : LuaValueDataBase
+    public class LuaValueDataNumber : LuaValueDataBase
     {
         public LuaValueDataNumber()
         {
@@ -221,7 +221,7 @@ namespace LuaDkmDebuggerComponent
     }
 
     [DebuggerDisplay("value = {value} ({extendedType})")]
-    internal class LuaValueDataString : LuaValueDataBase
+    public class LuaValueDataString : LuaValueDataBase
     {
         public LuaValueDataString()
         {
@@ -261,7 +261,7 @@ namespace LuaDkmDebuggerComponent
     }
 
     [DebuggerDisplay("({extendedType})")]
-    internal class LuaValueDataTable : LuaValueDataBase
+    public class LuaValueDataTable : LuaValueDataBase
     {
         public override bool LuaCompare(LuaValueDataBase rhs)
         {
@@ -288,7 +288,7 @@ namespace LuaDkmDebuggerComponent
     }
 
     [DebuggerDisplay("({extendedType})")]
-    internal class LuaValueDataLuaFunction : LuaValueDataBase
+    public class LuaValueDataLuaFunction : LuaValueDataBase
     {
         public override bool LuaCompare(LuaValueDataBase rhs)
         {
@@ -314,7 +314,7 @@ namespace LuaDkmDebuggerComponent
     }
 
     [DebuggerDisplay("({extendedType})")]
-    internal class LuaValueDataExternalFunction : LuaValueDataBase
+    public class LuaValueDataExternalFunction : LuaValueDataBase
     {
         public override bool LuaCompare(LuaValueDataBase rhs)
         {
@@ -340,7 +340,7 @@ namespace LuaDkmDebuggerComponent
     }
 
     [DebuggerDisplay("({extendedType})")]
-    internal class LuaValueDataExternalClosure : LuaValueDataBase
+    public class LuaValueDataExternalClosure : LuaValueDataBase
     {
         public override bool LuaCompare(LuaValueDataBase rhs)
         {
@@ -366,7 +366,7 @@ namespace LuaDkmDebuggerComponent
     }
 
     [DebuggerDisplay("({extendedType})")]
-    internal class LuaValueDataUserData : LuaValueDataBase
+    public class LuaValueDataUserData : LuaValueDataBase
     {
         public override bool LuaCompare(LuaValueDataBase rhs)
         {
@@ -392,7 +392,7 @@ namespace LuaDkmDebuggerComponent
     }
 
     [DebuggerDisplay("({extendedType})")]
-    internal class LuaValueDataThread : LuaValueDataBase
+    public class LuaValueDataThread : LuaValueDataBase
     {
         public override bool LuaCompare(LuaValueDataBase rhs)
         {
