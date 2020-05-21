@@ -522,6 +522,22 @@ namespace LuaDkmDebuggerComponent
                     }
                 }
 
+                // Check 'empty' path
+                if (processData.workingDirectory != null)
+                {
+                    string test = Path.GetFullPath(Path.Combine(processData.workingDirectory, winSourcePath));
+
+                    if (File.Exists(test))
+                        return test;
+                }
+
+                {
+                    string test = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(process.Path), winSourcePath));
+
+                    if (File.Exists(test))
+                        return test;
+                }
+
                 return null;
             }
 
