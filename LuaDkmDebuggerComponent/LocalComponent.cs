@@ -499,14 +499,14 @@ namespace LuaDkmDebuggerComponent
                         {
                             if (processData.workingDirectory != null)
                             {
-                                string test = Path.GetFullPath(Path.Combine(processData.workingDirectory, finalPath)) + winSourcePath.Substring(1);
+                                string test = Path.GetFullPath(Path.Combine(processData.workingDirectory, finalPath)) + winSourcePath;
 
                                 if (File.Exists(test))
                                     return test;
                             }
 
                             {
-                                string test = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(process.Path), finalPath)) + winSourcePath.Substring(1);
+                                string test = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(process.Path), finalPath)) + winSourcePath;
 
                                 if (File.Exists(test))
                                     return test;
@@ -514,7 +514,7 @@ namespace LuaDkmDebuggerComponent
                         }
                         else
                         {
-                            string test = finalPath + winSourcePath.Substring(1);
+                            string test = finalPath + winSourcePath;
 
                             if (File.Exists(test))
                                 return test;
@@ -531,7 +531,7 @@ namespace LuaDkmDebuggerComponent
             {
                 string winSourcePath = frameData.source.Replace('/', '\\');
 
-                filePath = CheckConfigPaths(winSourcePath);
+                filePath = CheckConfigPaths(winSourcePath.Substring(1));
 
                 if (filePath == null)
                 {
