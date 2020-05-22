@@ -45,6 +45,8 @@ namespace LuaDkmDebuggerComponent
 
     static class LuaHelpers
     {
+        public static int luaVersion = 0;
+
         internal static LuaBaseType GetBaseType(int typeTag)
         {
             return (LuaBaseType)(typeTag & 0xf);
@@ -62,17 +64,42 @@ namespace LuaDkmDebuggerComponent
 
         internal static ulong GetValueSize(DkmProcess process)
         {
+            if (LuaHelpers.luaVersion == 502)
+                return DebugHelpers.Is64Bit(process) ? 16u : 8u;
+
             return 16u;
         }
 
         internal static ulong GetNodeSize(DkmProcess process)
         {
+            if (LuaHelpers.luaVersion == 502)
+                return DebugHelpers.Is64Bit(process) ? 40u : 24u;
+
             return 32u;
         }
 
         internal static LuaValueDataBase ReadValue(DkmProcess process, ulong address)
         {
-            var typeTag = DebugHelpers.ReadIntVariable(process, address + 8);
+            int? typeTag;
+
+            if (luaVersion == 502 && !DebugHelpers.Is64Bit(process))
+            {
+                // union { struct { Value v__; int tt__; } i; double d__; } u
+                double? value = DebugHelpers.ReadDoubleVariable(process, address);
+
+                if (value == null)
+                    return null;
+
+                if (double.IsNaN(value.Value))
+                    typeTag = DebugHelpers.ReadIntVariable(process, address + (ulong)DebugHelpers.GetPointerSize(process));
+                else
+                    typeTag = (int)LuaExtendedType.FloatNumber;
+            }
+            else
+            {
+                // struct { Value value_; int tt_; }
+                typeTag = DebugHelpers.ReadIntVariable(process, address + 8);
+            }
 
             if (typeTag == null)
                 return null;
@@ -280,16 +307,22 @@ namespace LuaDkmDebuggerComponent
                     };
                 case LuaExtendedType.LuaFunction:
                     {
+                        // Read pointer to GCObject from address
                         var value = DebugHelpers.ReadPointerVariable(process, address);
 
                         if (value.HasValue)
                         {
+                            LuaClosureData target = new LuaClosureData();
+
+                            target.ReadFrom(process, value.Value);
+
                             return new LuaValueDataLuaFunction()
                             {
                                 baseType = GetBaseType(typeTag.Value),
                                 extendedType = GetExtendedType(typeTag.Value),
                                 evaluationFlags = DkmEvaluationResultFlags.ReadOnly,
                                 originalAddress = address,
+                                value = target,
                                 targetAddress = value.Value
                             };
                         }
@@ -419,6 +452,7 @@ namespace LuaDkmDebuggerComponent
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
+            // Same in Lua 5.2 and 5.3
             nameAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
             address += (ulong)DebugHelpers.GetPointerSize(process);
 
@@ -470,58 +504,94 @@ namespace LuaDkmDebuggerComponent
         public List<LuaLocalVariableData> locals;
         public List<LuaLocalVariableData> activeLocals;
 
+        public string source;
+
         public void ReadFrom(DkmProcess process, ulong address)
         {
             ulong pointerSize = (ulong)DebugHelpers.GetPointerSize(process);
 
-            address += pointerSize; // Skip CommonHeader
-            address += 2;
+            if (LuaHelpers.luaVersion == 502)
+            {
+                // Skip CommonHeader
+                DebugHelpers.SkipStructPointer(process, ref address);
+                DebugHelpers.SkipStructByte(process, ref address);
+                DebugHelpers.SkipStructByte(process, ref address);
 
-            argumentCount = DebugHelpers.ReadByteVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(byte);
-            isVarargs = DebugHelpers.ReadByteVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(byte);
-            maxStackSize = DebugHelpers.ReadByteVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(byte);
-            address += 3; // Padding
+                constantDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                codeDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                localFunctionDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                lineInfoDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                localVariableDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                upvalueDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                lastClosureCache = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                sourceAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
 
-            Debug.Assert((address & 0x3) == 0);
+                upvalueSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+                constantSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+                codeSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+                lineInfoSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+                localFunctionSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+                localVariableSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+                definitionStartLine = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+                definitionEndLine = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
 
-            upvalueSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
-            constantSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
-            codeSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
-            lineInfoSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
-            localFunctionSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
-            localVariableSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
-            definitionStartLine = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
-            definitionEndLine = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
+                gclistAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
 
-            constantDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            codeDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            localFunctionDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            lineInfoDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            localVariableDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            upvalueDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            lastClosureCache = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            sourceAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            gclistAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
+                argumentCount = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
+                isVarargs = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
+                maxStackSize = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
+            }
+            else
+            {
+                address += pointerSize; // Skip CommonHeader
+                address += 2;
+
+                argumentCount = DebugHelpers.ReadByteVariable(process, address).GetValueOrDefault(0);
+                address += sizeof(byte);
+                isVarargs = DebugHelpers.ReadByteVariable(process, address).GetValueOrDefault(0);
+                address += sizeof(byte);
+                maxStackSize = DebugHelpers.ReadByteVariable(process, address).GetValueOrDefault(0);
+                address += sizeof(byte);
+                address += 3; // Padding
+
+                Debug.Assert((address & 0x3) == 0);
+
+                upvalueSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+                address += sizeof(int);
+                constantSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+                address += sizeof(int);
+                codeSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+                address += sizeof(int);
+                lineInfoSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+                address += sizeof(int);
+                localFunctionSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+                address += sizeof(int);
+                localVariableSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+                address += sizeof(int);
+                definitionStartLine = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+                address += sizeof(int);
+                definitionEndLine = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+                address += sizeof(int);
+
+                constantDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+                address += pointerSize;
+                codeDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+                address += pointerSize;
+                localFunctionDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+                address += pointerSize;
+                lineInfoDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+                address += pointerSize;
+                localVariableDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+                address += pointerSize;
+                upvalueDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+                address += pointerSize;
+                lastClosureCache = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+                address += pointerSize;
+                sourceAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+                address += pointerSize;
+                gclistAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+                address += pointerSize;
+            }
         }
 
         public void ReadLocals(DkmProcess process, int instructionPointer)
@@ -552,6 +622,26 @@ namespace LuaDkmDebuggerComponent
                 }
             }
         }
+
+        public int ReadLineInfoFor(DkmProcess process, int instructionPointer)
+        {
+            Debug.Assert(instructionPointer < lineInfoSize);
+
+            if (instructionPointer >= lineInfoSize)
+                return 0;
+
+            return DebugHelpers.ReadIntVariable(process, lineInfoDataAddress + (ulong)instructionPointer * 4).GetValueOrDefault(0);
+        }
+
+        public string ReadSource(DkmProcess process)
+        {
+            if (source != null)
+                return source;
+
+            source = DebugHelpers.ReadStringVariable(process, sourceAddress + LuaHelpers.GetStringDataOffset(process), 1024);
+
+            return source;
+        }
     }
 
     public class LuaFunctionCallInfoData
@@ -560,25 +650,83 @@ namespace LuaDkmDebuggerComponent
         public ulong stackTopAddress; // TValue*
         public ulong previousAddress; // CallInfo*
         public ulong nextAddress; // CallInfo*
+
         public ulong stackBaseAddress; // TValue*
         public ulong savedInstructionPointerAddress; // unsigned*
+
+        public short resultCount;
+        public short callStatus;
+        public ulong extra;
+
+        public LuaValueDataBase func;
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
             ulong pointerSize = (ulong)DebugHelpers.GetPointerSize(process);
 
-            funcAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            stackTopAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            previousAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            nextAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            stackBaseAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            savedInstructionPointerAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
+            if (LuaHelpers.luaVersion == 502)
+            {
+                funcAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                stackTopAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                previousAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                nextAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+
+                resultCount = DebugHelpers.ReadStructShort(process, ref address).GetValueOrDefault(0);
+                callStatus = (short)DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
+                extra = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+
+                stackBaseAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                savedInstructionPointerAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+            }
+            else
+            {
+                funcAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                stackTopAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                previousAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                nextAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+
+                ulong unionStartAddress = address;
+
+                stackBaseAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                savedInstructionPointerAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                DebugHelpers.SkipStructPointer(process, ref address); // ctx of a C function call info
+
+                extra = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                resultCount = DebugHelpers.ReadStructShort(process, ref address).GetValueOrDefault(0);
+                callStatus = DebugHelpers.ReadStructShort(process, ref address).GetValueOrDefault(0);
+            }
+        }
+
+        public void ReadFunction(DkmProcess process)
+        {
+            if (func != null)
+                return;
+
+            func = LuaHelpers.ReadValue(process, funcAddress);
+        }
+
+        public bool CheckCallStatusLua()
+        {
+            if (LuaHelpers.luaVersion == 502)
+                return (callStatus & (int)CallStatus_5_2.Lua) != 0;
+
+            return (callStatus & (int)CallStatus_5_3.Lua) != 0;
+        }
+
+        public bool CheckCallStatusFinalizer()
+        {
+            if (LuaHelpers.luaVersion == 502)
+                return false;
+
+            return (callStatus & (int)CallStatus_5_3.Finalizer) != 0;
+        }
+
+        public bool CheckCallStatusTailCall()
+        {
+            if (LuaHelpers.luaVersion == 502)
+                return (callStatus & (int)CallStatus_5_2.Tail) != 0;
+
+            return (callStatus & (int)CallStatus_5_3.TailCall) != 0;
         }
     }
 
@@ -611,6 +759,7 @@ namespace LuaDkmDebuggerComponent
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
+            // Same in Lua 5.2 and 5.3
             ulong pointerSize = (ulong)DebugHelpers.GetPointerSize(process);
 
             address += pointerSize; // Skip CommonHeader
@@ -656,6 +805,7 @@ namespace LuaDkmDebuggerComponent
                     arrayElements.Add(LuaHelpers.ReadValue(process, address));
                 }
             }
+
             nodeElements = new List<LuaNodeData>();
 
             if (nodeDataAddress != 0)
@@ -687,6 +837,43 @@ namespace LuaDkmDebuggerComponent
 
             metaTable.ReadFrom(process, metaTableDataAddress);
             metaTable.LoadValues(process);
+        }
+    }
+
+    public class LuaClosureData
+    {
+        public ulong nextAddress;
+        public byte typeTag;
+        public byte marked;
+        public byte upvalueSize;
+        public ulong gcListAddress;
+        public ulong functionAddress;
+
+        public LuaFunctionData function;
+
+        public void ReadFrom(DkmProcess process, ulong address)
+        {
+            nextAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+            typeTag = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+            marked = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+            upvalueSize = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+            gcListAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+            functionAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+        }
+
+        public LuaFunctionData ReadFunction(DkmProcess process)
+        {
+            if (function != null)
+                return function;
+
+            if (functionAddress == 0)
+                return null;
+
+            function = new LuaFunctionData();
+
+            function.ReadFrom(process, functionAddress);
+
+            return function;
         }
     }
 
