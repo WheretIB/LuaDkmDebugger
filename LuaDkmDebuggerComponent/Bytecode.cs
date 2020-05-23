@@ -486,6 +486,8 @@ namespace LuaDkmDebuggerComponent
 
     public class LuaFunctionData
     {
+        public ulong originalAddress;
+
         public byte argumentCount;
         public byte isVarargs;
         public byte maxStackSize;
@@ -511,10 +513,15 @@ namespace LuaDkmDebuggerComponent
         public List<LuaLocalVariableData> locals;
         public List<LuaLocalVariableData> activeLocals;
 
+        public List<LuaFunctionData> localFunctions;
+        public int[] lineInfo;
+
         public string source;
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
+            originalAddress = address;
+
             ulong pointerSize = (ulong)DebugHelpers.GetPointerSize(process);
 
             if (LuaHelpers.luaVersion == 501)
@@ -659,6 +666,34 @@ namespace LuaDkmDebuggerComponent
                         activeLocals.Add(local);
                 }
             }
+        }
+
+        public void ReadLocalFunctions(DkmProcess process)
+        {
+            if (localFunctions != null)
+                return;
+
+            localFunctions = new List<LuaFunctionData>();
+
+            for (int i = 0; i < localFunctionSize; i++)
+            {
+                LuaFunctionData data = new LuaFunctionData();
+
+                data.ReadFrom(process, localFunctionDataAddress + (ulong)(i * DebugHelpers.GetPointerSize(process)));
+
+                localFunctions.Add(data);
+            }
+        }
+
+        public void ReadLineInfo(DkmProcess process)
+        {
+            if (lineInfo != null)
+                return;
+
+            lineInfo = new int[lineInfoSize];
+
+            for (int i = 0; i < lineInfoSize; i++)
+                lineInfo[i] = DebugHelpers.ReadIntVariable(process, lineInfoDataAddress + (ulong)i * 4u).GetValueOrDefault(0);
         }
 
         public int ReadLineInfoFor(DkmProcess process, int instructionPointer)
@@ -1019,6 +1054,49 @@ namespace LuaDkmDebuggerComponent
                     functionName = reader.ReadString();
 
                     instructionLine = reader.ReadInt32();
+                    instructionPointer = reader.ReadInt32();
+
+                    source = reader.ReadString();
+                }
+            }
+        }
+    }
+
+    public class LuaAddressEntityData
+    {
+        public ulong functionAddress; // Address of the Proto struct
+
+        public int instructionPointer;
+
+        public string source;
+
+        public ReadOnlyCollection<byte> Encode()
+        {
+            using (var stream = new MemoryStream())
+            {
+                using (var writer = new BinaryWriter(stream))
+                {
+                    writer.Write(functionAddress);
+
+                    writer.Write(instructionPointer);
+
+                    writer.Write(source);
+
+                    writer.Flush();
+
+                    return new ReadOnlyCollection<byte>(stream.ToArray());
+                }
+            }
+        }
+
+        public void ReadFrom(byte[] data)
+        {
+            using (var stream = new MemoryStream(data))
+            {
+                using (var reader = new BinaryReader(stream))
+                {
+                    functionAddress = reader.ReadUInt64();
+
                     instructionPointer = reader.ReadInt32();
 
                     source = reader.ReadString();

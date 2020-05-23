@@ -28,7 +28,9 @@ namespace LuaDkmDebuggerComponent
         public bool workingDirectoryRequested = false;
         public string workingDirectory = null;
 
-        public LuaDebugConfiguration configuration;
+        public LuaDebugConfiguration configuration = null;
+
+        public SymbolStore symbolStore = new SymbolStore();
     }
 
     internal class LuaStackContextData : DkmDataItem
@@ -55,7 +57,12 @@ namespace LuaDkmDebuggerComponent
         public LuaValueDataBase luaValueData;
     }
 
-    public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator
+    internal class LuaResolvedDocumentItem : DkmDataItem
+    {
+        public SymbolSource source;
+    }
+
+    public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery
     {
         internal string ExecuteExpression(string expression, DkmStackContext stackContext, DkmStackWalkFrame input, bool allowZero, out ulong address)
         {
@@ -311,6 +318,8 @@ namespace LuaDkmDebuggerComponent
 
                         LuaFunctionData functionData = currFunctionData;
 
+                        processData.symbolStore.Add(process, functionData);
+
                         string argumentList = "";
 
                         for (int i = 0; i < functionData.argumentCount; i++)
@@ -322,26 +331,37 @@ namespace LuaDkmDebuggerComponent
                             argumentList += (i == 0 ? "" : ", ") + argument.name;
                         }
 
-                        LuaFrameData frameData = new LuaFrameData();
+                        LuaAddressEntityData entityData = new LuaAddressEntityData
+                        {
+                            functionAddress = callLuaFunction.value.functionAddress,
 
-                        frameData.state = stateAddress.Value;
+                            instructionPointer = prevInstructionPointer,
 
-                        frameData.registryAddress = registryAddress.GetValueOrDefault(0);
-                        frameData.version = (int)version.GetValueOrDefault(503);
+                            source = sourceName
+                        };
 
-                        frameData.callInfo = callInfoAddress;
+                        LuaFrameData frameData = new LuaFrameData
+                        {
+                            state = stateAddress.Value,
 
-                        frameData.functionAddress = callLuaFunction.value.functionAddress;
-                        frameData.functionName = functionName;
+                            registryAddress = registryAddress.GetValueOrDefault(0),
+                            version = (int)version.GetValueOrDefault(503),
 
-                        frameData.instructionLine = (int)currLine;
-                        frameData.instructionPointer = prevInstructionPointer;
+                            callInfo = callInfoAddress,
 
-                        frameData.source = sourceName;
+                            functionAddress = callLuaFunction.value.functionAddress,
+                            functionName = functionName,
 
+                            instructionLine = (int)currLine,
+                            instructionPointer = prevInstructionPointer,
+
+                            source = sourceName
+                        };
+
+                        var entityDataBytes = entityData.Encode();
                         var frameDataBytes = frameData.Encode();
 
-                        DkmInstructionAddress instructionAddress = DkmCustomInstructionAddress.Create(processData.runtimeInstance, processData.moduleInstance, frameDataBytes, (ulong)currInstructionPointer, frameDataBytes, null);
+                        DkmInstructionAddress instructionAddress = DkmCustomInstructionAddress.Create(processData.runtimeInstance, processData.moduleInstance, entityDataBytes, (ulong)prevInstructionPointer, frameDataBytes, null);
 
                         var description = $"{sourceName} {functionName}({argumentList}) Line {currLine}";
 
@@ -608,6 +628,97 @@ namespace LuaDkmDebuggerComponent
             return new DkmStackWalkFrame[1] { input };
         }
 
+        string CheckConfigPaths(string processPath, LuaLocalProcessData processData, string winSourcePath)
+        {
+            if (processData.configuration != null && processData.configuration.ScriptPaths != null)
+            {
+                foreach (var path in processData.configuration.ScriptPaths)
+                {
+                    var finalPath = path.Replace('/', '\\');
+
+                    if (!Path.IsPathRooted(finalPath))
+                    {
+                        if (processData.workingDirectory != null)
+                        {
+                            string test = Path.GetFullPath(Path.Combine(processData.workingDirectory, finalPath)) + winSourcePath;
+
+                            if (File.Exists(test))
+                                return test;
+                        }
+
+                        {
+                            string test = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(processPath), finalPath)) + winSourcePath;
+
+                            if (File.Exists(test))
+                                return test;
+                        }
+                    }
+                    else
+                    {
+                        string test = finalPath + winSourcePath;
+
+                        if (File.Exists(test))
+                            return test;
+                    }
+                }
+            }
+
+            // Check 'empty' path
+            if (processData.workingDirectory != null)
+            {
+                string test = Path.GetFullPath(Path.Combine(processData.workingDirectory, winSourcePath));
+
+                if (File.Exists(test))
+                    return test;
+            }
+
+            {
+                string test = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(processPath), winSourcePath));
+
+                if (File.Exists(test))
+                    return test;
+            }
+
+            return null;
+        }
+
+        string TryFindSourcePath(string processPath, LuaLocalProcessData processData, string source)
+        {
+            string filePath;
+
+            if (source.StartsWith("@"))
+            {
+                string winSourcePath = source.Replace('/', '\\');
+
+                filePath = CheckConfigPaths(processPath, processData, winSourcePath.Substring(1));
+
+                if (filePath == null)
+                {
+                    if (processData.workingDirectory != null)
+                        filePath = $"{processData.workingDirectory}\\{winSourcePath.Substring(1)}";
+                    else
+                        filePath = winSourcePath.Substring(1);
+                }
+            }
+            else
+            {
+                string winSourcePath = source.Replace('/', '\\');
+
+                filePath = CheckConfigPaths(processPath, processData, winSourcePath);
+
+                if (filePath == null)
+                {
+                    // TODO: how can we display internal scripts in the debugger?
+                    if (processData.workingDirectory != null)
+                        filePath = $"{processData.workingDirectory}\\internal.lua";
+                    else
+                        filePath = "internal.lua";
+                }
+            }
+
+            return filePath;
+        }
+
         DkmSourcePosition IDkmSymbolQuery.GetSourcePosition(DkmInstructionSymbol instruction, DkmSourcePositionFlags flags, DkmInspectionSession inspectionSession, out bool startOfLine)
         {
             var process = inspectionSession?.Process;
@@ -632,91 +743,7 @@ namespace LuaDkmDebuggerComponent
 
             frameData.ReadFrom(instructionSymbol.AdditionalData.ToArray());
 
-            string CheckConfigPaths(string winSourcePath)
-            {
-                if (processData.configuration != null && processData.configuration.ScriptPaths != null)
-                {
-                    foreach (var path in processData.configuration.ScriptPaths)
-                    {
-                        var finalPath = path.Replace('/', '\\');
-
-                        if (!Path.IsPathRooted(finalPath))
-                        {
-                            if (processData.workingDirectory != null)
-                            {
-                                string test = Path.GetFullPath(Path.Combine(processData.workingDirectory, finalPath)) + winSourcePath;
-
-                                if (File.Exists(test))
-                                    return test;
-                            }
-
-                            {
-                                string test = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(process.Path), finalPath)) + winSourcePath;
-
-                                if (File.Exists(test))
-                                    return test;
-                            }
-                        }
-                        else
-                        {
-                            string test = finalPath + winSourcePath;
-
-                            if (File.Exists(test))
-                                return test;
-                        }
-                    }
-                }
-
-                // Check 'empty' path
-                if (processData.workingDirectory != null)
-                {
-                    string test = Path.GetFullPath(Path.Combine(processData.workingDirectory, winSourcePath));
-
-                    if (File.Exists(test))
-                        return test;
-                }
-
-                {
-                    string test = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(process.Path), winSourcePath));
-
-                    if (File.Exists(test))
-                        return test;
-                }
-
-                return null;
-            }
-
-            string filePath;
-
-            if (frameData.source.StartsWith("@"))
-            {
-                string winSourcePath = frameData.source.Replace('/', '\\');
-
-                filePath = CheckConfigPaths(winSourcePath.Substring(1));
-
-                if (filePath == null)
-                {
-                    if (processData.workingDirectory != null)
-                        filePath = $"{processData.workingDirectory}\\{winSourcePath.Substring(1)}";
-                    else
-                        filePath = winSourcePath.Substring(1);
-                }
-            }
-            else
-            {
-                string winSourcePath = frameData.source.Replace('/', '\\');
-
-                filePath = CheckConfigPaths(winSourcePath);
-
-                if (filePath == null)
-                {
-                    // TODO: how can we display internal scripts in the debugger?
-                    if (processData.workingDirectory != null)
-                        filePath = $"{processData.workingDirectory}\\internal.lua";
-                    else
-                        filePath = "internal.lua";
-                }
-            }
+            string filePath = TryFindSourcePath(process.Path, processData, frameData.source);
 
             startOfLine = true;
             return DkmSourcePosition.Create(DkmSourceFileId.Create(filePath, null, null, null), new DkmTextSpan(frameData.instructionLine, frameData.instructionLine, 0, 0));
@@ -1406,8 +1433,107 @@ namespace LuaDkmDebuggerComponent
 
         DkmResolvedDocument[] IDkmSymbolDocumentCollectionQuery.FindDocuments(DkmModule module, DkmSourceFileId sourceFileId)
         {
+            DkmCustomModuleInstance moduleInstance = module.GetModuleInstances().OfType<DkmCustomModuleInstance>().FirstOrDefault(el => el.Module.CompilerId.VendorId == Guids.luaCompilerGuid);
+
+            if (moduleInstance == null)
+                return module.FindDocuments(sourceFileId);
+
+            var process = moduleInstance.Process;
+            var processData = process.GetDataItem<LuaLocalProcessData>();
+
+            foreach (var source in processData.symbolStore.knownSources)
+            {
+                if (source.Value.resolvedFileName == null)
+                    source.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, source.Key);
+
+                var fileName = source.Value.resolvedFileName;
+
+                if (sourceFileId.DocumentName == fileName)
+                {
+                    var dataItem = new LuaResolvedDocumentItem
+                    {
+                        source = source.Value
+                    };
+
+                    return new DkmResolvedDocument[1] { DkmResolvedDocument.Create(module, sourceFileId.DocumentName, null, DkmDocumentMatchStrength.FullPath, DkmResolvedDocumentWarning.None, false, dataItem) };
+                }
+            }
+
             // TODO: can we find a mapping from source line to loaded Lua scripts?
             return module.FindDocuments(sourceFileId);
+        }
+
+        bool FindFunctionInstructionForLine(DkmProcess process, LuaFunctionData function, int startLine, int endLine, out LuaFunctionData targetFunction, out int targetInstructionPointer, out int targetLine)
+        {
+            function.ReadLocalFunctions(process);
+            function.ReadLineInfo(process);
+
+            foreach (var localFunction in function.localFunctions)
+            {
+                if (FindFunctionInstructionForLine(process, localFunction, startLine, endLine, out targetFunction, out targetInstructionPointer, out targetLine))
+                    return true;
+            }
+
+            for (int line = startLine; line < endLine; line++)
+            {
+                for (int instruction = 0; instruction < function.lineInfo.Length; instruction++)
+                {
+                    if (function.lineInfo[instruction] == line)
+                    {
+                        targetFunction = function;
+                        targetInstructionPointer = instruction;
+                        targetLine = line;
+                        return true;
+                    }
+                }
+            }
+
+            targetFunction = null;
+            targetInstructionPointer = 0;
+            targetLine = 0;
+            return false;
+        }
+
+        DkmInstructionSymbol[] IDkmSymbolDocumentSpanQuery.FindSymbols(DkmResolvedDocument resolvedDocument, DkmTextSpan textSpan, string text, out DkmSourcePosition[] symbolLocation)
+        {
+            var documentData = DebugHelpers.GetOrCreateDataItem<LuaResolvedDocumentItem>(resolvedDocument);
+
+            if (documentData == null)
+                return resolvedDocument.FindSymbols(textSpan, text, out symbolLocation);
+
+            DkmCustomModuleInstance moduleInstance = resolvedDocument.Module.GetModuleInstances().OfType<DkmCustomModuleInstance>().FirstOrDefault(el => el.Module.CompilerId.VendorId == Guids.luaCompilerGuid);
+
+            if (moduleInstance == null)
+                return resolvedDocument.FindSymbols(textSpan, text, out symbolLocation);
+
+            var process = moduleInstance.Process;
+
+            foreach (var el in documentData.source.knownFunctions)
+            {
+                if (FindFunctionInstructionForLine(process, el.Value, textSpan.StartLine, textSpan.EndLine, out LuaFunctionData luaFunctionData, out int instructionPointer, out int line))
+                {
+                    var sourceFileId = DkmSourceFileId.Create(resolvedDocument.DocumentName, null, null, null);
+
+                    var resultSpan = new DkmTextSpan(line, line, 0, 0);
+
+                    symbolLocation = new DkmSourcePosition[1] { DkmSourcePosition.Create(sourceFileId, resultSpan) };
+
+                    LuaAddressEntityData entityData = new LuaAddressEntityData
+                    {
+                        functionAddress = luaFunctionData.originalAddress,
+
+                        instructionPointer = instructionPointer,
+
+                        source = documentData.source.sourceFileName
+                    };
+
+                    var entityDataBytes = entityData.Encode();
+
+                    return new DkmInstructionSymbol[1] { DkmCustomInstructionSymbol.Create(resolvedDocument.Module, Guids.luaRuntimeGuid, entityDataBytes, (ulong)instructionPointer, null) };
+                }
+            }
+
+            return resolvedDocument.FindSymbols(textSpan, text, out symbolLocation);
         }
     }
 }

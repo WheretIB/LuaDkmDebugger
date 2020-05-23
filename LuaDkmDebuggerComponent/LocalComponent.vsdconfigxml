@@ -19,6 +19,7 @@
 					<Interface Name="IDkmSymbolQuery"/>
 					<Interface Name="IDkmSymbolCompilerIdQuery"/>
 					<Interface Name="IDkmSymbolDocumentCollectionQuery"/>
+					<Interface Name="IDkmSymbolDocumentSpanQuery"/>
 				</InterfaceGroup>
 
 				<InterfaceGroup>
