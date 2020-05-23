@@ -41,4 +41,4 @@ Add `ScriptPaths` key with an array of additional search paths.
 
 ### Known Issues:
  * This extension will always add Lua module to the application (can be seen in 'Modules' section of the debugger) even when debugging applications with no Lua code (check notes in RemoteComponent.cs)
- * Lua 5.2 is assumed to be compiled with LUA_NANTRICK in x86 (deafult configuration)
+ * Lua 5.2 is assumed to be compiled with LUA_NANTRICK in x86 (default configuration)
