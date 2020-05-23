@@ -164,12 +164,12 @@ namespace LuaDkmDebuggerComponent
             if (pos == expression.Length)
                 return null;
 
-            if (!char.IsLetter(expression[pos]))
+            if (!char.IsLetter(expression[pos]) && expression[pos] != '_')
                 return null;
 
             int curr = pos;
 
-            while (curr < expression.Length && char.IsLetterOrDigit(expression[curr]))
+            while (curr < expression.Length && (char.IsLetterOrDigit(expression[curr]) || expression[curr] == '_'))
                 curr++;
 
             string name = expression.Substring(pos, curr - pos);

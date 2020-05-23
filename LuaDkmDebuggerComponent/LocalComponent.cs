@@ -1078,11 +1078,11 @@ namespace LuaDkmDebuggerComponent
                 // Check if name is an identifier
                 bool isIdentifierName = false;
 
-                if (char.IsLetter(name[0]))
+                if (char.IsLetter(name[0]) || name[0] == '_')
                 {
                     int pos = 1;
 
-                    while (pos < name.Length && char.IsLetterOrDigit(name[pos]))
+                    while (pos < name.Length && (char.IsLetterOrDigit(name[pos]) || name[pos] == '_'))
                         pos++;
 
                     isIdentifierName = pos == name.Length;
