@@ -459,7 +459,7 @@ namespace LuaDkmDebuggerComponent
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
-            // Same in Lua 5.2 and 5.3
+            // Same in Lua 5.1, 5.2 and 5.3
             nameAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
             address += (ulong)DebugHelpers.GetPointerSize(process);
 
@@ -792,6 +792,7 @@ namespace LuaDkmDebuggerComponent
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
+            // Same in Lua 5.1, 5.2 and 5.3
             value = LuaHelpers.ReadValue(process, address);
             key = LuaHelpers.ReadValue(process, address + LuaHelpers.GetValueSize(process));
         }
@@ -814,32 +815,42 @@ namespace LuaDkmDebuggerComponent
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
-            // Same in Lua 5.2 and 5.3
-            ulong pointerSize = (ulong)DebugHelpers.GetPointerSize(process);
+            if (LuaHelpers.luaVersion == 501)
+            {
+                // Skip CommonHeader
+                DebugHelpers.SkipStructPointer(process, ref address); // next
+                DebugHelpers.SkipStructByte(process, ref address); // typeTag
+                DebugHelpers.SkipStructByte(process, ref address); // marked
 
-            address += pointerSize; // Skip CommonHeader
-            address += 2;
+                flags = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
+                nodeArraySizeLog2 = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
 
-            flags = DebugHelpers.ReadByteVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(byte);
-            nodeArraySizeLog2 = DebugHelpers.ReadByteVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(byte);
+                metaTableDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                arrayDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                nodeDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                lastFreeNodeDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                gclistAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
 
-            Debug.Assert((address & 0x3) == 0);
+                arraySize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+            }
+            else
+            {
+                // Same in Lua 5.2 and 5.3
+                DebugHelpers.SkipStructPointer(process, ref address); // next
+                DebugHelpers.SkipStructByte(process, ref address); // typeTag
+                DebugHelpers.SkipStructByte(process, ref address); // marked
 
-            arraySize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
+                flags = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
+                nodeArraySizeLog2 = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
 
-            arrayDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            nodeDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            lastFreeNodeDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            metaTableDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
-            gclistAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += pointerSize;
+                arraySize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+
+                arrayDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                nodeDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                lastFreeNodeDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                metaTableDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                gclistAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+            }
         }
 
         public void LoadValues(DkmProcess process)
