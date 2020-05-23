@@ -301,7 +301,7 @@ namespace LuaDkmDebuggerComponent
                     if (sourceName != null)
                     {
                         if (currFunctionData.definitionStartLine == 0)
-                            functionName = "__global";
+                            functionName = "main";
 
                         LuaFunctionData functionData = currFunctionData;
 
