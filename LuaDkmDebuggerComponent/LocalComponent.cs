@@ -484,30 +484,6 @@ namespace LuaDkmDebuggerComponent
                                 continue;
                             }
 
-                            // Lua is dynamic so function names are implicit, and we have a fun way of getting them
-
-                            // Check for finalizer
-                            if (currCallInfoData.CheckCallStatusFinalizer())
-                            {
-                                luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"__gc", input.Registers, input.Annotations));
-
-                                luaFrameFlags &= ~DkmStackWalkFrameFlags.TopFrame;
-
-                                currCallInfoAddress = currCallInfoData.previousAddress;
-                                continue;
-                            }
-
-                            // Can't get function name for tail call
-                            if (currCallInfoData.CheckCallStatusTailCall())
-                            {
-                                luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[name unavailable - tail call]", input.Registers, input.Annotations));
-
-                                luaFrameFlags &= ~DkmStackWalkFrameFlags.TopFrame;
-
-                                currCallInfoAddress = currCallInfoData.previousAddress;
-                                continue;
-                            }
-
                             // Now we need to know what the previous call info used to call us
                             if (currCallInfoData.previousAddress == 0)
                                 break;
@@ -520,7 +496,15 @@ namespace LuaDkmDebuggerComponent
                             string currFunctionName = "[name unavailable]";
 
                             // Can't get function name if previous call status is not 'Lua'
-                            if (!prevCallInfoData.CheckCallStatusLua())
+                            if (currCallInfoData.CheckCallStatusFinalizer())
+                            {
+                                currFunctionName = "__gc";
+                            }
+                            else if (currCallInfoData.CheckCallStatusTailCall())
+                            {
+                                currFunctionName = $"[name unavailable - tail call]";
+                            }
+                            else if (!prevCallInfoData.CheckCallStatusLua())
                             {
                                 currFunctionName = $"[name unavailable - not called from Lua]";
                             }
