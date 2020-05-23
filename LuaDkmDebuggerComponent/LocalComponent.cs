@@ -723,6 +723,8 @@ namespace LuaDkmDebuggerComponent
             if (valueBase as LuaValueDataNil != null)
             {
                 type = "nil";
+
+                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
                 return "nil";
             }
 
@@ -734,13 +736,13 @@ namespace LuaDkmDebuggerComponent
 
                 if (value.value)
                 {
-                    flags |= DkmEvaluationResultFlags.Boolean | DkmEvaluationResultFlags.BooleanTrue;
+                    flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean | DkmEvaluationResultFlags.BooleanTrue;
                     editableValue = $"{value.value}";
                     return "true";
                 }
                 else
                 {
-                    flags |= DkmEvaluationResultFlags.Boolean;
+                    flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean;
                     editableValue = $"{value.value}";
                     return "false";
                 }
@@ -830,7 +832,7 @@ namespace LuaDkmDebuggerComponent
 
                 type = "lua_function";
 
-                flags |= DkmEvaluationResultFlags.ReadOnly;
+                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
                 return $"0x{value.targetAddress}";
             }
 
@@ -840,7 +842,7 @@ namespace LuaDkmDebuggerComponent
 
                 type = "c_function";
 
-                flags |= DkmEvaluationResultFlags.ReadOnly;
+                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
                 return $"0x{value.targetAddress}";
             }
 
@@ -850,7 +852,7 @@ namespace LuaDkmDebuggerComponent
 
                 type = "c_closure";
 
-                flags |= DkmEvaluationResultFlags.ReadOnly;
+                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
                 return $"0x{value.targetAddress}";
             }
 
@@ -870,7 +872,7 @@ namespace LuaDkmDebuggerComponent
 
                 type = "thread";
 
-                flags |= DkmEvaluationResultFlags.ReadOnly;
+                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
                 return $"0x{value.targetAddress}";
             }
 
@@ -1275,6 +1277,109 @@ namespace LuaDkmDebuggerComponent
 
         void IDkmLanguageExpressionEvaluator.SetValueAsString(DkmEvaluationResult result, string value, int timeout, out string errorText)
         {
+            var evalData = result.GetDataItem<LuaEvaluationDataItem>();
+
+            if (evalData == null)
+            {
+                errorText = "Missing evaluation data";
+                return;
+            }
+
+            var process = result.StackFrame.Process;
+            var address = evalData.luaValueData.originalAddress;
+
+            if (evalData.luaValueData.originalAddress == 0)
+            {
+                errorText = "Result value doesn't have an address in memory";
+                return;
+            }
+
+            if (evalData.luaValueData as LuaValueDataBool != null)
+            {
+                if (value == "true")
+                {
+                    if (!DebugHelpers.TryWriteVariable(process, address, 1))
+                        errorText = "Failed to modify target process memory";
+                    else
+                        errorText = null;
+
+                    return;
+                }
+                else if (value == "false")
+                {
+                    if (!DebugHelpers.TryWriteVariable(process, address, 0))
+                        errorText = "Failed to modify target process memory";
+                    else
+                        errorText = null;
+
+                    return;
+                }
+                else if (int.TryParse(value, out int intValue))
+                {
+                    if (!DebugHelpers.TryWriteVariable(process, address, intValue != 0 ? 1 : 0))
+                        errorText = "Failed to modify target process memory";
+                    else
+                        errorText = null;
+
+                    return;
+                }
+
+                errorText = "Failed to convert string to bool";
+                return;
+            }
+
+            if (evalData.luaValueData as LuaValueDataLightUserData != null)
+            {
+                if (ulong.TryParse(value, out ulong ulongValue))
+                {
+                    if (DebugHelpers.Is64Bit(process) && !DebugHelpers.TryWriteVariable(process, address, (long)ulongValue))
+                        errorText = "Failed to modify target process memory";
+                    else if (!DebugHelpers.Is64Bit(process) && !DebugHelpers.TryWriteVariable(process, address, (int)ulongValue))
+                        errorText = "Failed to modify target process memory";
+                    else
+                        errorText = null;
+
+                    return;
+                }
+
+                errorText = "Failed to convert string to address";
+                return;
+            }
+
+            if (evalData.luaValueData as LuaValueDataNumber != null)
+            {
+                if ((evalData.luaValueData as LuaValueDataNumber).extendedType == LuaExtendedType.IntegerNumber)
+                {
+                    if (int.TryParse(value, out int intValue))
+                    {
+                        if (!DebugHelpers.TryWriteVariable(process, address, intValue))
+                            errorText = "Failed to modify target process memory";
+                        else
+                            errorText = null;
+
+                        return;
+                    }
+
+                    errorText = "Failed to convert string to int";
+                    return;
+                }
+                else
+                {
+                    if (double.TryParse(value, out double doubleValue))
+                    {
+                        if (!DebugHelpers.TryWriteVariable(process, address, doubleValue))
+                            errorText = "Failed to modify target process memory";
+                        else
+                            errorText = null;
+
+                        return;
+                    }
+
+                    errorText = "Failed to convert string to double";
+                    return;
+                }
+            }
+
             errorText = "Missing evaluation data";
         }
 

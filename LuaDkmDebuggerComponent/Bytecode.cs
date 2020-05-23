@@ -119,7 +119,7 @@ namespace LuaDkmDebuggerComponent
                         {
                             baseType = GetBaseType(typeTag.Value),
                             extendedType = GetExtendedType(typeTag.Value),
-                            evaluationFlags = DkmEvaluationResultFlags.None,
+                            evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
                             originalAddress = address
                         };
                     }
@@ -327,7 +327,7 @@ namespace LuaDkmDebuggerComponent
                             {
                                 baseType = GetBaseType(typeTag.Value),
                                 extendedType = GetExtendedType(typeTag.Value),
-                                evaluationFlags = DkmEvaluationResultFlags.ReadOnly,
+                                evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
                                 originalAddress = address,
                                 value = target,
                                 targetAddress = value.Value
@@ -352,7 +352,7 @@ namespace LuaDkmDebuggerComponent
                             {
                                 baseType = GetBaseType(typeTag.Value),
                                 extendedType = GetExtendedType(typeTag.Value),
-                                evaluationFlags = DkmEvaluationResultFlags.ReadOnly,
+                                evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
                                 originalAddress = address,
                                 targetAddress = value.Value
                             };
@@ -376,7 +376,7 @@ namespace LuaDkmDebuggerComponent
                             {
                                 baseType = GetBaseType(typeTag.Value),
                                 extendedType = GetExtendedType(typeTag.Value),
-                                evaluationFlags = DkmEvaluationResultFlags.ReadOnly,
+                                evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
                                 originalAddress = address,
                                 targetAddress = value.Value
                             };
@@ -424,7 +424,7 @@ namespace LuaDkmDebuggerComponent
                             {
                                 baseType = GetBaseType(typeTag.Value),
                                 extendedType = GetExtendedType(typeTag.Value),
-                                evaluationFlags = DkmEvaluationResultFlags.ReadOnly,
+                                evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
                                 originalAddress = address,
                                 targetAddress = value.Value
                             };

@@ -16,6 +16,7 @@ Supported Lua versions:
  * Jump to Lua source/line from Lua stack frames
  * Function argument and local variable display in the 'Locals' watch section
  * Local variable lookup and expression evaluation in Watch, Immediate and similar elements
+ * Numeric and user data values can be modified
 
 ![Example debug session](https://github.com/WheretIB/LuaDkmDebugger/blob/master/resource/front_image.png?raw=true)
 
