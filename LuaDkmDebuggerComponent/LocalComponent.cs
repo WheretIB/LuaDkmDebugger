@@ -235,12 +235,17 @@ namespace LuaDkmDebuggerComponent
 
                 LoadConfigurationFile(process, processData);
 
+                bool isTopFrame = (input.Flags & DkmStackWalkFrameFlags.TopFrame) != 0;
+
                 List<DkmStackWalkFrame> luaFrames = new List<DkmStackWalkFrame>();
 
                 var luaFrameFlags = input.Flags;
 
-                luaFrameFlags = luaFrameFlags & ~(DkmStackWalkFrameFlags.NonuserCode | DkmStackWalkFrameFlags.UserStatusNotDetermined);
-                luaFrameFlags = luaFrameFlags | DkmStackWalkFrameFlags.InlineOptimized;
+                luaFrameFlags &= ~(DkmStackWalkFrameFlags.NonuserCode | DkmStackWalkFrameFlags.UserStatusNotDetermined);
+                luaFrameFlags |= DkmStackWalkFrameFlags.InlineOptimized;
+
+                if (isTopFrame)
+                    luaFrameFlags |= DkmStackWalkFrameFlags.TopFrame;
 
                 ulong? stateAddress = TryEvaluateAddressExpression($"L", stackContext, input);
 
@@ -434,6 +439,8 @@ namespace LuaDkmDebuggerComponent
                             if (frame != null)
                             {
                                 luaFrames.Add(frame);
+
+                                luaFrameFlags &= ~DkmStackWalkFrameFlags.TopFrame;
                             }
                         }
                         else
@@ -446,6 +453,8 @@ namespace LuaDkmDebuggerComponent
                             }
 
                             luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[{currFunctionName} C function]", input.Registers, input.Annotations));
+
+                            luaFrameFlags &= ~DkmStackWalkFrameFlags.TopFrame;
                         }
 
                         currCallInfoAddress = currCallInfoAddress - (DebugHelpers.Is64Bit(process) ? 40ul : 24ul);
@@ -482,6 +491,8 @@ namespace LuaDkmDebuggerComponent
                             {
                                 luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"__gc", input.Registers, input.Annotations));
 
+                                luaFrameFlags &= ~DkmStackWalkFrameFlags.TopFrame;
+
                                 currCallInfoAddress = currCallInfoData.previousAddress;
                                 continue;
                             }
@@ -490,6 +501,8 @@ namespace LuaDkmDebuggerComponent
                             if (currCallInfoData.CheckCallStatusTailCall())
                             {
                                 luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[name unavailable - tail call]", input.Registers, input.Annotations));
+
+                                luaFrameFlags &= ~DkmStackWalkFrameFlags.TopFrame;
 
                                 currCallInfoAddress = currCallInfoData.previousAddress;
                                 continue;
@@ -540,6 +553,8 @@ namespace LuaDkmDebuggerComponent
                                 if (frame != null)
                                 {
                                     luaFrames.Add(frame);
+
+                                    luaFrameFlags &= ~DkmStackWalkFrameFlags.TopFrame;
                                 }
                             }
                             else if (currCallInfoData.func.extendedType == LuaExtendedType.ExternalFunction)
@@ -552,6 +567,8 @@ namespace LuaDkmDebuggerComponent
                                 }
 
                                 luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[{currFunctionName} C function]", input.Registers, input.Annotations));
+
+                                luaFrameFlags &= ~DkmStackWalkFrameFlags.TopFrame;
                             }
                             else if (currCallInfoData.func.extendedType == LuaExtendedType.ExternalClosure)
                             {
@@ -563,6 +580,8 @@ namespace LuaDkmDebuggerComponent
                                 }
 
                                 luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[{currFunctionName} C closure]", input.Registers, input.Annotations));
+
+                                luaFrameFlags &= ~DkmStackWalkFrameFlags.TopFrame;
                             }
 
                             currCallInfoAddress = currCallInfoData.previousAddress;
@@ -574,7 +593,12 @@ namespace LuaDkmDebuggerComponent
                     }
                 }
 
-                luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, (input.Flags & ~DkmStackWalkFrameFlags.UserStatusNotDetermined) | DkmStackWalkFrameFlags.NonuserCode, input.Description, input.Registers, input.Annotations));
+                var originalFlags = (input.Flags & ~DkmStackWalkFrameFlags.UserStatusNotDetermined) | DkmStackWalkFrameFlags.NonuserCode;
+
+                if (luaFrames.Count != 0 && isTopFrame)
+                    originalFlags &= ~DkmStackWalkFrameFlags.TopFrame;
+
+                luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, originalFlags, input.Description, input.Registers, input.Annotations));
 
                 return luaFrames.ToArray();
             }
