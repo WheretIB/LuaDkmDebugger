@@ -34,6 +34,7 @@ namespace LuaDkmDebuggerComponent
     internal class LuaStackContextData : DkmDataItem
     {
         // Stack walk data for multiple switches between Lua and C++
+        public ulong stateAddress = 0;
         public bool seenLuaFrame = false;
         public int skipFrames = 0; // How many Lua frames to skip
         public int seenFrames = 0; // How many Lua frames we have seen
@@ -244,6 +245,15 @@ namespace LuaDkmDebuggerComponent
                     luaFrameFlags |= DkmStackWalkFrameFlags.TopFrame;
 
                 ulong? stateAddress = TryEvaluateAddressExpression($"L", stackContext, input);
+
+                // Reset Lua frame skip data if we have switched Lua state
+                if (stackContextData.stateAddress != stateAddress.GetValueOrDefault(0))
+                {
+                    stackContextData.stateAddress = stateAddress.GetValueOrDefault(0);
+                    stackContextData.seenLuaFrame = false;
+                    stackContextData.skipFrames = 0;
+                    stackContextData.seenFrames = 0;
+                }
 
                 ulong? registryAddress = TryEvaluateAddressExpression($"&L->l_G->l_registry", stackContext, input);
                 long? version = TryEvaluateNumberExpression($"(int)*L->l_G->version", stackContext, input);
