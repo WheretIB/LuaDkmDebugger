@@ -29,7 +29,10 @@ namespace LuaDkmDebuggerComponent
         public string workingDirectory = null;
 
         public LuaDebugConfiguration configuration;
+    }
 
+    internal class LuaStackContextData : DkmDataItem
+    {
         // Stack walk data for multiple switches between Lua and C++
         public bool seenLuaFrame = false;
         public int skipFrames = 0; // How many Lua frames to skip
@@ -165,16 +168,7 @@ namespace LuaDkmDebuggerComponent
         {
             // null input frame indicates the end of the call stack
             if (input == null)
-            {
-                var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(stackContext.InspectionSession.Process);
-
-                // Reset stack walk frame position
-                processData.seenLuaFrame = false;
-                processData.skipFrames = 0;
-                processData.seenFrames = 0;
-
                 return null;
-            }
 
             if (input.InstructionAddress == null)
                 return new DkmStackWalkFrame[1] { input };
@@ -184,6 +178,8 @@ namespace LuaDkmDebuggerComponent
 
             if (input.BasicSymbolInfo == null)
                 return new DkmStackWalkFrame[1] { input };
+
+            var stackContextData = DebugHelpers.GetOrCreateDataItem<LuaStackContextData>(stackContext);
 
             if (input.BasicSymbolInfo.MethodName == "luaV_execute")
             {
@@ -390,9 +386,9 @@ namespace LuaDkmDebuggerComponent
                         if (prevCallInfoData.func == null)
                             break;
 
-                        if (processData.skipFrames != 0)
+                        if (stackContextData.skipFrames != 0)
                         {
-                            processData.skipFrames--;
+                            stackContextData.skipFrames--;
 
                             currCallInfoAddress = currCallInfoAddress - (DebugHelpers.Is64Bit(process) ? 40ul : 24ul);
                             continue;
@@ -431,8 +427,8 @@ namespace LuaDkmDebuggerComponent
 
                         if (currCallLuaFunction.value.isC_5_1 == 0)
                         {
-                            processData.seenLuaFrame = true;
-                            processData.seenFrames++;
+                            stackContextData.seenLuaFrame = true;
+                            stackContextData.seenFrames++;
 
                             var frame = GetLuaFunctionStackWalkFrame(currCallInfoAddress, currCallInfoData, currCallLuaFunction, currFunctionName);
 
@@ -445,10 +441,10 @@ namespace LuaDkmDebuggerComponent
                         }
                         else
                         {
-                            if (processData.seenLuaFrame)
+                            if (stackContextData.seenLuaFrame)
                             {
-                                processData.seenLuaFrame = false;
-                                processData.skipFrames = processData.seenFrames;
+                                stackContextData.seenLuaFrame = false;
+                                stackContextData.skipFrames = stackContextData.seenFrames;
                                 break;
                             }
 
@@ -476,9 +472,9 @@ namespace LuaDkmDebuggerComponent
 
                         if (currCallInfoData.func.baseType == LuaBaseType.Function)
                         {
-                            if (processData.skipFrames != 0)
+                            if (stackContextData.skipFrames != 0)
                             {
-                                processData.skipFrames--;
+                                stackContextData.skipFrames--;
 
                                 currCallInfoAddress = currCallInfoData.previousAddress;
                                 continue;
@@ -529,8 +525,8 @@ namespace LuaDkmDebuggerComponent
                                 if (currCallLuaFunction == null)
                                     break;
 
-                                processData.seenLuaFrame = true;
-                                processData.seenFrames++;
+                                stackContextData.seenLuaFrame = true;
+                                stackContextData.seenFrames++;
 
                                 var frame = GetLuaFunctionStackWalkFrame(currCallInfoAddress.Value, currCallInfoData, currCallLuaFunction, currFunctionName);
 
@@ -543,10 +539,10 @@ namespace LuaDkmDebuggerComponent
                             }
                             else if (currCallInfoData.func.extendedType == LuaExtendedType.ExternalFunction)
                             {
-                                if (processData.seenLuaFrame)
+                                if (stackContextData.seenLuaFrame)
                                 {
-                                    processData.seenLuaFrame = false;
-                                    processData.skipFrames = processData.seenFrames;
+                                    stackContextData.seenLuaFrame = false;
+                                    stackContextData.skipFrames = stackContextData.seenFrames;
                                     break;
                                 }
 
@@ -556,10 +552,10 @@ namespace LuaDkmDebuggerComponent
                             }
                             else if (currCallInfoData.func.extendedType == LuaExtendedType.ExternalClosure)
                             {
-                                if (processData.seenLuaFrame)
+                                if (stackContextData.seenLuaFrame)
                                 {
-                                    processData.seenLuaFrame = false;
-                                    processData.skipFrames = processData.seenFrames;
+                                    stackContextData.seenLuaFrame = false;
+                                    stackContextData.skipFrames = stackContextData.seenFrames;
                                     break;
                                 }
 
