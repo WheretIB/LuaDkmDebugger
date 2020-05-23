@@ -824,13 +824,13 @@ namespace LuaDkmDebuggerComponent
                 flags |= DkmEvaluationResultFlags.ReadOnly | DkmEvaluationResultFlags.Expandable;
 
                 if (value.value.arrayElements.Count != 0 && value.value.nodeElements.Count != 0)
-                    return $"table [{value.value.arrayElements.Count} elements and {value.value.nodeElements.Count} keys]";
+                    return $"table [{value.value.arrayElements.Count} element(s) and {value.value.nodeElements.Count} key(s)]";
 
                 if (value.value.arrayElements.Count != 0)
-                    return $"table [{value.value.arrayElements.Count} elements]";
+                    return $"table [{value.value.arrayElements.Count} element(s)]";
 
                 if (value.value.nodeElements.Count != 0)
-                    return $"table [{value.value.nodeElements.Count} keys]";
+                    return $"table [{value.value.nodeElements.Count} key(s)]";
 
                 if (value.value.metaTable == null)
                 {
