@@ -64,6 +64,9 @@ namespace LuaDkmDebuggerComponent
 
         internal static ulong GetValueSize(DkmProcess process)
         {
+            if (LuaHelpers.luaVersion == 501)
+                return 16u;
+
             if (LuaHelpers.luaVersion == 502)
                 return DebugHelpers.Is64Bit(process) ? 16u : 8u;
 
@@ -72,6 +75,9 @@ namespace LuaDkmDebuggerComponent
 
         internal static ulong GetNodeSize(DkmProcess process)
         {
+            if (LuaHelpers.luaVersion == 501)
+                return DebugHelpers.Is64Bit(process) ? 40u : 32u;
+
             if (LuaHelpers.luaVersion == 502)
                 return DebugHelpers.Is64Bit(process) ? 40u : 24u;
 
@@ -97,6 +103,7 @@ namespace LuaDkmDebuggerComponent
             }
             else
             {
+                // Same in Lua 5.1 and 5.3
                 // struct { Value value_; int tt_; }
                 typeTag = DebugHelpers.ReadIntVariable(process, address + 8);
             }
@@ -510,7 +517,38 @@ namespace LuaDkmDebuggerComponent
         {
             ulong pointerSize = (ulong)DebugHelpers.GetPointerSize(process);
 
-            if (LuaHelpers.luaVersion == 502)
+            if (LuaHelpers.luaVersion == 501)
+            {
+                // Skip CommonHeader
+                DebugHelpers.SkipStructPointer(process, ref address);
+                DebugHelpers.SkipStructByte(process, ref address);
+                DebugHelpers.SkipStructByte(process, ref address);
+
+                constantDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                codeDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                localFunctionDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                lineInfoDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                localVariableDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                upvalueDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                sourceAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+
+                upvalueSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+                constantSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+                codeSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+                lineInfoSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+                localFunctionSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+                localVariableSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+                definitionStartLine = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+                definitionEndLine = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+
+                gclistAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+
+                DebugHelpers.SkipStructByte(process, ref address); // nups
+                argumentCount = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
+                isVarargs = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
+                maxStackSize = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
+            }
+            else if (LuaHelpers.luaVersion == 502)
             {
                 // Skip CommonHeader
                 DebugHelpers.SkipStructPointer(process, ref address);
@@ -654,7 +692,8 @@ namespace LuaDkmDebuggerComponent
         public ulong stackBaseAddress; // TValue*
         public ulong savedInstructionPointerAddress; // unsigned*
 
-        public short resultCount;
+        public int resultCount;
+        public int tailCallCount_5_1; // number of tail calls lost under this entry
         public short callStatus;
         public ulong extra;
 
@@ -664,7 +703,23 @@ namespace LuaDkmDebuggerComponent
         {
             ulong pointerSize = (ulong)DebugHelpers.GetPointerSize(process);
 
-            if (LuaHelpers.luaVersion == 502)
+            if (LuaHelpers.luaVersion == 501)
+            {
+                stackBaseAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                funcAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                stackTopAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                savedInstructionPointerAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+
+                resultCount = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+                tailCallCount_5_1 = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+
+                // Not available
+                previousAddress = 0;
+                nextAddress = 0;
+                callStatus = 0;
+                extra = 0;
+            }
+            else if (LuaHelpers.luaVersion == 502)
             {
                 funcAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
                 stackTopAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
@@ -672,7 +727,7 @@ namespace LuaDkmDebuggerComponent
                 nextAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
 
                 resultCount = DebugHelpers.ReadStructShort(process, ref address).GetValueOrDefault(0);
-                callStatus = (short)DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
+                callStatus = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
                 extra = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
 
                 stackBaseAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
@@ -842,11 +897,17 @@ namespace LuaDkmDebuggerComponent
 
     public class LuaClosureData
     {
+        // CommonHeader
         public ulong nextAddress;
         public byte typeTag;
         public byte marked;
+
+        // ClosureHeader
+        public byte isC_5_1;
         public byte upvalueSize;
         public ulong gcListAddress;
+
+        // LClosure
         public ulong functionAddress;
 
         public LuaFunctionData function;
@@ -856,8 +917,16 @@ namespace LuaDkmDebuggerComponent
             nextAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
             typeTag = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
             marked = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+
+            if (LuaHelpers.luaVersion == 501)
+                isC_5_1 = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+
             upvalueSize = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
             gcListAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+
+            if (LuaHelpers.luaVersion == 501)
+                DebugHelpers.SkipStructPointer(process, ref address); // env
+
             functionAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
         }
 
