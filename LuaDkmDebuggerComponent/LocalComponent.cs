@@ -448,6 +448,8 @@ namespace LuaDkmDebuggerComponent
                                 break;
                             }
 
+                            stackContextData.seenFrames++;
+
                             luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[{currFunctionName} C function]", input.Registers, input.Annotations));
 
                             luaFrameFlags &= ~DkmStackWalkFrameFlags.TopFrame;
@@ -546,6 +548,8 @@ namespace LuaDkmDebuggerComponent
                                     break;
                                 }
 
+                                stackContextData.seenFrames++;
+
                                 luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[{currFunctionName} C function]", input.Registers, input.Annotations));
 
                                 luaFrameFlags &= ~DkmStackWalkFrameFlags.TopFrame;
@@ -558,6 +562,8 @@ namespace LuaDkmDebuggerComponent
                                     stackContextData.skipFrames = stackContextData.seenFrames;
                                     break;
                                 }
+
+                                stackContextData.seenFrames++;
 
                                 luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[{currFunctionName} C closure]", input.Registers, input.Annotations));
 
