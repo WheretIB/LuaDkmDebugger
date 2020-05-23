@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.4.1] - 2020-05-23
+
+### Added
+
+- Support for Lua 5.2 in default configuration (LUA_NANTRICK is enabled for x86 and disabled for other platforms)
+- Support for Lua 5.1
+- Numeric and light user data values can be modified
+
+### Changed
+
+- Fixed missing locals when their lifetime ends after current instruction (off-by-one error)
+- Lua global function is called 'main' instead of '__global'
+- Identifier names can contain '_' symbol
+- Stack frame location is now provided for Lua 5.3 finalizers and Lua 5.2/5.3 tail-called functions
+- Fixed out-of-order/missing call stack sections
+- Stability improvements when accessing target process memory
+- Reduce amount of expression evaluation requests to C++ debugger
+- Fixed amount of skipped frames on stacks with multiple language transitions
+- Support call stacks with transitions between different Lua states/threads
+
 ## [0.3.0] - 2020-05-22
 
 ### Added
@@ -33,6 +53,7 @@
 
 ### First Release
 
+[0.4.1]https://github.com/WheretIB/LuaDkmDebugger/commit/133da5f5a03d99c0a63307007d8af7515d673e41
 [0.3.0]https://github.com/WheretIB/LuaDkmDebugger/commit/cfe2f159c700790c23d24ef986dad49b62cb92bf
 [0.2.6]https://github.com/WheretIB/LuaDkmDebugger/commit/90c303512f3fd85e518ac3bbb14f9585bdc57fb2
 [0.2.5]https://github.com/WheretIB/LuaDkmDebugger/commit/93b8abe68f9a572b59637df7dca97738f8cbe259
