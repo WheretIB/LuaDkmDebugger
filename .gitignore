@@ -7,3 +7,11 @@
 /Tests/obj
 /TestResults
 /packages
+/Debug
+/LuaDebugHelper_x86/Debug
+*.user
+*.ilk
+*.pdb
+*.dll
+*.exp
+*.lib
