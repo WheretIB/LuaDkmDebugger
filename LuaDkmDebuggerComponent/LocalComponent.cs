@@ -1503,17 +1503,17 @@ namespace LuaDkmDebuggerComponent
                     return true;
             }
 
-            for (int line = startLine; line < endLine; line++)
+            // Check only first line in range
+            int line = startLine;
+
+            for (int instruction = 0; instruction < function.lineInfo.Length; instruction++)
             {
-                for (int instruction = 0; instruction < function.lineInfo.Length; instruction++)
+                if (function.lineInfo[instruction] == line)
                 {
-                    if (function.lineInfo[instruction] == line)
-                    {
-                        targetFunction = function;
-                        targetInstructionPointer = instruction;
-                        targetLine = line;
-                        return true;
-                    }
+                    targetFunction = function;
+                    targetInstructionPointer = instruction;
+                    targetLine = line;
+                    return true;
                 }
             }
 
