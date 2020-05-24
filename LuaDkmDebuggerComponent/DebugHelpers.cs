@@ -2,6 +2,9 @@ using System;
 using Microsoft.VisualStudio.Debugger;
 using Microsoft.VisualStudio.Debugger.DefaultPort;
 using Microsoft.VisualStudio.Debugger.Native;
+using Dia2Lib;
+using System.Runtime.InteropServices;
+using System.Security.Policy;
 
 namespace LuaDkmDebuggerComponent
 {
@@ -21,22 +24,17 @@ namespace LuaDkmDebuggerComponent
             return item;
         }
 
-        internal static string FindFunctionAddress(DkmRuntimeInstance runtimeInstance, string name)
+        internal static ulong FindFunctionAddress(DkmRuntimeInstance runtimeInstance, string name)
         {
-            string result = null;
-
             foreach (var module in runtimeInstance.GetModuleInstances())
             {
                 var address = (module as DkmNativeModuleInstance)?.FindExportName(name, IgnoreDataExports: true);
 
                 if (address != null)
-                {
-                    result = $"0x{address.CPUInstructionPart.InstructionPointer:X}";
-                    break;
-                }
+                    return address.CPUInstructionPart.InstructionPointer;
             }
 
-            return result;
+            return 0;
         }
 
         internal static bool Is64Bit(DkmProcess process)
@@ -432,6 +430,102 @@ namespace LuaDkmDebuggerComponent
                 SkipStructUint(process, ref address);
             else
                 SkipStructUlong(process, ref address);
+        }
+
+        internal static void ReleaseComObject(object obj)
+        {
+            if (obj != null && Marshal.IsComObject(obj))
+                Marshal.ReleaseComObject(obj);
+        }
+
+        internal static IDiaSymbol TryGetDiaSymbols(DkmModuleInstance moduleInstance)
+        {
+            if (moduleInstance.Module == null)
+                return null;
+
+            IDiaSession diaSession;
+            try
+            {
+                diaSession = (IDiaSession)moduleInstance.Module.GetSymbolInterface(typeof(IDiaSession).GUID);
+            }
+            catch (InvalidCastException)
+            {
+                return null;
+            }
+
+            diaSession.findChildren(null, SymTagEnum.SymTagExe, null, 0, out IDiaEnumSymbols exeSymEnum);
+
+            if (exeSymEnum.count != 1)
+            {
+                ReleaseComObject(diaSession);
+
+                return null;
+            }
+
+            var symbol = exeSymEnum.Item(0);
+
+            ReleaseComObject(exeSymEnum);
+            ReleaseComObject(diaSession);
+
+            return symbol;
+        }
+
+        internal static IDiaSymbol GetDiaSymbol(IDiaSymbol symbol, SymTagEnum symTag, string name)
+        {
+            symbol.findChildren(symTag, name, 1, out IDiaEnumSymbols enumSymbols);
+
+            if (enumSymbols.count != 1)
+            {
+                ReleaseComObject(enumSymbols);
+
+                return null;
+            }
+
+            return enumSymbols.Item(0u);
+        }
+
+        internal static ulong? TryGetFunctionAddress(DkmNativeModuleInstance moduleInstance, string name, bool atDebugStartLocation)
+        {
+            var moduleSymbols = TryGetDiaSymbols(moduleInstance);
+
+            if (moduleSymbols == null)
+                return null;
+
+            var functionSymbol = GetDiaSymbol(moduleSymbols, SymTagEnum.SymTagFunction, name);
+
+            if (functionSymbol == null)
+            {
+                ReleaseComObject(moduleSymbols);
+
+                return null;
+            }
+
+            uint rva;
+            if (atDebugStartLocation)
+            {
+                var functionStartSymbol = GetDiaSymbol(functionSymbol, SymTagEnum.SymTagFuncDebugStart, null);
+
+                if (functionStartSymbol == null)
+                {
+                    ReleaseComObject(moduleSymbols);
+                    ReleaseComObject(functionSymbol);
+
+                    return null;
+                }
+
+                rva = functionStartSymbol.relativeVirtualAddress;
+
+                ReleaseComObject(functionStartSymbol);
+            }
+            else
+            {
+                rva = functionSymbol.relativeVirtualAddress;
+            }
+
+            ReleaseComObject(moduleSymbols);
+            ReleaseComObject(functionSymbol);
+
+            return moduleInstance.BaseAddress + rva;
         }
     }
 }

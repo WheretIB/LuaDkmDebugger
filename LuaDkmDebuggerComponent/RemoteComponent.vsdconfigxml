@@ -18,6 +18,14 @@
 					</Filter>
 					<Interface Name="IDkmCustomMessageForwardReceiver"/>
 				</InterfaceGroup>
+
+				<InterfaceGroup>
+					<Filter>
+						<SourceId RequiredValue="3A5AA771-B853-43A7-8F0C-3088712605D8"/>
+						<SourceId RequiredValue="F8B5C32C-126E-49EC-979E-3AE10F8321FA"/>
+					</Filter>
+					<Interface Name="IDkmRuntimeBreakpointReceived"/>
+				</InterfaceGroup>
 			</Implements>
 		</Class>
 	</ManagedComponent>

@@ -1,18 +1,33 @@
 ﻿using Microsoft.VisualStudio.Debugger;
+using Microsoft.VisualStudio.Debugger.Breakpoints;
 using Microsoft.VisualStudio.Debugger.CallStack;
 using Microsoft.VisualStudio.Debugger.ComponentInterfaces;
 using Microsoft.VisualStudio.Debugger.CustomRuntimes;
 using Microsoft.VisualStudio.Debugger.Evaluation;
+using Microsoft.VisualStudio.Debugger.Native;
 using Microsoft.VisualStudio.Debugger.Symbols;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Web.Script.Serialization;
 
 namespace LuaDkmDebuggerComponent
 {
+    // TODO: move to a separate file
+    internal class Kernel32
+    {
+        [DllImport("kernel32.dll")]
+        public static extern IntPtr OpenProcess(uint dwDesiredAccess, [MarshalAs(UnmanagedType.Bool)] bool bInheritHandle, int dwProcessId);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        internal static extern IntPtr CreateRemoteThread(IntPtr hProcess, IntPtr lpThreadAttributes, UIntPtr dwStackSize, IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, IntPtr lpThreadId);
+    }
+
     internal class LuaDebugConfiguration
     {
         public List<string> ScriptPaths = new List<string>();
@@ -31,6 +46,20 @@ namespace LuaDkmDebuggerComponent
         public LuaDebugConfiguration configuration = null;
 
         public SymbolStore symbolStore = new SymbolStore();
+
+        public DkmNativeModuleInstance moduleWithLoadedLua = null;
+        public ulong loadLibraryAddress = 0;
+
+        public bool helperInjectRequested = false;
+        public bool helperInjected = false;
+        public bool helperInitializationWaitActive = false;
+        public bool helperInitializationWaitUsed = false;
+        public bool helperInitialized = false;
+        public DkmThread helperInitializionSuspensionThread;
+
+        public Guid breakpointLuaThreadCreate;
+        public Guid breakpointLuaThreadDestroy;
+        public Guid breakpointLuaHelperInitialized;
     }
 
     internal class LuaStackContextData : DkmDataItem
@@ -62,7 +91,7 @@ namespace LuaDkmDebuggerComponent
         public SymbolSource source;
     }
 
-    public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery
+    public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery, IDkmBreakpointManager, IDkmModuleInstanceLoadNotification, IDkmCustomMessageCallbackReceiver
     {
         internal string ExecuteExpression(string expression, DkmStackContext stackContext, DkmStackWalkFrame input, bool allowZero, out ulong address)
         {
@@ -226,11 +255,11 @@ namespace LuaDkmDebuggerComponent
                     processData.workingDirectoryRequested = true;
 
                     // Jumping through hoops, kernel32.dll should be loaded
-                    string callAddress = DebugHelpers.FindFunctionAddress(process.GetNativeRuntimeInstance(), "GetCurrentDirectoryA");
+                    ulong callAddress = DebugHelpers.FindFunctionAddress(process.GetNativeRuntimeInstance(), "GetCurrentDirectoryA");
 
-                    if (callAddress != null)
+                    if (callAddress != 0)
                     {
-                        long? length = TryEvaluateNumberExpression($"((int(*)(int, char*)){callAddress})(4095, (char*){processData.scratchMemory})", stackContext, input);
+                        long? length = TryEvaluateNumberExpression($"((int(*)(int, char*))0x{callAddress:x})(4095, (char*){processData.scratchMemory})", stackContext, input);
 
                         if (length.HasValue && length.Value != 0)
                             processData.workingDirectory = TryEvaluateStringExpression($"(const char*){processData.scratchMemory}", stackContext, input);
@@ -1534,6 +1563,323 @@ namespace LuaDkmDebuggerComponent
             }
 
             return resolvedDocument.FindSymbols(textSpan, text, out symbolLocation);
+        }
+
+        // TODO: remove
+        void IDkmBreakpointManager.EnablePendingBreakpoint(DkmPendingBreakpoint pendingBreakpoint, DkmWorkList workList, DkmCompletionRoutine<DkmEnablePendingBreakpointAsyncResult> completionRoutine)
+        {
+            var fileLineBreakpoint = pendingBreakpoint as DkmPendingFileLineBreakpoint;
+
+            if (fileLineBreakpoint != null)
+            {
+                var sourcePosition = fileLineBreakpoint.GetCurrentSourcePosition();
+
+                if (sourcePosition.DocumentName.EndsWith(".lua"))
+                {
+                    var boundBreakpoint = DkmBoundBreakpoint.Create(pendingBreakpoint, null, sourcePosition, null);
+
+                    //boundBreakpoint.Disable(workList, _ => { });
+
+                    completionRoutine(new DkmEnablePendingBreakpointAsyncResult());
+                    return;
+                }
+            }
+
+            pendingBreakpoint.Enable(workList, completionRoutine);
+        }
+
+        void IDkmBreakpointManager.DisablePendingBreakpoint(DkmPendingBreakpoint pendingBreakpoint, DkmWorkList workList, DkmCompletionRoutine<DkmDisablePendingBreakpointAsyncResult> completionRoutine)
+        {
+            var fileLineBreakpoint = pendingBreakpoint as DkmPendingFileLineBreakpoint;
+
+            if (fileLineBreakpoint != null)
+            {
+                var sourcePosition = fileLineBreakpoint.GetCurrentSourcePosition();
+
+                if (sourcePosition.DocumentName.EndsWith(".lua"))
+                {
+                    completionRoutine(new DkmDisablePendingBreakpointAsyncResult());
+                    return;
+                }
+            }
+
+            pendingBreakpoint.Disable(workList, completionRoutine);
+        }
+
+        void IDkmBreakpointManager.EnrollPendingBreakpoint(DkmPendingBreakpoint pendingBreakpoint, DkmWorkList workList, DkmCompletionRoutine<DkmEnrollPendingBreakpointAsyncResult> completionRoutine)
+        {
+            pendingBreakpoint.Enroll(workList, completionRoutine);
+        }
+
+        void IDkmBreakpointManager.SetPendingBreakpointCondition(DkmPendingBreakpoint pendingBreakpoint, DkmWorkList workList, DkmBreakpointCondition condition, DkmCompletionRoutine<DkmSetPendingBreakpointConditionAsyncResult> completionRoutine)
+        {
+            completionRoutine(new DkmSetPendingBreakpointConditionAsyncResult());
+        }
+
+        void IDkmBreakpointManager.SetPendingBreakpointHitCountCondition(DkmPendingBreakpoint pendingBreakpoint, DkmWorkList workList, DkmBreakpointHitCountCondition condition, DkmCompletionRoutine<DkmSetPendingBreakpointHitCountConditionAsyncResult> completionRoutine)
+        {
+            completionRoutine(new DkmSetPendingBreakpointHitCountConditionAsyncResult());
+        }
+
+        void IDkmBreakpointManager.EnableBoundBreakpoint(DkmBoundBreakpoint boundBreakpoint, DkmWorkList workList, DkmCompletionRoutine<DkmEnableBoundBreakpointAsyncResult> completionRoutine)
+        {
+            boundBreakpoint.Enable(workList, completionRoutine);
+        }
+
+        void IDkmBreakpointManager.DisableBoundBreakpoint(DkmBoundBreakpoint boundBreakpoint, DkmWorkList workList, DkmCompletionRoutine<DkmDisableBoundBreakpointAsyncResult> completionRoutine)
+        {
+            boundBreakpoint.Disable(workList, completionRoutine);
+        }
+
+        bool IDkmBreakpointManager.IsBoundBreakpointEnabled(DkmBoundBreakpoint boundBreakpoint)
+        {
+            return boundBreakpoint.IsEnabled();
+        }
+
+        void IDkmBreakpointManager.SetBoundBreakpointCondition(DkmBoundBreakpoint boundBreakpoint, DkmBreakpointCondition condition)
+        {
+            boundBreakpoint.SetCondition(condition);
+        }
+
+        void IDkmBreakpointManager.SetBoundBreakpointHitCountCondition(DkmBoundBreakpoint boundBreakpoint, DkmBreakpointHitCountCondition condition)
+        {
+            boundBreakpoint.SetHitCountCondition(condition);
+        }
+
+        void IDkmBreakpointManager.SetBoundBreakpointHitCountValue(DkmBoundBreakpoint boundBreakpoint, int newValue)
+        {
+            boundBreakpoint.SetHitCountValue(newValue);
+        }
+
+        void IDkmBreakpointManager.GetBoundBreakpointHitCountValue(DkmBoundBreakpoint boundBreakpoint, DkmWorkList workList, DkmCompletionRoutine<DkmGetBoundBreakpointHitCountValueAsyncResult> completionRoutine)
+        {
+            boundBreakpoint.GetHitCountValue(workList, completionRoutine);
+        }
+
+        void IDkmModuleInstanceLoadNotification.OnModuleInstanceLoad(DkmModuleInstance moduleInstance, DkmWorkList workList, DkmEventDescriptorS eventDescriptor)
+        {
+            var nativeModuleInstance = moduleInstance as DkmNativeModuleInstance;
+
+            if (nativeModuleInstance != null)
+            {
+                var process = moduleInstance.Process;
+
+                var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
+
+                if (nativeModuleInstance.FullName != null && nativeModuleInstance.FullName.EndsWith(".exe"))
+                {
+                    // Check if Lua library is loaded
+                    if (DebugHelpers.TryGetFunctionAddress(nativeModuleInstance, "lua_newstate", true).GetValueOrDefault(0) != 0)
+                    {
+                        Debug.WriteLine("LuaDkmDebugger: Found Lua library");
+
+                        processData.moduleWithLoadedLua = nativeModuleInstance;
+                    }
+                }
+
+                if (nativeModuleInstance.FullName != null && nativeModuleInstance.FullName.EndsWith("kernel32.dll"))
+                {
+                    Debug.WriteLine("LuaDkmDebugger: Found kernel32 library");
+
+                    processData.loadLibraryAddress = DebugHelpers.FindFunctionAddress(process.GetNativeRuntimeInstance(), "LoadLibraryA");
+                }
+
+                if (nativeModuleInstance.FullName != null && nativeModuleInstance.FullName.EndsWith("LuaDebugHelper_x86.dll"))
+                {
+                    Debug.WriteLine("LuaDkmDebugger: Found Lua debugger helper library");
+
+                    var variableAddress = nativeModuleInstance.FindExportName("luaHelperIsInitialized", IgnoreDataExports: false);
+
+                    if (variableAddress != null)
+                    {
+                        var initialized = DebugHelpers.ReadIntVariable(process, variableAddress.CPUInstructionPart.InstructionPointer);
+
+                        if (initialized.HasValue)
+                        {
+                            Debug.WriteLine("LuaDkmDebugger: Found helper library init flag");
+
+                            if (initialized.Value == 0)
+                            {
+                                Debug.WriteLine("LuaDkmDebugger: Helper hasn't been initialized");
+
+                                var functionAddress = DebugHelpers.TryGetFunctionAddress(nativeModuleInstance, "OnLuaHelperInitialized", true);
+
+                                if (functionAddress != null)
+                                {
+                                    Debug.WriteLine("LuaDkmDebugger: Waiting for helper library initialization");
+
+                                    var nativeAddress = process.CreateNativeInstructionAddress(functionAddress.Value);
+
+                                    var breakpoint = DkmRuntimeInstructionBreakpoint.Create(Guids.luaSupportBreakpointGuid, null, nativeAddress, false, null);
+
+                                    breakpoint.Enable();
+
+                                    processData.breakpointLuaHelperInitialized = breakpoint.UniqueId;
+
+                                    processData.helperInitializationWaitActive = true;
+                                }
+                            }
+                            else if (initialized.Value == 1)
+                            {
+                                Debug.WriteLine("LuaDkmDebugger: Helper has been initialized");
+
+                                processData.helperInitialized = true;
+                            }
+                        }
+                    }
+
+                    if (processData.helperInitializationWaitUsed && !processData.helperInitializationWaitActive)
+                    {
+                        Debug.WriteLine("LuaDkmDebugger: Lua thread is already suspended but the Helper initialization wait wasn't activated");
+
+                        if (processData.helperInitializionSuspensionThread != null)
+                        {
+                            Debug.WriteLine("LuaDkmDebugger: Resuming Lua thread");
+
+                            processData.helperInitializionSuspensionThread.Resume(true);
+
+                            processData.helperInitializionSuspensionThread = null;
+                        }
+                    }
+                }
+
+                if (processData.moduleWithLoadedLua != null && processData.loadLibraryAddress != 0)
+                {
+                    // Check if already injected
+                    if (processData.helperInjectRequested)
+                        return;
+
+                    processData.helperInjectRequested = true;
+
+                    // Track Lua state creation
+                    {
+                        var address = DebugHelpers.TryGetFunctionAddress(processData.moduleWithLoadedLua, "preinit_thread", true);
+
+                        if (address != null)
+                        {
+                            Debug.WriteLine("LuaDkmDebugger: Hooking Lua thread creation function");
+
+                            var nativeAddress = process.CreateNativeInstructionAddress(address.Value);
+
+                            var breakpoint = DkmRuntimeInstructionBreakpoint.Create(Guids.luaSupportBreakpointGuid, null, nativeAddress, false, null);
+
+                            breakpoint.Enable();
+
+                            processData.breakpointLuaThreadCreate = breakpoint.UniqueId;
+                        }
+                    }
+
+                    // Track Lua state destruction
+                    {
+                        var address = DebugHelpers.TryGetFunctionAddress(processData.moduleWithLoadedLua, "close_state", true);
+
+                        if (address != null)
+                        {
+                            Debug.WriteLine("LuaDkmDebugger: Hooking Lua thread destruction function");
+
+                            var nativeAddress = process.CreateNativeInstructionAddress(address.Value);
+
+                            var breakpoint = DkmRuntimeInstructionBreakpoint.Create(Guids.luaSupportBreakpointGuid, null, nativeAddress, false, null);
+
+                            breakpoint.Enable();
+
+                            processData.breakpointLuaThreadDestroy = breakpoint.UniqueId;
+                        }
+                    }
+
+                    string assemblyFolder = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+
+                    string dllPathName = Path.Combine(assemblyFolder, "LuaDebugHelper_x86.dll");
+
+                    if (!File.Exists(dllPathName))
+                    {
+                        Debug.WriteLine("LuaDkmDebugger: Helper dll hasn't been found");
+                        return;
+                    }
+
+                    var dllNameAddress = process.AllocateVirtualMemory(0ul, 4096, 0x3000, 0x04);
+
+                    byte[] bytes = Encoding.ASCII.GetBytes(dllPathName);
+
+                    process.WriteMemory(dllNameAddress, bytes);
+                    process.WriteMemory(dllNameAddress + (ulong)bytes.Length, new byte[1] { 0 });
+
+                    var processHandle = Kernel32.OpenProcess(0x001F0FFF, false, process.LivePart.Id);
+
+                    if (processHandle == IntPtr.Zero)
+                    {
+                        Debug.WriteLine("LuaDkmDebugger: Failed to open target process");
+                        return;
+                    }
+
+                    var threadHandle = Kernel32.CreateRemoteThread(processHandle, IntPtr.Zero, UIntPtr.Zero, (IntPtr)processData.loadLibraryAddress, (IntPtr)dllNameAddress, 0, IntPtr.Zero);
+
+                    if (threadHandle == IntPtr.Zero)
+                    {
+                        Debug.WriteLine("LuaDkmDebugger: Failed to start thread");
+                        return;
+                    }
+
+                    processData.helperInjected = true;
+
+                    Debug.WriteLine("LuaDkmDebugger: Helper library has been injected");
+                }
+            }
+        }
+
+        DkmCustomMessage IDkmCustomMessageCallbackReceiver.SendHigher(DkmCustomMessage customMessage)
+        {
+            var process = customMessage.Process;
+
+            var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
+
+            if (customMessage.MessageCode == MessageToLocal.luaSupportBreakpointHit)
+            {
+                var data = customMessage.Parameter1 as SupportBreakpointHitMessage;
+
+                Debug.Assert(data != null);
+
+                if (data.breakpointId == processData.breakpointLuaThreadCreate)
+                {
+                    Debug.WriteLine("LuaDkmDebugger: Detected Lua thread start");
+
+                    if (processData.helperInjected && !processData.helperInitialized &&!processData.helperInitializationWaitUsed)
+                    {
+                        Debug.WriteLine("LuaDkmDebugger: Helper was injected but hasn't been initialized, suspening thread");
+
+                        var thread = process.GetThreads().FirstOrDefault(el => el.UniqueId == data.threadId);
+
+                        Debug.Assert(thread != null);
+
+                        thread.Suspend(true);
+
+                        processData.helperInitializionSuspensionThread = thread;
+                        processData.helperInitializationWaitUsed = true;
+                    }
+                }
+                else if (data.breakpointId == processData.breakpointLuaThreadDestroy)
+                {
+                    Debug.WriteLine("LuaDkmDebugger: Detected Lua thread destruction");
+                }
+                else if (data.breakpointId == processData.breakpointLuaHelperInitialized)
+                {
+                    Debug.WriteLine("LuaDkmDebugger: Detected Helper initialization");
+
+                    processData.helperInitializationWaitActive = false;
+                    processData.helperInitialized = true;
+
+                    if (processData.helperInitializionSuspensionThread != null)
+                    {
+                        Debug.WriteLine("LuaDkmDebugger: Resuming Lua thread");
+
+                        processData.helperInitializionSuspensionThread.Resume(true);
+
+                        processData.helperInitializionSuspensionThread = null;
+                    }
+                }
+            }
+
+            return null;
         }
     }
 }

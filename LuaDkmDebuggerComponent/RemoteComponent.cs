@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.Debugger;
+using Microsoft.VisualStudio.Debugger.Breakpoints;
 using Microsoft.VisualStudio.Debugger.ComponentInterfaces;
 using Microsoft.VisualStudio.Debugger.CustomRuntimes;
 using Microsoft.VisualStudio.Debugger.Evaluation;
@@ -20,7 +21,7 @@ namespace LuaDkmDebuggerComponent
         public DkmCustomModuleInstance moduleInstance = null;
     }
 
-    public class RemoteComponent : IDkmProcessExecutionNotification, IDkmRuntimeInstanceLoadCompleteNotification, IDkmCustomMessageForwardReceiver
+    public class RemoteComponent : IDkmProcessExecutionNotification, IDkmRuntimeInstanceLoadCompleteNotification, IDkmCustomMessageForwardReceiver, IDkmRuntimeBreakpointReceived
     {
         void IDkmProcessExecutionNotification.OnProcessPause(DkmProcess process, DkmProcessExecutionCounters processCounters)
         {
@@ -78,6 +79,33 @@ namespace LuaDkmDebuggerComponent
             }
 
             return null;
+        }
+
+        void IDkmRuntimeBreakpointReceived.OnRuntimeBreakpointReceived(DkmRuntimeBreakpoint runtimeBreakpoint, DkmThread thread, bool hasException, DkmEventDescriptorS eventDescriptor)
+        {
+            var process = thread.Process;
+
+            if (runtimeBreakpoint.SourceId == Guids.luaSupportBreakpointGuid)
+            {
+                thread.GetCurrentFrameInfo(out ulong retAddr, out ulong frameBase, out ulong vframe);
+
+                var data = new SupportBreakpointHitMessage
+                {
+                    breakpointId = runtimeBreakpoint.UniqueId,
+                    threadId = thread.UniqueId,
+                    retAddr = retAddr,
+                    frameBase = frameBase,
+                    vframe = vframe
+                };
+
+                var message = DkmCustomMessage.Create(process.Connection, process, MessageToLocal.guid, MessageToLocal.luaSupportBreakpointHit, data, null);
+
+                message.SendHigher();
+            }
+            else if (runtimeBreakpoint.SourceId == Guids.luaUserBreakpointGuid)
+            {
+                // TODO
+            }
         }
     }
 }
