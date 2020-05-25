@@ -3,6 +3,7 @@ using Microsoft.VisualStudio.Debugger.Breakpoints;
 using Microsoft.VisualStudio.Debugger.ComponentInterfaces;
 using Microsoft.VisualStudio.Debugger.CustomRuntimes;
 using Microsoft.VisualStudio.Debugger.Evaluation;
+using Microsoft.VisualStudio.Debugger.Stepping;
 using Microsoft.VisualStudio.Debugger.Symbols;
 using System;
 using System.Diagnostics;
@@ -26,9 +27,11 @@ namespace LuaDkmDebuggerComponent
         public DkmRuntimeBreakpoint testActiveBreakpoint = null;
 
         public bool pauseBreakpoints = false;
+
+        public DkmStepper activeStepper = null;
     }
 
-    public class RemoteComponent : IDkmProcessExecutionNotification, IDkmRuntimeInstanceLoadCompleteNotification, IDkmCustomMessageForwardReceiver, IDkmRuntimeBreakpointReceived, IDkmRuntimeMonitorBreakpointHandler
+    public class RemoteComponent : IDkmProcessExecutionNotification, IDkmRuntimeInstanceLoadCompleteNotification, IDkmCustomMessageForwardReceiver, IDkmRuntimeBreakpointReceived, IDkmRuntimeMonitorBreakpointHandler, IDkmRuntimeStepper
     {
         void IDkmProcessExecutionNotification.OnProcessPause(DkmProcess process, DkmProcessExecutionCounters processCounters)
         {
@@ -137,19 +140,40 @@ namespace LuaDkmDebuggerComponent
                     }
                     else if (runtimeBreakpoint.UniqueId == processData.locations.breakpointLuaHelperStepComplete)
                     {
-                        // Call OnStepComplete on DkmStepper
+                        if (processData.activeStepper != null)
+                        {
+                            var activeStepper = processData.activeStepper;
+
+                            ClearStepperData(process, processData);
+
+                            activeStepper.OnStepComplete(thread, false);
+                        }
 
                         return;
                     }
                     else if (runtimeBreakpoint.UniqueId == processData.locations.breakpointLuaHelperStepInto)
                     {
-                        // Call OnStepComplete on DkmStepper
+                        if (processData.activeStepper != null)
+                        {
+                            var activeStepper = processData.activeStepper;
+
+                            ClearStepperData(process, processData);
+
+                            activeStepper.OnStepComplete(thread, false);
+                        }
 
                         return;
                     }
                     else if (runtimeBreakpoint.UniqueId == processData.locations.breakpointLuaHelperStepOut)
                     {
-                        // Call OnStepComplete on DkmStepper
+                        if (processData.activeStepper != null)
+                        {
+                            var activeStepper = processData.activeStepper;
+
+                            ClearStepperData(process, processData);
+
+                            activeStepper.OnStepComplete(thread, false);
+                        }
 
                         return;
                     }
@@ -240,6 +264,114 @@ namespace LuaDkmDebuggerComponent
                     processData.testActiveBreakpoint = null;
                 }
             }
+        }
+
+        void ClearStepperData(DkmProcess process, LuaRemoteProcessData processData)
+        {
+            DebugHelpers.TryWriteVariable(process, processData.locations.helperStepOverAddress, 0);
+            DebugHelpers.TryWriteVariable(process, processData.locations.helperStepIntoAddress, 0);
+            DebugHelpers.TryWriteVariable(process, processData.locations.helperStepOutAddress, 0);
+            DebugHelpers.TryWriteVariable(process, processData.locations.helperSkipDepthAddress, 0);
+
+            processData.activeStepper = null;
+        }
+
+        void IDkmRuntimeStepper.BeforeEnableNewStepper(DkmRuntimeInstance runtimeInstance, DkmStepper stepper)
+        {
+            // Don't have anything to do here right now
+        }
+
+        bool IDkmRuntimeStepper.OwnsCurrentExecutionLocation(DkmRuntimeInstance runtimeInstance, DkmStepper stepper, DkmStepArbitrationReason reason)
+        {
+            var processData = DebugHelpers.GetOrCreateDataItem<LuaRemoteProcessData>(runtimeInstance.Process);
+
+            // Can't handle steps without an address
+            if (stepper.StartingAddress == null)
+                return false;
+
+            // Stepping can be performed if we are inside the debug helper or inside luaV_execute
+            var instructionAddress = stepper.StartingAddress.CPUInstructionPart.InstructionPointer;
+
+            if (instructionAddress >= processData.locations.helperStartAddress && instructionAddress < processData.locations.helperEndAddress)
+                return true;
+
+            if (instructionAddress >= processData.locations.executionStartAddress && instructionAddress < processData.locations.executionEndAddress)
+                return true;
+
+            return false;
+        }
+
+        void IDkmRuntimeStepper.Step(DkmRuntimeInstance runtimeInstance, DkmStepper stepper, DkmStepArbitrationReason reason)
+        {
+            var process = runtimeInstance.Process;
+
+            var processData = DebugHelpers.GetOrCreateDataItem<LuaRemoteProcessData>(runtimeInstance.Process);
+
+            if (stepper.StepKind == DkmStepKind.StepIntoSpecific)
+                throw new NotSupportedException();
+
+            if (processData.activeStepper != null)
+            {
+                processData.activeStepper.CancelStepper(processData.runtimeInstance);
+                processData.activeStepper = null;
+            }
+
+            if (stepper.StepKind == DkmStepKind.Over)
+            {
+                DebugHelpers.TryWriteVariable(process, processData.locations.helperStepOverAddress, 1);
+            }
+            else if (stepper.StepKind == DkmStepKind.Into)
+            {
+                DebugHelpers.TryWriteVariable(process, processData.locations.helperStepOverAddress, 1);
+                DebugHelpers.TryWriteVariable(process, processData.locations.helperStepIntoAddress, 1);
+            }
+            else if (stepper.StepKind == DkmStepKind.Out)
+            {
+                DebugHelpers.TryWriteVariable(process, processData.locations.helperStepOutAddress, 1);
+            }
+
+            processData.activeStepper = stepper;
+        }
+
+        void IDkmRuntimeStepper.StopStep(DkmRuntimeInstance runtimeInstance, DkmStepper stepper)
+        {
+            var process = runtimeInstance.Process;
+
+            var processData = DebugHelpers.GetOrCreateDataItem<LuaRemoteProcessData>(runtimeInstance.Process);
+
+            ClearStepperData(process, processData);
+        }
+
+        void IDkmRuntimeStepper.AfterSteppingArbitration(DkmRuntimeInstance runtimeInstance, DkmStepper stepper, DkmStepArbitrationReason reason, DkmRuntimeInstance newControllingRuntimeInstance)
+        {
+            // Don't have anything to do here right now
+        }
+
+        void IDkmRuntimeStepper.OnNewControllingRuntimeInstance(DkmRuntimeInstance runtimeInstance, DkmStepper stepper, DkmStepArbitrationReason reason, DkmRuntimeInstance controllingRuntimeInstance)
+        {
+            var process = runtimeInstance.Process;
+
+            var processData = DebugHelpers.GetOrCreateDataItem<LuaRemoteProcessData>(runtimeInstance.Process);
+
+            ClearStepperData(process, processData);
+        }
+
+        bool IDkmRuntimeStepper.StepControlRequested(DkmRuntimeInstance runtimeInstance, DkmStepper stepper, DkmStepArbitrationReason reason, DkmRuntimeInstance callingRuntimeInstance)
+        {
+            return true;
+        }
+
+        void IDkmRuntimeStepper.TakeStepControl(DkmRuntimeInstance runtimeInstance, DkmStepper stepper, bool leaveGuardsInPlace, DkmStepArbitrationReason reason, DkmRuntimeInstance callingRuntimeInstance)
+        {
+            var process = runtimeInstance.Process;
+
+            var processData = DebugHelpers.GetOrCreateDataItem<LuaRemoteProcessData>(runtimeInstance.Process);
+
+            ClearStepperData(process, processData);
+        }
+
+        void IDkmRuntimeStepper.NotifyStepComplete(DkmRuntimeInstance runtimeInstance, DkmStepper stepper)
+        {
         }
     }
 }

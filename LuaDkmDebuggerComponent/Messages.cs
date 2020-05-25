@@ -18,10 +18,17 @@ namespace LuaDkmDebuggerComponent
         public ulong helperStepOverAddress = 0;
         public ulong helperStepIntoAddress = 0;
         public ulong helperStepOutAddress = 0;
+        public ulong helperSkipDepthAddress = 0;
 
         public Guid breakpointLuaHelperBreakpointHit;
         public Guid breakpointLuaHelperStepComplete;
         public Guid breakpointLuaHelperStepInto;
         public Guid breakpointLuaHelperStepOut;
+
+        public ulong helperStartAddress = 0;
+        public ulong helperEndAddress = 0;
+
+        public ulong executionStartAddress = 0;
+        public ulong executionEndAddress = 0;
     }
 }

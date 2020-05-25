@@ -33,6 +33,7 @@
 						<RuntimeId RequiredValue="guidLuaRuntimeGuid"/>
 					</Filter>
 					<Interface Name="IDkmRuntimeMonitorBreakpointHandler"/>
+					<Interface Name="IDkmRuntimeStepper"/>
 				</InterfaceGroup>
 			</Implements>
 		</Class>

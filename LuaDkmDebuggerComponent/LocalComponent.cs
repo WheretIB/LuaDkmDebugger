@@ -63,6 +63,7 @@ namespace LuaDkmDebuggerComponent
         public ulong helperStepOverAddress = 0;
         public ulong helperStepIntoAddress = 0;
         public ulong helperStepOutAddress = 0;
+        public ulong helperSkipDepthAddress = 0;
 
         public Guid breakpointLuaInitialization;
 
@@ -74,6 +75,12 @@ namespace LuaDkmDebuggerComponent
         public Guid breakpointLuaHelperStepComplete;
         public Guid breakpointLuaHelperStepInto;
         public Guid breakpointLuaHelperStepOut;
+
+        public ulong helperStartAddress = 0;
+        public ulong helperEndAddress = 0;
+
+        public ulong executionStartAddress = 0;
+        public ulong executionEndAddress = 0;
     }
 
     internal class LuaStackContextData : DkmDataItem
@@ -300,7 +307,6 @@ namespace LuaDkmDebuggerComponent
                 var luaFrameFlags = input.Flags;
 
                 luaFrameFlags &= ~(DkmStackWalkFrameFlags.NonuserCode | DkmStackWalkFrameFlags.UserStatusNotDetermined);
-                luaFrameFlags |= DkmStackWalkFrameFlags.InlineOptimized;
 
                 if (isTopFrame)
                     luaFrameFlags |= DkmStackWalkFrameFlags.TopFrame;
@@ -667,23 +673,25 @@ namespace LuaDkmDebuggerComponent
                     }
                 }
 
-                var originalFlags = (input.Flags & ~DkmStackWalkFrameFlags.UserStatusNotDetermined) | DkmStackWalkFrameFlags.NonuserCode;
-
-                if (luaFrames.Count != 0 && isTopFrame)
-                    originalFlags &= ~DkmStackWalkFrameFlags.TopFrame;
-
-                luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, originalFlags, input.Description, input.Registers, input.Annotations));
+                luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, null, input.FrameBase, input.FrameSize, DkmStackWalkFrameFlags.NonuserCode, "[Transition to Lua]", input.Registers, input.Annotations));
 
                 return luaFrames.ToArray();
             }
 
             // Mark lua functions as non-user code
-            if (input.BasicSymbolInfo.MethodName.StartsWith("luaD_") || input.BasicSymbolInfo.MethodName.StartsWith("luaV_") || input.BasicSymbolInfo.MethodName.StartsWith("luaG_") || input.BasicSymbolInfo.MethodName.StartsWith("luaF_") || input.BasicSymbolInfo.MethodName.StartsWith("luaB_") || input.BasicSymbolInfo.MethodName.StartsWith("luaH_"))
+            if (input.BasicSymbolInfo.MethodName.StartsWith("luaD_") || input.BasicSymbolInfo.MethodName.StartsWith("luaV_") || input.BasicSymbolInfo.MethodName.StartsWith("luaG_") || input.BasicSymbolInfo.MethodName.StartsWith("luaF_") || input.BasicSymbolInfo.MethodName.StartsWith("luaB_") || input.BasicSymbolInfo.MethodName.StartsWith("luaH_") || input.BasicSymbolInfo.MethodName.StartsWith("luaT_"))
             {
                 var flags = (input.Flags & ~DkmStackWalkFrameFlags.UserStatusNotDetermined) | DkmStackWalkFrameFlags.NonuserCode;
 
                 if (stackContextData.hideTopLuaLibraryFrames)
                     flags |= DkmStackWalkFrameFlags.Hidden;
+
+                return new DkmStackWalkFrame[1] { DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, flags, input.Description, input.Registers, input.Annotations) };
+            }
+
+            if (stackContextData.hideTopLuaLibraryFrames && input.BasicSymbolInfo.MethodName == "callhook")
+            {
+                var flags = (input.Flags & ~DkmStackWalkFrameFlags.UserStatusNotDetermined) | DkmStackWalkFrameFlags.NonuserCode | DkmStackWalkFrameFlags.Hidden;
 
                 return new DkmStackWalkFrame[1] { DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, flags, input.Description, input.Registers, input.Annotations) };
             }
@@ -1730,6 +1738,9 @@ namespace LuaDkmDebuggerComponent
 
                         processData.moduleWithLoadedLua = nativeModuleInstance;
                     }
+
+                    processData.executionStartAddress = DebugHelpers.TryGetFunctionAddressAtDebugStart(processData.moduleWithLoadedLua, "luaV_execute").GetValueOrDefault(0);
+                    processData.executionEndAddress = DebugHelpers.TryGetFunctionAddressAtDebugEnd(processData.moduleWithLoadedLua, "luaV_execute").GetValueOrDefault(0);
                 }
 
                 if (nativeModuleInstance.FullName != null && nativeModuleInstance.FullName.EndsWith("kernel32.dll"))
@@ -1753,11 +1764,17 @@ namespace LuaDkmDebuggerComponent
                         processData.helperStepOverAddress = FindVariableAddress(nativeModuleInstance, "luaHelperStepOver");
                         processData.helperStepIntoAddress = FindVariableAddress(nativeModuleInstance, "luaHelperStepInto");
                         processData.helperStepOutAddress = FindVariableAddress(nativeModuleInstance, "luaHelperStepOut");
+                        processData.helperSkipDepthAddress = FindVariableAddress(nativeModuleInstance, "luaHelperSkipDepth");
 
                         processData.breakpointLuaHelperBreakpointHit = CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperBreakpointHit").GetValueOrDefault(Guid.Empty);
                         processData.breakpointLuaHelperStepComplete = CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperStepComplete").GetValueOrDefault(Guid.Empty);
                         processData.breakpointLuaHelperStepInto = CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperStepInto").GetValueOrDefault(Guid.Empty);
                         processData.breakpointLuaHelperStepOut = CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperStepOut").GetValueOrDefault(Guid.Empty);
+
+                        // TODO: check all data
+
+                        processData.helperStartAddress = nativeModuleInstance.BaseAddress;
+                        processData.helperEndAddress = processData.helperStartAddress + nativeModuleInstance.Size;
 
                         // Tell remote component about helper library locations
                         var data = new HelperLocationsMessage
@@ -1766,11 +1783,18 @@ namespace LuaDkmDebuggerComponent
                             helperStepOverAddress = processData.helperStepOverAddress,
                             helperStepIntoAddress = processData.helperStepIntoAddress,
                             helperStepOutAddress = processData.helperStepOutAddress,
+                            helperSkipDepthAddress = processData.helperSkipDepthAddress,
 
                             breakpointLuaHelperBreakpointHit = processData.breakpointLuaHelperBreakpointHit,
                             breakpointLuaHelperStepComplete = processData.breakpointLuaHelperStepComplete,
                             breakpointLuaHelperStepInto = processData.breakpointLuaHelperStepInto,
                             breakpointLuaHelperStepOut = processData.breakpointLuaHelperStepOut,
+
+                            helperStartAddress = processData.helperStartAddress,
+                            helperEndAddress = processData.helperEndAddress,
+
+                            executionStartAddress = processData.executionStartAddress,
+                            executionEndAddress = processData.executionEndAddress,
                         };
 
                         var message = DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.luaHelperDataLocations, data, null);

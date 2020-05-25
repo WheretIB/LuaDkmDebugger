@@ -86,16 +86,33 @@ extern "C" __declspec(dllexport) unsigned luaHelperBreakLine = 0;
 extern "C" __declspec(dllexport) unsigned luaHelperStepOver = 0;
 extern "C" __declspec(dllexport) unsigned luaHelperStepInto = 0;
 extern "C" __declspec(dllexport) unsigned luaHelperStepOut = 0;
+extern "C" __declspec(dllexport) unsigned luaHelperSkipDepth = 0;
 
 extern "C" __declspec(dllexport) void LuaHelperHook(lua_State *L, lua_Debug *ar)
 {
-    if((ar->event == LUA_HOOKCALL || ar->event == LUA_HOOKTAILCALL) && luaHelperStepInto)
-        OnLuaHelperStepInto();
+    if(ar->event == LUA_HOOKCALL)
+    {
+        if(luaHelperStepInto)
+            OnLuaHelperStepInto();
+        else if(luaHelperStepOver)
+            luaHelperSkipDepth++;
+    }
 
-    if(ar->event == LUA_HOOKRET && luaHelperStepOut)
-        OnLuaHelperStepOut();
+    if(ar->event == LUA_HOOKTAILCALL)
+    {
+        if(luaHelperStepInto)
+            OnLuaHelperStepInto();
+    }
 
-    if(ar->event == LUA_HOOKLINE && (luaHelperStepOver || luaHelperStepInto || luaHelperStepOut))
+    if(ar->event == LUA_HOOKRET)
+    {
+        if(luaHelperStepOut)
+            OnLuaHelperStepOut();
+        else if(luaHelperStepOver && luaHelperSkipDepth > 0)
+            luaHelperSkipDepth--;
+    }
+
+    if(ar->event == LUA_HOOKLINE && (luaHelperStepOver || luaHelperStepInto || luaHelperStepOut) && luaHelperSkipDepth == 0)
         OnLuaHelperStepComplete();
 
     if(ar->i_ci && (ar->i_ci->func->tt_ & 0x3f) == 6)
