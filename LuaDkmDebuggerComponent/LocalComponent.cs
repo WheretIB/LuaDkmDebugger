@@ -105,7 +105,7 @@ namespace LuaDkmDebuggerComponent
         public SymbolSource source;
     }
 
-    public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery, IDkmModuleInstanceLoadNotification, IDkmCustomMessageCallbackReceiver
+    public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery, IDkmModuleInstanceLoadNotification, IDkmCustomMessageCallbackReceiver, IDkmLanguageInstructionDecoder
     {
         internal string ExecuteExpression(string expression, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame input, DkmEvaluationFlags flags, bool allowZero, out ulong address)
         {
@@ -788,12 +788,15 @@ namespace LuaDkmDebuggerComponent
 
             var frameData = new LuaFrameData();
 
-            frameData.ReadFrom(instructionSymbol.AdditionalData.ToArray());
+            if (frameData.ReadFrom(instructionSymbol.AdditionalData.ToArray()))
+            {
+                string filePath = TryFindSourcePath(process.Path, processData, frameData.source);
 
-            string filePath = TryFindSourcePath(process.Path, processData, frameData.source);
+                startOfLine = true;
+                return DkmSourcePosition.Create(DkmSourceFileId.Create(filePath, null, null, null), new DkmTextSpan(frameData.instructionLine, frameData.instructionLine, 0, 0));
+            }
 
-            startOfLine = true;
-            return DkmSourcePosition.Create(DkmSourceFileId.Create(filePath, null, null, null), new DkmTextSpan(frameData.instructionLine, frameData.instructionLine, 0, 0));
+            return instruction.GetSourcePosition(flags, inspectionSession, out startOfLine);
         }
 
         object IDkmSymbolQuery.GetSymbolInterface(DkmModule module, Guid interfaceID)
@@ -1046,7 +1049,11 @@ namespace LuaDkmDebuggerComponent
 
             var frameData = new LuaFrameData();
 
-            frameData.ReadFrom(instructionAddress.AdditionalData.ToArray());
+            if (!frameData.ReadFrom(instructionAddress.AdditionalData.ToArray()))
+            {
+                completionRoutine(new DkmEvaluateExpressionAsyncResult(DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, expression.Text, expression.Text, "Missing function frame data", DkmEvaluationResultFlags.Invalid, null)));
+                return;
+            }
 
             // Load call info data
             LuaFunctionCallInfoData callInfoData = new LuaFunctionCallInfoData();
@@ -1246,7 +1253,11 @@ namespace LuaDkmDebuggerComponent
 
             var frameData = new LuaFrameData();
 
-            frameData.ReadFrom(instructionAddress.AdditionalData.ToArray());
+            if (!frameData.ReadFrom(instructionAddress.AdditionalData.ToArray()))
+            {
+                completionRoutine(new DkmGetFrameLocalsAsyncResult(DkmEvaluationResultEnumContext.Create(0, stackFrame, inspectionContext, null)));
+                return;
+            }
 
             // Load call info data
             LuaFunctionCallInfoData callInfoData = new LuaFunctionCallInfoData();
@@ -1471,6 +1482,49 @@ namespace LuaDkmDebuggerComponent
             }
 
             errorText = "Missing evaluation data";
+        }
+
+        string IDkmLanguageInstructionDecoder.GetMethodName(DkmLanguageInstructionAddress languageInstructionAddress, DkmVariableInfoFlags argumentFlags)
+        {
+            var process = languageInstructionAddress.Address.Process;
+
+            var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
+
+            var customInstructionAddress = languageInstructionAddress.Address as DkmCustomInstructionAddress;
+
+            if (customInstructionAddress == null)
+                return languageInstructionAddress.GetMethodName(argumentFlags);
+
+            var addressEntityData = new LuaAddressEntityData();
+
+            addressEntityData.ReadFrom(customInstructionAddress.EntityId.ToArray());
+
+            var breakpointAdditionalData = new LuaBreakpointAdditionalData();
+
+            if (!breakpointAdditionalData.ReadFrom(customInstructionAddress.AdditionalData.ToArray()))
+                return languageInstructionAddress.GetMethodName(argumentFlags);
+
+            var functionData = new LuaFunctionData();
+
+            functionData.ReadFrom(process, addressEntityData.functionAddress);
+
+            string source = functionData.ReadSource(process);
+
+            if (source == null)
+                source = "unknown script";
+
+            string argumentList = "";
+
+            for (int i = 0; i < functionData.argumentCount; i++)
+            {
+                LuaLocalVariableData argument = new LuaLocalVariableData();
+
+                argument.ReadFrom(process, functionData.localVariableDataAddress + (ulong)(i * LuaLocalVariableData.StructSize(process)));
+
+                argumentList += (i == 0 ? "" : ", ") + argument.name;
+            }
+
+            return $"[{source}:{breakpointAdditionalData.instructionLine}]({argumentList})"; ;
         }
 
         DkmCompilerId IDkmSymbolCompilerIdQuery.GetCompilerId(DkmInstructionSymbol instruction, DkmInspectionSession inspectionSession)

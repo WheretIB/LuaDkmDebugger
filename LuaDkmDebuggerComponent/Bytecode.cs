@@ -1098,7 +1098,7 @@ namespace LuaDkmDebuggerComponent
             }
         }
 
-        public void ReadFrom(byte[] data)
+        public bool ReadFrom(byte[] data)
         {
             using (var stream = new MemoryStream(data))
             {
@@ -1106,7 +1106,8 @@ namespace LuaDkmDebuggerComponent
                 {
                     marker = reader.ReadInt32();
 
-                    Debug.Assert(marker == 1);
+                    if (marker != 1)
+                        return false;
 
                     state = reader.ReadUInt64();
 
@@ -1124,6 +1125,8 @@ namespace LuaDkmDebuggerComponent
                     source = reader.ReadString();
                 }
             }
+
+            return true;
         }
     }
 
@@ -1150,7 +1153,7 @@ namespace LuaDkmDebuggerComponent
             }
         }
 
-        public void ReadFrom(byte[] data)
+        public bool ReadFrom(byte[] data)
         {
             using (var stream = new MemoryStream(data))
             {
@@ -1158,11 +1161,14 @@ namespace LuaDkmDebuggerComponent
                 {
                     marker = reader.ReadInt32();
 
-                    Debug.Assert(marker == 2);
+                    if (marker != 2)
+                        return false;
 
                     instructionLine = reader.ReadInt32();
                 }
             }
+
+            return true;
         }
     }
 }
