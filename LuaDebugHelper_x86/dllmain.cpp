@@ -29,6 +29,26 @@ extern "C"
     {
         volatile char dummy = 0;
     }
+
+    __declspec(dllexport) __declspec(noinline) void OnLuaHelperBreakpointHit()
+    {
+        volatile char dummy = 0;
+    }
+
+    __declspec(dllexport) __declspec(noinline) void OnLuaHelperStepComplete()
+    {
+        volatile char dummy = 0;
+    }
+
+    __declspec(dllexport) __declspec(noinline) void OnLuaHelperStepOut()
+    {
+        volatile char dummy = 0;
+    }
+
+    __declspec(dllexport) __declspec(noinline) void OnLuaHelperStepIn()
+    {
+        volatile char dummy = 0;
+    }
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
@@ -58,3 +78,62 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 	return TRUE;
 }
 
+#include "lua/src5.3/lstate.h"
+
+#include <stdio.h>
+
+extern "C" __declspec(dllexport) unsigned luaBreakLine = 0;
+extern "C" __declspec(dllexport) unsigned luaStepOver = 0;
+extern "C" __declspec(dllexport) unsigned luaStepOut = 0;
+extern "C" __declspec(dllexport) unsigned luaStepInto = 0;
+
+extern "C" __declspec(dllexport) void LuaHelperHook(lua_State *L, lua_Debug *ar)
+{
+    if(ar->event == LUA_HOOKCALL && luaStepInto)
+        OnLuaHelperStepIn();
+
+    if(ar->event == LUA_HOOKRET && luaStepOut)
+        OnLuaHelperStepOut();
+
+    if(ar->event == LUA_HOOKLINE && (luaStepOver || luaStepInto || luaStepOut))
+        OnLuaHelperStepComplete();
+
+    if(ar->i_ci && (ar->i_ci->func->tt_ & 0x3f) == 6)
+    {
+        auto proto = ((LClosure*)ar->i_ci->func->value_.gc)->p;
+
+        const char *sourceName = (char*)proto->source + sizeof(TString);
+
+        // TODO: match source
+        if(luaBreakLine != 0 && ar->currentline == luaBreakLine)
+            OnLuaHelperBreakpointHit();
+    }
+
+    
+
+    /*if(auto ci = L->ci)
+    {
+        if((ci->func->tt_ & 0x3f) == 6)
+        {
+            auto proto = ((LClosure*)ci->func->value_.gc)->p;
+
+            auto codeStart = proto->code;
+
+            auto pc = ci->u.l.savedpc - codeStart;
+
+            auto line = proto->lineinfo[pc == 0 ? 0 : pc - 1];
+
+            //assert(ar->currentline == line);
+
+            //printf("hook at line %d from '%s'\n", line, (char*)proto->source + sizeof(TString));
+
+            if(luaBreakLine != 0 && line == luaBreakLine)
+                OnLuaHelperBreakpointHit();
+        }
+    }*/
+
+    //if(breakLike != 0 && ar->currentline == breakLike)
+    //	DebugBreak();
+
+    //printf("hook '%s' at %d from '%s'\n", ar->name ? ar->name : "unknown", ar->currentline, ar->source);
+}

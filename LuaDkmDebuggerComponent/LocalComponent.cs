@@ -8,6 +8,7 @@ using Microsoft.VisualStudio.Debugger.Native;
 using Microsoft.VisualStudio.Debugger.Symbols;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -57,6 +58,10 @@ namespace LuaDkmDebuggerComponent
         public bool helperInitialized = false;
         public DkmThread helperInitializionSuspensionThread;
 
+        public ulong helperHookFunctionAddress = 0;
+        public ulong helperBreakLineAddress = 0;
+
+        public Guid breakpointLuaInitialization;
         public Guid breakpointLuaThreadCreate;
         public Guid breakpointLuaThreadDestroy;
         public Guid breakpointLuaHelperInitialized;
@@ -91,15 +96,15 @@ namespace LuaDkmDebuggerComponent
         public SymbolSource source;
     }
 
-    public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery, IDkmBreakpointManager, IDkmModuleInstanceLoadNotification, IDkmCustomMessageCallbackReceiver
+    public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery, IDkmBreakpointManager, IDkmModuleInstanceLoadNotification, IDkmCustomMessageCallbackReceiver, IDkmModuleInstanceUnloadNotification
     {
-        internal string ExecuteExpression(string expression, DkmStackContext stackContext, DkmStackWalkFrame input, bool allowZero, out ulong address)
+        internal string ExecuteExpression(string expression, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame input, bool allowZero, out ulong address)
         {
             var compilerId = new DkmCompilerId(DkmVendorId.Microsoft, DkmLanguageId.Cpp);
             var language = DkmLanguage.Create("C++", compilerId);
             var languageExpression = DkmLanguageExpression.Create(language, DkmEvaluationFlags.None, expression, null);
 
-            var inspectionContext = DkmInspectionContext.Create(stackContext.InspectionSession, input.RuntimeInstance, stackContext.Thread, 200, DkmEvaluationFlags.None, DkmFuncEvalFlags.None, 10, language, null);
+            var inspectionContext = DkmInspectionContext.Create(inspectionSession, input.RuntimeInstance, thread, 200, DkmEvaluationFlags.None, DkmFuncEvalFlags.None, 10, language, null);
 
             var workList = DkmWorkList.Create(null);
 
@@ -136,17 +141,17 @@ namespace LuaDkmDebuggerComponent
             }
         }
 
-        internal ulong? TryEvaluateAddressExpression(string expression, DkmStackContext stackContext, DkmStackWalkFrame input)
+        internal ulong? TryEvaluateAddressExpression(string expression, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame input)
         {
-            if (ExecuteExpression(expression, stackContext, input, true, out ulong address) != null)
+            if (ExecuteExpression(expression, inspectionSession, thread, input, true, out ulong address) != null)
                 return address;
 
             return null;
         }
 
-        internal long? TryEvaluateNumberExpression(string expression, DkmStackContext stackContext, DkmStackWalkFrame input)
+        internal long? TryEvaluateNumberExpression(string expression, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame input)
         {
-            string result = ExecuteExpression(expression, stackContext, input, true, out _);
+            string result = ExecuteExpression(expression, inspectionSession, thread, input, true, out _);
 
             if (result == null)
                 return null;
@@ -157,9 +162,9 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
-        internal string TryEvaluateStringExpression(string expression, DkmStackContext stackContext, DkmStackWalkFrame input)
+        internal string TryEvaluateStringExpression(string expression, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame input)
         {
-            return ExecuteExpression(expression + ",sb", stackContext, input, false, out _);
+            return ExecuteExpression(expression + ",sb", inspectionSession, thread, input, false, out _);
         }
 
         internal void LoadConfigurationFile(DkmProcess process, LuaLocalProcessData processData)
@@ -259,10 +264,10 @@ namespace LuaDkmDebuggerComponent
 
                     if (callAddress != 0)
                     {
-                        long? length = TryEvaluateNumberExpression($"((int(*)(int, char*))0x{callAddress:x})(4095, (char*){processData.scratchMemory})", stackContext, input);
+                        long? length = TryEvaluateNumberExpression($"((int(*)(int, char*))0x{callAddress:x})(4095, (char*){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input);
 
                         if (length.HasValue && length.Value != 0)
-                            processData.workingDirectory = TryEvaluateStringExpression($"(const char*){processData.scratchMemory}", stackContext, input);
+                            processData.workingDirectory = TryEvaluateStringExpression($"(const char*){processData.scratchMemory}", stackContext.InspectionSession, stackContext.Thread, input);
                     }
                 }
 
@@ -280,7 +285,7 @@ namespace LuaDkmDebuggerComponent
                 if (isTopFrame)
                     luaFrameFlags |= DkmStackWalkFrameFlags.TopFrame;
 
-                ulong? stateAddress = TryEvaluateAddressExpression($"L", stackContext, input);
+                ulong? stateAddress = TryEvaluateAddressExpression($"L", stackContext.InspectionSession, stackContext.Thread, input);
 
                 // Reset Lua frame skip data if we have switched Lua state
                 if (stackContextData.stateAddress != stateAddress.GetValueOrDefault(0))
@@ -291,8 +296,8 @@ namespace LuaDkmDebuggerComponent
                     stackContextData.seenFrames = 0;
                 }
 
-                ulong? registryAddress = TryEvaluateAddressExpression($"&L->l_G->l_registry", stackContext, input);
-                long? version = TryEvaluateNumberExpression($"(int)*L->l_G->version", stackContext, input);
+                ulong? registryAddress = TryEvaluateAddressExpression($"&L->l_G->l_registry", stackContext.InspectionSession, stackContext.Thread, input);
+                long? version = TryEvaluateNumberExpression($"(int)*L->l_G->version", stackContext.InspectionSession, stackContext.Thread, input);
 
                 LuaHelpers.luaVersion = (int)version.GetValueOrDefault(501); // Lua 5.1 doesn't have version field
 
@@ -302,9 +307,9 @@ namespace LuaDkmDebuggerComponent
 
                     // Note that in Lua 5.1 call info address if for current call info as opposed to previous call info in future versions
                     if (LuaHelpers.luaVersion == 501 || LuaHelpers.luaVersion == 502)
-                        functionNameType = TryEvaluateStringExpression($"getfuncname(L, ((CallInfo*){callInfoAddress}), (const char**){processData.scratchMemory})", stackContext, input);
+                        functionNameType = TryEvaluateStringExpression($"getfuncname(L, ((CallInfo*){callInfoAddress}), (const char**){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input);
                     else
-                        functionNameType = TryEvaluateStringExpression($"funcnamefromcode(L, ((CallInfo*){callInfoAddress}), (const char**){processData.scratchMemory})", stackContext, input);
+                        functionNameType = TryEvaluateStringExpression($"funcnamefromcode(L, ((CallInfo*){callInfoAddress}), (const char**){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input);
 
                     if (functionNameType != null)
                     {
@@ -519,7 +524,7 @@ namespace LuaDkmDebuggerComponent
                 }
                 else
                 {
-                    ulong? currCallInfoAddress = TryEvaluateAddressExpression($"L->ci", stackContext, input);
+                    ulong? currCallInfoAddress = TryEvaluateAddressExpression($"L->ci", stackContext.InspectionSession, stackContext.Thread, input);
 
                     while (stateAddress.HasValue && currCallInfoAddress.HasValue && currCallInfoAddress.Value != 0)
                     {
@@ -1669,7 +1674,7 @@ namespace LuaDkmDebuggerComponent
                 if (nativeModuleInstance.FullName != null && nativeModuleInstance.FullName.EndsWith(".exe"))
                 {
                     // Check if Lua library is loaded
-                    if (DebugHelpers.TryGetFunctionAddress(nativeModuleInstance, "lua_newstate", true).GetValueOrDefault(0) != 0)
+                    if (DebugHelpers.TryGetFunctionAddress(nativeModuleInstance, "lua_newstate").GetValueOrDefault(0) != 0)
                     {
                         Debug.WriteLine("LuaDkmDebugger: Found Lua library");
 
@@ -1692,17 +1697,39 @@ namespace LuaDkmDebuggerComponent
 
                     if (variableAddress != null)
                     {
+                        {
+                            var address = nativeModuleInstance.FindExportName("LuaHelperHook", IgnoreDataExports: true);
+
+                            if (address != null)
+                            {
+                                Debug.WriteLine($"LuaDkmDebugger: Found helper library 'LuaHelperHook' function at 0x{address.CPUInstructionPart.InstructionPointer:x}");
+
+                                processData.helperHookFunctionAddress = address.CPUInstructionPart.InstructionPointer;
+                            }
+                        }
+
+                        {
+                            var address = nativeModuleInstance.FindExportName("luaBreakLine", IgnoreDataExports: false);
+
+                            if (address != null)
+                            {
+                                Debug.WriteLine($"LuaDkmDebugger: Found helper library 'luaBreakLine' variable at 0x{address.CPUInstructionPart.InstructionPointer:x}");
+
+                                processData.helperBreakLineAddress = address.CPUInstructionPart.InstructionPointer;
+                            }
+                        }
+
                         var initialized = DebugHelpers.ReadIntVariable(process, variableAddress.CPUInstructionPart.InstructionPointer);
 
                         if (initialized.HasValue)
                         {
-                            Debug.WriteLine("LuaDkmDebugger: Found helper library init flag");
+                            Debug.WriteLine($"LuaDkmDebugger: Found helper library init flag at 0x{variableAddress.CPUInstructionPart.InstructionPointer:x}");
 
                             if (initialized.Value == 0)
                             {
                                 Debug.WriteLine("LuaDkmDebugger: Helper hasn't been initialized");
 
-                                var functionAddress = DebugHelpers.TryGetFunctionAddress(nativeModuleInstance, "OnLuaHelperInitialized", true);
+                                var functionAddress = DebugHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, "OnLuaHelperInitialized");
 
                                 if (functionAddress != null)
                                 {
@@ -1751,9 +1778,29 @@ namespace LuaDkmDebuggerComponent
 
                     processData.helperInjectRequested = true;
 
-                    // Track Lua state creation
+                    // TODO: helper function
+
+                    // Track Lua state initialization (breakpoint at the end of the function)
                     {
-                        var address = DebugHelpers.TryGetFunctionAddress(processData.moduleWithLoadedLua, "preinit_thread", true);
+                        var address = DebugHelpers.TryGetFunctionAddressAtDebugStart(processData.moduleWithLoadedLua, "lua_newstate");
+
+                        if (address != null)
+                        {
+                            Debug.WriteLine("LuaDkmDebugger: Hooking Lua 'initialization mark' function");
+
+                            var nativeAddress = process.CreateNativeInstructionAddress(address.Value);
+
+                            var breakpoint = DkmRuntimeInstructionBreakpoint.Create(Guids.luaSupportBreakpointGuid, null, nativeAddress, false, null);
+
+                            breakpoint.Enable();
+
+                            processData.breakpointLuaInitialization = breakpoint.UniqueId;
+                        }
+                    }
+
+                    // Track Lua state creation (breakpoint at the end of the function)
+                    {
+                        var address = DebugHelpers.TryGetFunctionAddressAtDebugEnd(processData.moduleWithLoadedLua, "lua_newstate");
 
                         if (address != null)
                         {
@@ -1769,9 +1816,9 @@ namespace LuaDkmDebuggerComponent
                         }
                     }
 
-                    // Track Lua state destruction
+                    // Track Lua state destruction (breakpoint at the start of the function)
                     {
-                        var address = DebugHelpers.TryGetFunctionAddress(processData.moduleWithLoadedLua, "close_state", true);
+                        var address = DebugHelpers.TryGetFunctionAddressAtDebugStart(processData.moduleWithLoadedLua, "lua_close");
 
                         if (address != null)
                         {
@@ -1839,15 +1886,15 @@ namespace LuaDkmDebuggerComponent
 
                 Debug.Assert(data != null);
 
-                if (data.breakpointId == processData.breakpointLuaThreadCreate)
-                {
-                    Debug.WriteLine("LuaDkmDebugger: Detected Lua thread start");
+                var thread = process.GetThreads().FirstOrDefault(el => el.UniqueId == data.threadId);
 
-                    if (processData.helperInjected && !processData.helperInitialized &&!processData.helperInitializationWaitUsed)
+                if (data.breakpointId == processData.breakpointLuaInitialization)
+                {
+                    Debug.WriteLine("LuaDkmDebugger: Detected Lua initialization");
+
+                    if (processData.helperInjected && !processData.helperInitialized && !processData.helperInitializationWaitUsed)
                     {
                         Debug.WriteLine("LuaDkmDebugger: Helper was injected but hasn't been initialized, suspening thread");
-
-                        var thread = process.GetThreads().FirstOrDefault(el => el.UniqueId == data.threadId);
 
                         Debug.Assert(thread != null);
 
@@ -1855,6 +1902,47 @@ namespace LuaDkmDebuggerComponent
 
                         processData.helperInitializionSuspensionThread = thread;
                         processData.helperInitializationWaitUsed = true;
+                    }
+                }
+                else if (data.breakpointId == processData.breakpointLuaThreadCreate)
+                {
+                    Debug.WriteLine("LuaDkmDebugger: Detected Lua thread start");
+
+                    const int CV_ALLREG_VFRAME = 0x00007536;
+                    var vFrameRegister = DkmUnwoundRegister.Create(CV_ALLREG_VFRAME, new ReadOnlyCollection<byte>(BitConverter.GetBytes(data.vframe)));
+                    var registers = thread.GetCurrentRegisters(new[] { vFrameRegister });
+                    var instructionAddress = process.CreateNativeInstructionAddress(registers.GetInstructionPointer());
+                    var frame = DkmStackWalkFrame.Create(thread, instructionAddress, data.frameBase, 0, DkmStackWalkFrameFlags.None, null, registers, null);
+
+                    var inspectionSession = DkmInspectionSession.Create(process, null);
+
+                    Debug.WriteLine($"LuaDkmDebugger: Evaluating Lua data at {DateTime.Now.Ticks / 10000.0}");
+
+                    ulong? stateAddress = TryEvaluateAddressExpression($"L", inspectionSession, thread, frame);
+                    long? version = TryEvaluateNumberExpression($"(int)*L->l_G->version", inspectionSession, thread, frame);
+                    ulong? hookFunctionAddress = TryEvaluateAddressExpression($"&L->hook", inspectionSession, thread, frame);
+                    ulong? hookBaseCountAddress = TryEvaluateAddressExpression($"&L->basehookcount", inspectionSession, thread, frame);
+                    ulong? hookCountAddress = TryEvaluateAddressExpression($"&L->hookcount", inspectionSession, thread, frame);
+                    ulong? hookMaskAddress = TryEvaluateAddressExpression($"&L->hookmask", inspectionSession, thread, frame);
+
+                    Debug.WriteLine($"LuaDkmDebugger: Completed evaluation at {DateTime.Now.Ticks / 10000.0}");
+
+                    if (stateAddress.HasValue)
+                    {
+                        Debug.WriteLine($"LuaDkmDebugger: new Lua state 0x{stateAddress:x} version {version.GetValueOrDefault(501)}");
+
+                        if (version.GetValueOrDefault(501) == 503)
+                        {
+                            // TODO: check evaluations
+                            DebugHelpers.TryWriteVariable(process, hookFunctionAddress.Value, processData.helperHookFunctionAddress);
+                            DebugHelpers.TryWriteVariable(process, hookBaseCountAddress.Value, 0);
+                            DebugHelpers.TryWriteVariable(process, hookCountAddress.Value, 0);
+                            DebugHelpers.TryWriteVariable(process, hookMaskAddress.Value, 3); // LUA_HOOKLINE | LUA_HOOKCALL | LUA_HOOKRET
+                        }
+                    }
+                    else
+                    {
+                        Debug.WriteLine($"LuaDkmDebugger: Failed to evaluate Luas state location");
                     }
                 }
                 else if (data.breakpointId == processData.breakpointLuaThreadDestroy)
@@ -1880,6 +1968,23 @@ namespace LuaDkmDebuggerComponent
             }
 
             return null;
+        }
+
+        void IDkmModuleInstanceUnloadNotification.OnModuleInstanceUnload(DkmModuleInstance moduleInstance, DkmWorkList workList, DkmEventDescriptor eventDescriptor)
+        {
+            var nativeModuleInstance = moduleInstance as DkmNativeModuleInstance;
+
+            if (nativeModuleInstance != null)
+            {
+                var process = moduleInstance.Process;
+
+                var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
+
+                if (nativeModuleInstance.FullName != null && nativeModuleInstance.FullName.EndsWith("LuaDebugHelper_x86.dll"))
+                {
+                    Debug.WriteLine("LuaDkmDebugger: Lost Lua debugger helper library");
+                }
+            }
         }
     }
 }

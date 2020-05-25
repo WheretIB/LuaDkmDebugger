@@ -270,6 +270,20 @@ namespace LuaDkmDebuggerComponent
             return true;
         }
 
+        internal static bool TryWriteVariable(DkmProcess process, ulong address, uint value)
+        {
+            try
+            {
+                process.WriteMemory(address, BitConverter.GetBytes(value));
+            }
+            catch (DkmException)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
         internal static bool TryWriteVariable(DkmProcess process, ulong address, long value)
         {
             try
@@ -284,6 +298,21 @@ namespace LuaDkmDebuggerComponent
             return true;
         }
 
+        internal static bool TryWriteVariable(DkmProcess process, ulong address, ulong value)
+        {
+            try
+            {
+                process.WriteMemory(address, BitConverter.GetBytes(value));
+            }
+            catch (DkmException)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        // TODO: separate explicit functions to avoid implicit casts
         internal static bool TryWriteVariable(DkmProcess process, ulong address, float value)
         {
             try
@@ -470,7 +499,7 @@ namespace LuaDkmDebuggerComponent
             return symbol;
         }
 
-        internal static IDiaSymbol GetDiaSymbol(IDiaSymbol symbol, SymTagEnum symTag, string name)
+        internal static IDiaSymbol TryGetDiaSymbol(IDiaSymbol symbol, SymTagEnum symTag, string name)
         {
             symbol.findChildren(symTag, name, 1, out IDiaEnumSymbols enumSymbols);
 
@@ -484,14 +513,14 @@ namespace LuaDkmDebuggerComponent
             return enumSymbols.Item(0u);
         }
 
-        internal static ulong? TryGetFunctionAddress(DkmNativeModuleInstance moduleInstance, string name, bool atDebugStartLocation)
+        internal static IDiaSymbol TryGetDiaFunctionSymbol(DkmNativeModuleInstance moduleInstance, string name)
         {
             var moduleSymbols = TryGetDiaSymbols(moduleInstance);
 
             if (moduleSymbols == null)
                 return null;
 
-            var functionSymbol = GetDiaSymbol(moduleSymbols, SymTagEnum.SymTagFunction, name);
+            var functionSymbol = TryGetDiaSymbol(moduleSymbols, SymTagEnum.SymTagFunction, name);
 
             if (functionSymbol == null)
             {
@@ -500,29 +529,68 @@ namespace LuaDkmDebuggerComponent
                 return null;
             }
 
-            uint rva;
-            if (atDebugStartLocation)
-            {
-                var functionStartSymbol = GetDiaSymbol(functionSymbol, SymTagEnum.SymTagFuncDebugStart, null);
-
-                if (functionStartSymbol == null)
-                {
-                    ReleaseComObject(moduleSymbols);
-                    ReleaseComObject(functionSymbol);
-
-                    return null;
-                }
-
-                rva = functionStartSymbol.relativeVirtualAddress;
-
-                ReleaseComObject(functionStartSymbol);
-            }
-            else
-            {
-                rva = functionSymbol.relativeVirtualAddress;
-            }
-
             ReleaseComObject(moduleSymbols);
+
+            return functionSymbol;
+        }
+
+        internal static ulong? TryGetFunctionAddress(DkmNativeModuleInstance moduleInstance, string name)
+        {
+            var functionSymbol = TryGetDiaFunctionSymbol(moduleInstance, name);
+
+            if (functionSymbol == null)
+                return null;
+
+            uint rva = functionSymbol.relativeVirtualAddress;
+
+            ReleaseComObject(functionSymbol);
+
+            return moduleInstance.BaseAddress + rva;
+        }
+
+        internal static ulong? TryGetFunctionAddressAtDebugStart(DkmNativeModuleInstance moduleInstance, string name)
+        {
+            var functionSymbol = TryGetDiaFunctionSymbol(moduleInstance, name);
+
+            if (functionSymbol == null)
+                return null;
+
+            var functionStartSymbol = TryGetDiaSymbol(functionSymbol, SymTagEnum.SymTagFuncDebugStart, null);
+
+            if (functionStartSymbol == null)
+            {
+                ReleaseComObject(functionSymbol);
+
+                return null;
+            }
+
+            uint rva = functionStartSymbol.relativeVirtualAddress;
+
+            ReleaseComObject(functionStartSymbol);
+            ReleaseComObject(functionSymbol);
+
+            return moduleInstance.BaseAddress + rva;
+        }
+
+        internal static ulong? TryGetFunctionAddressAtDebugEnd(DkmNativeModuleInstance moduleInstance, string name)
+        {
+            var functionSymbol = TryGetDiaFunctionSymbol(moduleInstance, name);
+
+            if (functionSymbol == null)
+                return null;
+
+            var functionEndSymbol = TryGetDiaSymbol(functionSymbol, SymTagEnum.SymTagFuncDebugEnd, null);
+
+            if (functionEndSymbol == null)
+            {
+                ReleaseComObject(functionSymbol);
+
+                return null;
+            }
+
+            uint rva = functionEndSymbol.relativeVirtualAddress;
+
+            ReleaseComObject(functionEndSymbol);
             ReleaseComObject(functionSymbol);
 
             return moduleInstance.BaseAddress + rva;
