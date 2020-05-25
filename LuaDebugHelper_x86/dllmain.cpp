@@ -45,7 +45,7 @@ extern "C"
         volatile char dummy = 0;
     }
 
-    __declspec(dllexport) __declspec(noinline) void OnLuaHelperStepIn()
+    __declspec(dllexport) __declspec(noinline) void OnLuaHelperStepInto()
     {
         volatile char dummy = 0;
     }
@@ -82,20 +82,20 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 
 #include <stdio.h>
 
-extern "C" __declspec(dllexport) unsigned luaBreakLine = 0;
-extern "C" __declspec(dllexport) unsigned luaStepOver = 0;
-extern "C" __declspec(dllexport) unsigned luaStepOut = 0;
-extern "C" __declspec(dllexport) unsigned luaStepInto = 0;
+extern "C" __declspec(dllexport) unsigned luaHelperBreakLine = 0;
+extern "C" __declspec(dllexport) unsigned luaHelperStepOver = 0;
+extern "C" __declspec(dllexport) unsigned luaHelperStepInto = 0;
+extern "C" __declspec(dllexport) unsigned luaHelperStepOut = 0;
 
 extern "C" __declspec(dllexport) void LuaHelperHook(lua_State *L, lua_Debug *ar)
 {
-    if(ar->event == LUA_HOOKCALL && luaStepInto)
-        OnLuaHelperStepIn();
+    if((ar->event == LUA_HOOKCALL || ar->event == LUA_HOOKTAILCALL) && luaHelperStepInto)
+        OnLuaHelperStepInto();
 
-    if(ar->event == LUA_HOOKRET && luaStepOut)
+    if(ar->event == LUA_HOOKRET && luaHelperStepOut)
         OnLuaHelperStepOut();
 
-    if(ar->event == LUA_HOOKLINE && (luaStepOver || luaStepInto || luaStepOut))
+    if(ar->event == LUA_HOOKLINE && (luaHelperStepOver || luaHelperStepInto || luaHelperStepOut))
         OnLuaHelperStepComplete();
 
     if(ar->i_ci && (ar->i_ci->func->tt_ & 0x3f) == 6)
@@ -105,11 +105,9 @@ extern "C" __declspec(dllexport) void LuaHelperHook(lua_State *L, lua_Debug *ar)
         const char *sourceName = (char*)proto->source + sizeof(TString);
 
         // TODO: match source
-        if(luaBreakLine != 0 && ar->currentline == luaBreakLine)
+        if(luaHelperBreakLine != 0 && ar->currentline == luaHelperBreakLine)
             OnLuaHelperBreakpointHit();
     }
-
-    
 
     /*if(auto ci = L->ci)
     {

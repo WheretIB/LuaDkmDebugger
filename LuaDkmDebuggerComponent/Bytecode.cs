@@ -1006,76 +1006,6 @@ namespace LuaDkmDebuggerComponent
         }
     }
 
-    public class LuaFrameData
-    {
-        public ulong state; // Address of the Lua state, called 'L' in Lua library
-
-        public ulong registryAddress; // Address of the Lua global registry, accessible as '&L->l_G->l_registry' in Lua library
-        public int version;
-
-        public ulong callInfo; // Address of the CallInfo struct, called 'ci' in Lua library
-
-        public ulong functionAddress; // Address of the Proto struct, accessible as '((LClosure*)ci->func->value_.gc)->p' in Lua library
-        public string functionName;
-
-        public int instructionLine;
-        public int instructionPointer; // Current instruction within the Lua Closure, evaluated as 'ci->u.l.savedpc - p->code' in Lua library (TODO: do we need to subtract 1?)
-
-        public string source;
-
-        public ReadOnlyCollection<byte> Encode()
-        {
-            using (var stream = new MemoryStream())
-            {
-                using (var writer = new BinaryWriter(stream))
-                {
-                    writer.Write(state);
-
-                    writer.Write(registryAddress);
-                    writer.Write(version);
-
-                    writer.Write(callInfo);
-
-                    writer.Write(functionAddress);
-                    writer.Write(functionName);
-
-                    writer.Write(instructionLine);
-                    writer.Write(instructionPointer);
-
-                    writer.Write(source);
-
-                    writer.Flush();
-
-                    return new ReadOnlyCollection<byte>(stream.ToArray());
-                }
-            }
-        }
-
-        public void ReadFrom(byte[] data)
-        {
-            using (var stream = new MemoryStream(data))
-            {
-                using (var reader = new BinaryReader(stream))
-                {
-                    state = reader.ReadUInt64();
-
-                    registryAddress = reader.ReadUInt64();
-                    version = reader.ReadInt32();
-
-                    callInfo = reader.ReadUInt64();
-
-                    functionAddress = reader.ReadUInt64();
-                    functionName = reader.ReadString();
-
-                    instructionLine = reader.ReadInt32();
-                    instructionPointer = reader.ReadInt32();
-
-                    source = reader.ReadString();
-                }
-            }
-        }
-    }
-
     public class LuaAddressEntityData
     {
         public ulong functionAddress; // Address of the Proto struct
@@ -1114,6 +1044,123 @@ namespace LuaDkmDebuggerComponent
                     instructionPointer = reader.ReadInt32();
 
                     source = reader.ReadString();
+                }
+            }
+        }
+    }
+
+    public class LuaFrameData
+    {
+        public int marker = 1;
+
+        public ulong state; // Address of the Lua state, called 'L' in Lua library
+
+        public ulong registryAddress; // Address of the Lua global registry, accessible as '&L->l_G->l_registry' in Lua library
+        public int version;
+
+        public ulong callInfo; // Address of the CallInfo struct, called 'ci' in Lua library
+
+        public ulong functionAddress; // Address of the Proto struct, accessible as '((LClosure*)ci->func->value_.gc)->p' in Lua library
+        public string functionName;
+
+        public int instructionLine;
+        public int instructionPointer; // Current instruction within the Lua Closure, evaluated as 'ci->u.l.savedpc - p->code' in Lua library (TODO: do we need to subtract 1?)
+
+        public string source;
+
+        public ReadOnlyCollection<byte> Encode()
+        {
+            using (var stream = new MemoryStream())
+            {
+                using (var writer = new BinaryWriter(stream))
+                {
+                    writer.Write(marker);
+
+                    writer.Write(state);
+
+                    writer.Write(registryAddress);
+                    writer.Write(version);
+
+                    writer.Write(callInfo);
+
+                    writer.Write(functionAddress);
+                    writer.Write(functionName);
+
+                    writer.Write(instructionLine);
+                    writer.Write(instructionPointer);
+
+                    writer.Write(source);
+
+                    writer.Flush();
+
+                    return new ReadOnlyCollection<byte>(stream.ToArray());
+                }
+            }
+        }
+
+        public void ReadFrom(byte[] data)
+        {
+            using (var stream = new MemoryStream(data))
+            {
+                using (var reader = new BinaryReader(stream))
+                {
+                    marker = reader.ReadInt32();
+
+                    Debug.Assert(marker == 1);
+
+                    state = reader.ReadUInt64();
+
+                    registryAddress = reader.ReadUInt64();
+                    version = reader.ReadInt32();
+
+                    callInfo = reader.ReadUInt64();
+
+                    functionAddress = reader.ReadUInt64();
+                    functionName = reader.ReadString();
+
+                    instructionLine = reader.ReadInt32();
+                    instructionPointer = reader.ReadInt32();
+
+                    source = reader.ReadString();
+                }
+            }
+        }
+    }
+
+    public class LuaBreakpointAdditionalData
+    {
+        public int marker = 2;
+
+        public int instructionLine;
+
+        public ReadOnlyCollection<byte> Encode()
+        {
+            using (var stream = new MemoryStream())
+            {
+                using (var writer = new BinaryWriter(stream))
+                {
+                    writer.Write(marker);
+
+                    writer.Write(instructionLine);
+
+                    writer.Flush();
+
+                    return new ReadOnlyCollection<byte>(stream.ToArray());
+                }
+            }
+        }
+
+        public void ReadFrom(byte[] data)
+        {
+            using (var stream = new MemoryStream(data))
+            {
+                using (var reader = new BinaryReader(stream))
+                {
+                    marker = reader.ReadInt32();
+
+                    Debug.Assert(marker == 2);
+
+                    instructionLine = reader.ReadInt32();
                 }
             }
         }

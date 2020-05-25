@@ -2,6 +2,7 @@
 <Configuration xmlns="http://schemas.microsoft.com/vstudio/vsdconfig/2008">
 	<DefineGuid Name="guidLuaRemoteDebuggerComponent" Value="1A5CBF53-315C-4E2C-A790-4042F9435EB7"/>
 	<DefineGuid Name="guidLuaMessageToRemote" Value="ED25F587-E107-4F94-9775-885BEC371006"/>
+	<DefineGuid Name="guidLuaRuntimeGuid" Value="A2D176A1-8907-483C-9B36-4544EF424967"/>
 
 	<ManagedComponent ComponentId="guidLuaRemoteDebuggerComponent" ComponentLevel="40500" AssemblyName="LuaDkmDebuggerComponent">
 		<Class Name="LuaDkmDebuggerComponent.RemoteComponent">
@@ -25,6 +26,13 @@
 						<SourceId RequiredValue="F8B5C32C-126E-49EC-979E-3AE10F8321FA"/>
 					</Filter>
 					<Interface Name="IDkmRuntimeBreakpointReceived"/>
+				</InterfaceGroup>
+
+				<InterfaceGroup>
+					<Filter>
+						<RuntimeId RequiredValue="guidLuaRuntimeGuid"/>
+					</Filter>
+					<Interface Name="IDkmRuntimeMonitorBreakpointHandler"/>
 				</InterfaceGroup>
 			</Implements>
 		</Class>
