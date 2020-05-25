@@ -637,6 +637,15 @@ namespace LuaDkmDebuggerComponent
                 gclistAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
                 address += pointerSize;
             }
+
+            // Sanity checks to 'guess' if we have wrong function data
+            Debug.Assert(definitionStartLine >= 0 && definitionStartLine < 1000000);
+            Debug.Assert(definitionEndLine >= 0 && definitionEndLine < 1000000);
+            Debug.Assert(lineInfoSize >= 0 && lineInfoSize < 1000000);
+
+            Debug.Assert(localFunctionSize >= 0 && localFunctionSize < 10000);
+            Debug.Assert(localVariableSize >= 0 && localVariableSize < 10000);
+            Debug.Assert(upvalueSize >= 0 && upvalueSize < 10000);
         }
 
         public void ReadLocals(DkmProcess process, int instructionPointer)
@@ -679,7 +688,12 @@ namespace LuaDkmDebuggerComponent
             {
                 LuaFunctionData data = new LuaFunctionData();
 
-                data.ReadFrom(process, localFunctionDataAddress + (ulong)(i * DebugHelpers.GetPointerSize(process)));
+                var targetAddress = DebugHelpers.ReadPointerVariable(process, localFunctionDataAddress + (ulong)(i * DebugHelpers.GetPointerSize(process)));
+
+                if (!targetAddress.HasValue)
+                    continue;
+
+                data.ReadFrom(process, targetAddress.Value);
 
                 localFunctions.Add(data);
             }
