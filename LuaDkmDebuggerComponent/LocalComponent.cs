@@ -96,7 +96,7 @@ namespace LuaDkmDebuggerComponent
         public SymbolSource source;
     }
 
-    public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery, IDkmBreakpointManager, IDkmModuleInstanceLoadNotification, IDkmCustomMessageCallbackReceiver, IDkmModuleInstanceUnloadNotification
+    public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery, IDkmModuleInstanceLoadNotification, IDkmCustomMessageCallbackReceiver
     {
         internal string ExecuteExpression(string expression, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame input, bool allowZero, out ulong address)
         {
@@ -1570,97 +1570,6 @@ namespace LuaDkmDebuggerComponent
             return resolvedDocument.FindSymbols(textSpan, text, out symbolLocation);
         }
 
-        // TODO: remove
-        void IDkmBreakpointManager.EnablePendingBreakpoint(DkmPendingBreakpoint pendingBreakpoint, DkmWorkList workList, DkmCompletionRoutine<DkmEnablePendingBreakpointAsyncResult> completionRoutine)
-        {
-            var fileLineBreakpoint = pendingBreakpoint as DkmPendingFileLineBreakpoint;
-
-            if (fileLineBreakpoint != null)
-            {
-                var sourcePosition = fileLineBreakpoint.GetCurrentSourcePosition();
-
-                if (sourcePosition.DocumentName.EndsWith(".lua"))
-                {
-                    var boundBreakpoint = DkmBoundBreakpoint.Create(pendingBreakpoint, null, sourcePosition, null);
-
-                    //boundBreakpoint.Disable(workList, _ => { });
-
-                    completionRoutine(new DkmEnablePendingBreakpointAsyncResult());
-                    return;
-                }
-            }
-
-            pendingBreakpoint.Enable(workList, completionRoutine);
-        }
-
-        void IDkmBreakpointManager.DisablePendingBreakpoint(DkmPendingBreakpoint pendingBreakpoint, DkmWorkList workList, DkmCompletionRoutine<DkmDisablePendingBreakpointAsyncResult> completionRoutine)
-        {
-            var fileLineBreakpoint = pendingBreakpoint as DkmPendingFileLineBreakpoint;
-
-            if (fileLineBreakpoint != null)
-            {
-                var sourcePosition = fileLineBreakpoint.GetCurrentSourcePosition();
-
-                if (sourcePosition.DocumentName.EndsWith(".lua"))
-                {
-                    completionRoutine(new DkmDisablePendingBreakpointAsyncResult());
-                    return;
-                }
-            }
-
-            pendingBreakpoint.Disable(workList, completionRoutine);
-        }
-
-        void IDkmBreakpointManager.EnrollPendingBreakpoint(DkmPendingBreakpoint pendingBreakpoint, DkmWorkList workList, DkmCompletionRoutine<DkmEnrollPendingBreakpointAsyncResult> completionRoutine)
-        {
-            pendingBreakpoint.Enroll(workList, completionRoutine);
-        }
-
-        void IDkmBreakpointManager.SetPendingBreakpointCondition(DkmPendingBreakpoint pendingBreakpoint, DkmWorkList workList, DkmBreakpointCondition condition, DkmCompletionRoutine<DkmSetPendingBreakpointConditionAsyncResult> completionRoutine)
-        {
-            completionRoutine(new DkmSetPendingBreakpointConditionAsyncResult());
-        }
-
-        void IDkmBreakpointManager.SetPendingBreakpointHitCountCondition(DkmPendingBreakpoint pendingBreakpoint, DkmWorkList workList, DkmBreakpointHitCountCondition condition, DkmCompletionRoutine<DkmSetPendingBreakpointHitCountConditionAsyncResult> completionRoutine)
-        {
-            completionRoutine(new DkmSetPendingBreakpointHitCountConditionAsyncResult());
-        }
-
-        void IDkmBreakpointManager.EnableBoundBreakpoint(DkmBoundBreakpoint boundBreakpoint, DkmWorkList workList, DkmCompletionRoutine<DkmEnableBoundBreakpointAsyncResult> completionRoutine)
-        {
-            boundBreakpoint.Enable(workList, completionRoutine);
-        }
-
-        void IDkmBreakpointManager.DisableBoundBreakpoint(DkmBoundBreakpoint boundBreakpoint, DkmWorkList workList, DkmCompletionRoutine<DkmDisableBoundBreakpointAsyncResult> completionRoutine)
-        {
-            boundBreakpoint.Disable(workList, completionRoutine);
-        }
-
-        bool IDkmBreakpointManager.IsBoundBreakpointEnabled(DkmBoundBreakpoint boundBreakpoint)
-        {
-            return boundBreakpoint.IsEnabled();
-        }
-
-        void IDkmBreakpointManager.SetBoundBreakpointCondition(DkmBoundBreakpoint boundBreakpoint, DkmBreakpointCondition condition)
-        {
-            boundBreakpoint.SetCondition(condition);
-        }
-
-        void IDkmBreakpointManager.SetBoundBreakpointHitCountCondition(DkmBoundBreakpoint boundBreakpoint, DkmBreakpointHitCountCondition condition)
-        {
-            boundBreakpoint.SetHitCountCondition(condition);
-        }
-
-        void IDkmBreakpointManager.SetBoundBreakpointHitCountValue(DkmBoundBreakpoint boundBreakpoint, int newValue)
-        {
-            boundBreakpoint.SetHitCountValue(newValue);
-        }
-
-        void IDkmBreakpointManager.GetBoundBreakpointHitCountValue(DkmBoundBreakpoint boundBreakpoint, DkmWorkList workList, DkmCompletionRoutine<DkmGetBoundBreakpointHitCountValueAsyncResult> completionRoutine)
-        {
-            boundBreakpoint.GetHitCountValue(workList, completionRoutine);
-        }
-
         void IDkmModuleInstanceLoadNotification.OnModuleInstanceLoad(DkmModuleInstance moduleInstance, DkmWorkList workList, DkmEventDescriptorS eventDescriptor)
         {
             var nativeModuleInstance = moduleInstance as DkmNativeModuleInstance;
@@ -1968,23 +1877,6 @@ namespace LuaDkmDebuggerComponent
             }
 
             return null;
-        }
-
-        void IDkmModuleInstanceUnloadNotification.OnModuleInstanceUnload(DkmModuleInstance moduleInstance, DkmWorkList workList, DkmEventDescriptor eventDescriptor)
-        {
-            var nativeModuleInstance = moduleInstance as DkmNativeModuleInstance;
-
-            if (nativeModuleInstance != null)
-            {
-                var process = moduleInstance.Process;
-
-                var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
-
-                if (nativeModuleInstance.FullName != null && nativeModuleInstance.FullName.EndsWith("LuaDebugHelper_x86.dll"))
-                {
-                    Debug.WriteLine("LuaDkmDebugger: Lost Lua debugger helper library");
-                }
-            }
         }
     }
 }

@@ -32,9 +32,7 @@
 
 				<InterfaceGroup>
 					<NoFilter/>
-					<Interface Name="IDkmBreakpointManager"/>
 					<Interface Name="IDkmModuleInstanceLoadNotification"/>
-					<Interface Name="IDkmModuleInstanceUnloadNotification"/>
 				</InterfaceGroup>
 
 				<InterfaceGroup>
