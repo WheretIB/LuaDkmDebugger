@@ -83,6 +83,8 @@ namespace LuaDkmDebuggerComponent
         public bool seenLuaFrame = false;
         public int skipFrames = 0; // How many Lua frames to skip
         public int seenFrames = 0; // How many Lua frames we have seen
+
+        public bool hideTopLuaLibraryFrames = false;
     }
 
     internal class LuaFrameLocalsEnumData : DkmDataItem
@@ -232,8 +234,17 @@ namespace LuaDkmDebuggerComponent
 
             var stackContextData = DebugHelpers.GetOrCreateDataItem<LuaStackContextData>(stackContext);
 
+            if (input.ModuleInstance != null && input.ModuleInstance.Name == "LuaDebugHelper_x86.dll")
+            {
+                stackContextData.hideTopLuaLibraryFrames = true;
+
+                return new DkmStackWalkFrame[1] { DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, DkmStackWalkFrameFlags.NonuserCode | DkmStackWalkFrameFlags.Hidden, "[Lua Debugger Helper]", input.Registers, input.Annotations) };
+            }
+
             if (input.BasicSymbolInfo.MethodName == "luaV_execute")
             {
+                stackContextData.hideTopLuaLibraryFrames = false;
+
                 var process = stackContext.InspectionSession.Process;
 
                 var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
@@ -669,7 +680,12 @@ namespace LuaDkmDebuggerComponent
             // Mark lua functions as non-user code
             if (input.BasicSymbolInfo.MethodName.StartsWith("luaD_") || input.BasicSymbolInfo.MethodName.StartsWith("luaV_") || input.BasicSymbolInfo.MethodName.StartsWith("luaG_") || input.BasicSymbolInfo.MethodName.StartsWith("luaF_") || input.BasicSymbolInfo.MethodName.StartsWith("luaB_") || input.BasicSymbolInfo.MethodName.StartsWith("luaH_"))
             {
-                return new DkmStackWalkFrame[1] { DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, (input.Flags & ~DkmStackWalkFrameFlags.UserStatusNotDetermined) | DkmStackWalkFrameFlags.NonuserCode, input.Description, input.Registers, input.Annotations) };
+                var flags = (input.Flags & ~DkmStackWalkFrameFlags.UserStatusNotDetermined) | DkmStackWalkFrameFlags.NonuserCode;
+
+                if (stackContextData.hideTopLuaLibraryFrames)
+                    flags |= DkmStackWalkFrameFlags.Hidden;
+
+                return new DkmStackWalkFrame[1] { DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, flags, input.Description, input.Registers, input.Annotations) };
             }
 
             return new DkmStackWalkFrame[1] { input };
