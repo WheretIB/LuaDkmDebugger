@@ -68,6 +68,12 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
+    <Content Include="LuaDebugAttacher_x64.exe">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <Content Include="LuaDebugHelper_x64.dll">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
     <Content Include="LuaDebugHelper_x86.dll">
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>

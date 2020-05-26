@@ -247,7 +247,7 @@ namespace LuaDkmDebuggerComponent
 
             var stackContextData = DebugHelpers.GetOrCreateDataItem<LuaStackContextData>(stackContext);
 
-            if (input.ModuleInstance != null && input.ModuleInstance.Name == "LuaDebugHelper_x86.dll")
+            if (input.ModuleInstance != null && (input.ModuleInstance.Name == "LuaDebugHelper_x86.dll" || input.ModuleInstance.Name == "LuaDebugHelper_x64.dll"))
             {
                 stackContextData.hideTopLuaLibraryFrames = true;
 
@@ -1760,7 +1760,7 @@ namespace LuaDkmDebuggerComponent
                     processData.loadLibraryAddress = DebugHelpers.FindFunctionAddress(process.GetNativeRuntimeInstance(), "LoadLibraryA");
                 }
 
-                if (nativeModuleInstance.FullName != null && nativeModuleInstance.FullName.EndsWith("LuaDebugHelper_x86.dll"))
+                if (nativeModuleInstance.FullName != null && (nativeModuleInstance.FullName.EndsWith("LuaDebugHelper_x86.dll") || nativeModuleInstance.FullName.EndsWith("LuaDebugHelper_x64.dll")))
                 {
                     Log("Found Lua debugger helper library");
 
@@ -1813,7 +1813,7 @@ namespace LuaDkmDebuggerComponent
                             executionEndAddress = processData.executionEndAddress,
                         };
 
-                        var message = DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.luaHelperDataLocations, data, null);
+                        var message = DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.luaHelperDataLocations, data.Encode(), null);
 
                         message.SendLower();
 
@@ -1929,7 +1929,7 @@ namespace LuaDkmDebuggerComponent
 
                     string assemblyFolder = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 
-                    string dllPathName = Path.Combine(assemblyFolder, "LuaDebugHelper_x86.dll");
+                    string dllPathName = Path.Combine(assemblyFolder, DebugHelpers.Is64Bit(process) ? "LuaDebugHelper_x64.dll" : "LuaDebugHelper_x86.dll");
 
                     if (!File.Exists(dllPathName))
                     {
@@ -1944,20 +1944,52 @@ namespace LuaDkmDebuggerComponent
                     process.WriteMemory(dllNameAddress, bytes);
                     process.WriteMemory(dllNameAddress + (ulong)bytes.Length, new byte[1] { 0 });
 
-                    var processHandle = Kernel32.OpenProcess(0x001F0FFF, false, process.LivePart.Id);
-
-                    if (processHandle == IntPtr.Zero)
+                    if (DebugHelpers.Is64Bit(process))
                     {
-                        Log("Failed to open target process");
-                        return;
+                        string exePathName = Path.Combine(assemblyFolder, "LuaDebugAttacher_x64.exe");
+
+                        if (!File.Exists(exePathName))
+                        {
+                            Log("Helper exe hasn't been found");
+                            return;
+                        }
+
+                        var processStartInfo = new ProcessStartInfo(exePathName, $"{process.LivePart.Id} {processData.loadLibraryAddress} {dllNameAddress}")
+                        {
+                            CreateNoWindow = true,
+                            RedirectStandardError = true,
+                            RedirectStandardInput = true,
+                            RedirectStandardOutput = true,
+                            UseShellExecute = false
+                        };
+
+                        var attachProcess = Process.Start(processStartInfo);
+
+                        attachProcess.WaitForExit();
+
+                        if (attachProcess.ExitCode != 0)
+                        {
+                            Log("Failed to start thread (x64)");
+                            return;
+                        }
                     }
-
-                    var threadHandle = Kernel32.CreateRemoteThread(processHandle, IntPtr.Zero, UIntPtr.Zero, (IntPtr)processData.loadLibraryAddress, (IntPtr)dllNameAddress, 0, IntPtr.Zero);
-
-                    if (threadHandle == IntPtr.Zero)
+                    else
                     {
-                        Log("Failed to start thread");
-                        return;
+                        var processHandle = Kernel32.OpenProcess(0x001F0FFF, false, process.LivePart.Id);
+
+                        if (processHandle == IntPtr.Zero)
+                        {
+                            Log("Failed to open target process");
+                            return;
+                        }
+
+                        var threadHandle = Kernel32.CreateRemoteThread(processHandle, IntPtr.Zero, UIntPtr.Zero, (IntPtr)processData.loadLibraryAddress, (IntPtr)dllNameAddress, 0, IntPtr.Zero);
+
+                        if (threadHandle == IntPtr.Zero)
+                        {
+                            Log("Failed to start thread (x86)");
+                            return;
+                        }
                     }
 
                     processData.helperInjected = true;
@@ -1975,9 +2007,9 @@ namespace LuaDkmDebuggerComponent
 
             if (customMessage.MessageCode == MessageToLocal.luaSupportBreakpointHit)
             {
-                var data = customMessage.Parameter1 as SupportBreakpointHitMessage;
+                var data = new SupportBreakpointHitMessage();
 
-                Debug.Assert(data != null);
+                data.ReadFrom(customMessage.Parameter1 as byte[]);
 
                 var thread = process.GetThreads().FirstOrDefault(el => el.UniqueId == data.threadId);
 

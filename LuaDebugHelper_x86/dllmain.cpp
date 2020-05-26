@@ -313,7 +313,7 @@ extern "C" __declspec(dllexport) void LuaHelperHook(void *L, Lua_5_3::lua_Debug 
         {
             if(ar->currentline == curr->line && uintptr_t(proto) == curr->proto)
             {
-                luaHelperBreakHitId = curr - luaHelperBreakData;
+                luaHelperBreakHitId = unsigned(curr - luaHelperBreakData);
 
                 OnLuaHelperBreakpointHit();
             }

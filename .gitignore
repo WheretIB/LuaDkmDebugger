@@ -15,3 +15,6 @@
 *.dll
 *.exp
 *.lib
+/LuaDebugAttacher_x64/x64
+/LuaDebugHelper_x64/x64
+/LuaDkmDebugger/*.exe

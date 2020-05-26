@@ -100,9 +100,9 @@ namespace LuaDkmDebuggerComponent
             }
             else if (customMessage.MessageCode == MessageToRemote.luaHelperDataLocations)
             {
-                var data = customMessage.Parameter1 as HelperLocationsMessage;
+                var data = new HelperLocationsMessage();
 
-                Debug.Assert(data != null);
+                data.ReadFrom(customMessage.Parameter1 as byte[]);
 
                 processData.locations = data;
             }
@@ -231,7 +231,7 @@ namespace LuaDkmDebuggerComponent
                     vframe = vframe
                 };
 
-                var message = DkmCustomMessage.Create(process.Connection, process, MessageToLocal.guid, MessageToLocal.luaSupportBreakpointHit, data, null);
+                var message = DkmCustomMessage.Create(process.Connection, process, MessageToLocal.guid, MessageToLocal.luaSupportBreakpointHit, data.Encode(), null);
 
                 message.SendHigher();
             }
