@@ -1427,7 +1427,7 @@ namespace LuaDkmDebuggerComponent
             {
                 if (value == "true")
                 {
-                    if (!DebugHelpers.TryWriteVariable(process, address, 1))
+                    if (!DebugHelpers.TryWriteIntVariable(process, address, 1))
                         errorText = "Failed to modify target process memory";
                     else
                         errorText = null;
@@ -1436,7 +1436,7 @@ namespace LuaDkmDebuggerComponent
                 }
                 else if (value == "false")
                 {
-                    if (!DebugHelpers.TryWriteVariable(process, address, 0))
+                    if (!DebugHelpers.TryWriteIntVariable(process, address, 0))
                         errorText = "Failed to modify target process memory";
                     else
                         errorText = null;
@@ -1445,7 +1445,7 @@ namespace LuaDkmDebuggerComponent
                 }
                 else if (int.TryParse(value, out int intValue))
                 {
-                    if (!DebugHelpers.TryWriteVariable(process, address, intValue != 0 ? 1 : 0))
+                    if (!DebugHelpers.TryWriteIntVariable(process, address, intValue != 0 ? 1 : 0))
                         errorText = "Failed to modify target process memory";
                     else
                         errorText = null;
@@ -1461,9 +1461,7 @@ namespace LuaDkmDebuggerComponent
             {
                 if (ulong.TryParse(value, out ulong ulongValue))
                 {
-                    if (DebugHelpers.Is64Bit(process) && !DebugHelpers.TryWriteVariable(process, address, (long)ulongValue))
-                        errorText = "Failed to modify target process memory";
-                    else if (!DebugHelpers.Is64Bit(process) && !DebugHelpers.TryWriteVariable(process, address, (int)ulongValue))
+                    if (!DebugHelpers.TryWritePointerVariable(process, address, ulongValue))
                         errorText = "Failed to modify target process memory";
                     else
                         errorText = null;
@@ -1481,7 +1479,7 @@ namespace LuaDkmDebuggerComponent
                 {
                     if (int.TryParse(value, out int intValue))
                     {
-                        if (!DebugHelpers.TryWriteVariable(process, address, intValue))
+                        if (!DebugHelpers.TryWriteIntVariable(process, address, intValue))
                             errorText = "Failed to modify target process memory";
                         else
                             errorText = null;
@@ -1496,7 +1494,7 @@ namespace LuaDkmDebuggerComponent
                 {
                     if (double.TryParse(value, out double doubleValue))
                     {
-                        if (!DebugHelpers.TryWriteVariable(process, address, doubleValue))
+                        if (!DebugHelpers.TryWriteDoubleVariable(process, address, doubleValue))
                             errorText = "Failed to modify target process memory";
                         else
                             errorText = null;
@@ -2003,7 +2001,7 @@ namespace LuaDkmDebuggerComponent
 
                     var inspectionSession = DkmInspectionSession.Create(process, null);
 
-                    Debug.WriteLine($"LuaDkmDebugger: Evaluating Lua data at {DateTime.Now.Ticks / 10000.0}");
+                    var evaStartTime = DateTime.Now.Ticks / 10000.0;
 
                     ulong? stateAddress = TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
                     long? version = TryEvaluateNumberExpression($"(int)*L->l_G->version", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
@@ -2012,7 +2010,7 @@ namespace LuaDkmDebuggerComponent
                     ulong? hookCountAddress = TryEvaluateAddressExpression($"&L->hookcount", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
                     ulong? hookMaskAddress = TryEvaluateAddressExpression($"&L->hookmask", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
-                    Debug.WriteLine($"LuaDkmDebugger: Completed evaluation at {DateTime.Now.Ticks / 10000.0}");
+                    Debug.WriteLine($"LuaDkmDebugger: Completed evaluation in {(DateTime.Now.Ticks / 10000.0) - evaStartTime}ms");
 
                     if (stateAddress.HasValue)
                     {
@@ -2021,10 +2019,10 @@ namespace LuaDkmDebuggerComponent
                         if (version.GetValueOrDefault(501) == 503)
                         {
                             // TODO: check evaluations
-                            DebugHelpers.TryWriteVariable(process, hookFunctionAddress.Value, processData.helperHookFunctionAddress);
-                            DebugHelpers.TryWriteVariable(process, hookBaseCountAddress.Value, 0);
-                            DebugHelpers.TryWriteVariable(process, hookCountAddress.Value, 0);
-                            DebugHelpers.TryWriteVariable(process, hookMaskAddress.Value, 7); // LUA_HOOKLINE | LUA_HOOKCALL | LUA_HOOKRET
+                            DebugHelpers.TryWritePointerVariable(process, hookFunctionAddress.Value, processData.helperHookFunctionAddress);
+                            DebugHelpers.TryWriteIntVariable(process, hookBaseCountAddress.Value, 0);
+                            DebugHelpers.TryWriteIntVariable(process, hookCountAddress.Value, 0);
+                            DebugHelpers.TryWriteIntVariable(process, hookMaskAddress.Value, 7); // LUA_HOOKLINE | LUA_HOOKCALL | LUA_HOOKRET
                         }
                     }
                     else

@@ -228,7 +228,7 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
-        internal static bool TryWriteVariable(DkmProcess process, ulong address, byte value)
+        internal static bool TryWriteByteVariable(DkmProcess process, ulong address, byte value)
         {
             try
             {
@@ -242,7 +242,7 @@ namespace LuaDkmDebuggerComponent
             return true;
         }
 
-        internal static bool TryWriteVariable(DkmProcess process, ulong address, short value)
+        internal static bool TryWriteShortVariable(DkmProcess process, ulong address, short value)
         {
             try
             {
@@ -256,7 +256,7 @@ namespace LuaDkmDebuggerComponent
             return true;
         }
 
-        internal static bool TryWriteVariable(DkmProcess process, ulong address, int value)
+        internal static bool TryWriteIntVariable(DkmProcess process, ulong address, int value)
         {
             try
             {
@@ -270,7 +270,7 @@ namespace LuaDkmDebuggerComponent
             return true;
         }
 
-        internal static bool TryWriteVariable(DkmProcess process, ulong address, uint value)
+        internal static bool TryWriteUintVariable(DkmProcess process, ulong address, uint value)
         {
             try
             {
@@ -284,7 +284,7 @@ namespace LuaDkmDebuggerComponent
             return true;
         }
 
-        internal static bool TryWriteVariable(DkmProcess process, ulong address, long value)
+        internal static bool TryWriteLongVariable(DkmProcess process, ulong address, long value)
         {
             try
             {
@@ -298,7 +298,7 @@ namespace LuaDkmDebuggerComponent
             return true;
         }
 
-        internal static bool TryWriteVariable(DkmProcess process, ulong address, ulong value)
+        internal static bool TryWriteUlongVariable(DkmProcess process, ulong address, ulong value)
         {
             try
             {
@@ -312,8 +312,7 @@ namespace LuaDkmDebuggerComponent
             return true;
         }
 
-        // TODO: separate explicit functions to avoid implicit casts
-        internal static bool TryWriteVariable(DkmProcess process, ulong address, float value)
+        internal static bool TryWriteFloatVariable(DkmProcess process, ulong address, float value)
         {
             try
             {
@@ -327,7 +326,7 @@ namespace LuaDkmDebuggerComponent
             return true;
         }
 
-        internal static bool TryWriteVariable(DkmProcess process, ulong address, double value)
+        internal static bool TryWriteDoubleVariable(DkmProcess process, ulong address, double value)
         {
             try
             {
@@ -339,6 +338,14 @@ namespace LuaDkmDebuggerComponent
             }
 
             return true;
+        }
+
+        internal static bool TryWritePointerVariable(DkmProcess process, ulong address, ulong value)
+        {
+            if (!Is64Bit(process))
+                return TryWriteUintVariable(process, address, (uint)value);
+
+            return TryWriteUlongVariable(process, address, value);
         }
 
         internal static byte? ReadStructByte(DkmProcess process, ref ulong address)

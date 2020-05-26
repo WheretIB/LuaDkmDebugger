@@ -133,19 +133,11 @@ namespace LuaDkmDebuggerComponent
 
                 var breakpoint = processData.activeBreakpoints[i];
 
-                if (pointerSize == 4)
-                {
-                    DebugHelpers.TryWriteVariable(process, dataAddress, (uint)breakpoint.instructionLine);
-                    DebugHelpers.TryWriteVariable(process, dataAddress + pointerSize, (uint)breakpoint.functionAddress);
-                }
-                else
-                {
-                    DebugHelpers.TryWriteVariable(process, dataAddress, (ulong)breakpoint.instructionLine);
-                    DebugHelpers.TryWriteVariable(process, dataAddress + pointerSize, (ulong)breakpoint.functionAddress);
-                }
+                DebugHelpers.TryWritePointerVariable(process, dataAddress, (ulong)breakpoint.instructionLine);
+                DebugHelpers.TryWritePointerVariable(process, dataAddress + pointerSize, breakpoint.functionAddress);
             }
 
-            DebugHelpers.TryWriteVariable(process, processData.locations.helperBreakCountAddress, count);
+            DebugHelpers.TryWriteIntVariable(process, processData.locations.helperBreakCountAddress, count);
         }
 
         void IDkmRuntimeBreakpointReceived.OnRuntimeBreakpointReceived(DkmRuntimeBreakpoint runtimeBreakpoint, DkmThread thread, bool hasException, DkmEventDescriptorS eventDescriptor)
@@ -330,10 +322,10 @@ namespace LuaDkmDebuggerComponent
 
         void ClearStepperData(DkmProcess process, LuaRemoteProcessData processData)
         {
-            DebugHelpers.TryWriteVariable(process, processData.locations.helperStepOverAddress, 0);
-            DebugHelpers.TryWriteVariable(process, processData.locations.helperStepIntoAddress, 0);
-            DebugHelpers.TryWriteVariable(process, processData.locations.helperStepOutAddress, 0);
-            DebugHelpers.TryWriteVariable(process, processData.locations.helperSkipDepthAddress, 0);
+            DebugHelpers.TryWriteIntVariable(process, processData.locations.helperStepOverAddress, 0);
+            DebugHelpers.TryWriteIntVariable(process, processData.locations.helperStepIntoAddress, 0);
+            DebugHelpers.TryWriteIntVariable(process, processData.locations.helperStepOutAddress, 0);
+            DebugHelpers.TryWriteIntVariable(process, processData.locations.helperSkipDepthAddress, 0);
 
             processData.activeStepper = null;
         }
@@ -380,16 +372,16 @@ namespace LuaDkmDebuggerComponent
 
             if (stepper.StepKind == DkmStepKind.Over)
             {
-                DebugHelpers.TryWriteVariable(process, processData.locations.helperStepOverAddress, 1);
+                DebugHelpers.TryWriteIntVariable(process, processData.locations.helperStepOverAddress, 1);
             }
             else if (stepper.StepKind == DkmStepKind.Into)
             {
-                DebugHelpers.TryWriteVariable(process, processData.locations.helperStepOverAddress, 1);
-                DebugHelpers.TryWriteVariable(process, processData.locations.helperStepIntoAddress, 1);
+                DebugHelpers.TryWriteIntVariable(process, processData.locations.helperStepOverAddress, 1);
+                DebugHelpers.TryWriteIntVariable(process, processData.locations.helperStepIntoAddress, 1);
             }
             else if (stepper.StepKind == DkmStepKind.Out)
             {
-                DebugHelpers.TryWriteVariable(process, processData.locations.helperStepOutAddress, 1);
+                DebugHelpers.TryWriteIntVariable(process, processData.locations.helperStepOutAddress, 1);
             }
 
             processData.activeStepper = stepper;
