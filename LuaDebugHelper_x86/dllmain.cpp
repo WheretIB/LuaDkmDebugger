@@ -58,18 +58,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
     case DLL_PROCESS_ATTACH:
         luaHelperIsInitialized = 1;
         OnLuaHelperInitialized();
-
-        // TODO: remove
-        {
-            HANDLE fileHandle = CreateFileA("L:\\dev\\helper_log.txt", GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-
-            if(fileHandle != INVALID_HANDLE_VALUE)
-            {
-                WriteFile(fileHandle, "DllMain() Initialized\n", strlen("DllMain() Initialized\n"), nullptr, nullptr);
-
-                CloseHandle(fileHandle);
-            }
-        }
         break;
     default:
 		break;
@@ -82,7 +70,16 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 
 #include <stdio.h>
 
-extern "C" __declspec(dllexport) unsigned luaHelperBreakLine = 0;
+struct LuaHelperBreakData
+{
+    uintptr_t line;
+    uintptr_t proto;
+};
+
+extern "C" __declspec(dllexport) unsigned luaHelperBreakCount = 0;
+extern "C" __declspec(dllexport) LuaHelperBreakData luaHelperBreakData[256] = {};
+extern "C" __declspec(dllexport) unsigned luaHelperBreakHitId = 0;
+
 extern "C" __declspec(dllexport) unsigned luaHelperStepOver = 0;
 extern "C" __declspec(dllexport) unsigned luaHelperStepInto = 0;
 extern "C" __declspec(dllexport) unsigned luaHelperStepOut = 0;
@@ -121,34 +118,14 @@ extern "C" __declspec(dllexport) void LuaHelperHook(lua_State *L, lua_Debug *ar)
 
         const char *sourceName = (char*)proto->source + sizeof(TString);
 
-        // TODO: match source
-        if(luaHelperBreakLine != 0 && ar->currentline == luaHelperBreakLine)
-            OnLuaHelperBreakpointHit();
-    }
-
-    /*if(auto ci = L->ci)
-    {
-        if((ci->func->tt_ & 0x3f) == 6)
+        for(auto curr = luaHelperBreakData, end = luaHelperBreakData + luaHelperBreakCount; curr != end; curr++)
         {
-            auto proto = ((LClosure*)ci->func->value_.gc)->p;
+            if(ar->currentline == curr->line && uintptr_t(proto) == curr->proto)
+            {
+                luaHelperBreakHitId = curr - luaHelperBreakData;
 
-            auto codeStart = proto->code;
-
-            auto pc = ci->u.l.savedpc - codeStart;
-
-            auto line = proto->lineinfo[pc == 0 ? 0 : pc - 1];
-
-            //assert(ar->currentline == line);
-
-            //printf("hook at line %d from '%s'\n", line, (char*)proto->source + sizeof(TString));
-
-            if(luaBreakLine != 0 && line == luaBreakLine)
                 OnLuaHelperBreakpointHit();
+            }
         }
-    }*/
-
-    //if(breakLike != 0 && ar->currentline == breakLike)
-    //	DebugBreak();
-
-    //printf("hook '%s' at %d from '%s'\n", ar->name ? ar->name : "unknown", ar->currentline, ar->source);
+    }
 }

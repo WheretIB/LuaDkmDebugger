@@ -14,7 +14,10 @@ namespace LuaDkmDebuggerComponent
 
     public class HelperLocationsMessage
     {
-        public ulong helperBreakLineAddress = 0;
+        public ulong helperBreakCountAddress = 0;
+        public ulong helperBreakDataAddress = 0;
+        public ulong helperBreakHitIdAddress = 0;
+
         public ulong helperStepOverAddress = 0;
         public ulong helperStepIntoAddress = 0;
         public ulong helperStepOutAddress = 0;

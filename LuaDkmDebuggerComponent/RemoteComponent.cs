@@ -6,11 +6,20 @@ using Microsoft.VisualStudio.Debugger.Evaluation;
 using Microsoft.VisualStudio.Debugger.Stepping;
 using Microsoft.VisualStudio.Debugger.Symbols;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 
 namespace LuaDkmDebuggerComponent
 {
+    public class LuaBreakpoint
+    {
+        public int line = 0;
+        public ulong functionAddress = 0;
+
+        public DkmRuntimeBreakpoint runtimeBreakpoint = null;
+    }
+
     internal class LuaRemoteProcessData : DkmDataItem
     {
         public bool unrelatedRuntimeLoaded = false;
@@ -24,7 +33,7 @@ namespace LuaDkmDebuggerComponent
 
         public HelperLocationsMessage locations;
 
-        public DkmRuntimeBreakpoint testActiveBreakpoint = null;
+        public List<LuaBreakpoint> activeBreakpoints = new List<LuaBreakpoint>();
 
         public bool pauseBreakpoints = false;
 
@@ -109,6 +118,36 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
+        void UpdateBreakpoints(DkmProcess process, LuaRemoteProcessData processData)
+        {
+            int count = processData.activeBreakpoints.Count;
+
+            if (count > 256)
+                count = 256;
+
+            ulong pointerSize = (ulong)DebugHelpers.GetPointerSize(process);
+
+            for (int i = 0; i < count; i++)
+            {
+                ulong dataAddress = processData.locations.helperBreakDataAddress + (ulong)i * 2 * pointerSize;
+
+                var breakpoint = processData.activeBreakpoints[i];
+
+                if (pointerSize == 4)
+                {
+                    DebugHelpers.TryWriteVariable(process, dataAddress, (uint)breakpoint.line);
+                    DebugHelpers.TryWriteVariable(process, dataAddress + pointerSize, (uint)breakpoint.functionAddress);
+                }
+                else
+                {
+                    DebugHelpers.TryWriteVariable(process, dataAddress, (ulong)breakpoint.line);
+                    DebugHelpers.TryWriteVariable(process, dataAddress + pointerSize, (ulong)breakpoint.functionAddress);
+                }
+            }
+
+            DebugHelpers.TryWriteVariable(process, processData.locations.helperBreakCountAddress, count);
+        }
+
         void IDkmRuntimeBreakpointReceived.OnRuntimeBreakpointReceived(DkmRuntimeBreakpoint runtimeBreakpoint, DkmThread thread, bool hasException, DkmEventDescriptorS eventDescriptor)
         {
             var process = thread.Process;
@@ -129,7 +168,17 @@ namespace LuaDkmDebuggerComponent
 
                         try
                         {
-                            processData.testActiveBreakpoint.OnHit(thread, false);
+                            var breakpointPos = DebugHelpers.ReadUintVariable(process, processData.locations.helperBreakHitIdAddress);
+
+                            if (!breakpointPos.HasValue)
+                                return;
+
+                            if (breakpointPos.Value < processData.activeBreakpoints.Count)
+                            {
+                                var breakpoint = processData.activeBreakpoints[(int)breakpointPos.Value];
+
+                                breakpoint.runtimeBreakpoint.OnHit(thread, false);
+                            }
                         }
                         catch (DkmException)
                         {
@@ -210,13 +259,16 @@ namespace LuaDkmDebuggerComponent
 
                 if (customInstructionAddress != null)
                 {
+                    LuaAddressEntityData entityData = new LuaAddressEntityData();
+
+                    entityData.ReadFrom(customInstructionAddress.EntityId.ToArray());
+
                     LuaBreakpointAdditionalData additionalData = new LuaBreakpointAdditionalData();
 
                     additionalData.ReadFrom(customInstructionAddress.AdditionalData.ToArray());
 
-                    DebugHelpers.TryWriteVariable(process, processData.locations.helperBreakLineAddress, additionalData.instructionLine);
-
-                    processData.testActiveBreakpoint = runtimeBreakpoint;
+                    processData.activeBreakpoints.Add(new LuaBreakpoint { line = additionalData.instructionLine, functionAddress = entityData.functionAddress, runtimeBreakpoint = runtimeBreakpoint });
+                    UpdateBreakpoints(process, processData);
                 }
             }
         }
@@ -255,13 +307,16 @@ namespace LuaDkmDebuggerComponent
 
                 if (customInstructionAddress != null)
                 {
+                    LuaAddressEntityData entityData = new LuaAddressEntityData();
+
+                    entityData.ReadFrom(customInstructionAddress.EntityId.ToArray());
+
                     LuaBreakpointAdditionalData additionalData = new LuaBreakpointAdditionalData();
 
                     additionalData.ReadFrom(customInstructionAddress.AdditionalData.ToArray());
 
-                    DebugHelpers.TryWriteVariable(process, processData.locations.helperBreakLineAddress, 0);
-
-                    processData.testActiveBreakpoint = null;
+                    processData.activeBreakpoints.RemoveAll(el => el.line == additionalData.instructionLine && el.functionAddress == entityData.functionAddress);
+                    UpdateBreakpoints(process, processData);
                 }
             }
         }

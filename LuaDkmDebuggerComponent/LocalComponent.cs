@@ -59,7 +59,11 @@ namespace LuaDkmDebuggerComponent
         public DkmThread helperInitializionSuspensionThread;
 
         public ulong helperHookFunctionAddress = 0;
-        public ulong helperBreakLineAddress = 0;
+
+        public ulong helperBreakCountAddress = 0;
+        public ulong helperBreakDataAddress = 0;
+        public ulong helperBreakHitIdAddress = 0;
+
         public ulong helperStepOverAddress = 0;
         public ulong helperStepIntoAddress = 0;
         public ulong helperStepOutAddress = 0;
@@ -1760,7 +1764,10 @@ namespace LuaDkmDebuggerComponent
                     {
                         processData.helperHookFunctionAddress = FindFunctionAddress(nativeModuleInstance, "LuaHelperHook");
 
-                        processData.helperBreakLineAddress = FindVariableAddress(nativeModuleInstance, "luaHelperBreakLine");
+                        processData.helperBreakCountAddress = FindVariableAddress(nativeModuleInstance, "luaHelperBreakCount");
+                        processData.helperBreakDataAddress = FindVariableAddress(nativeModuleInstance, "luaHelperBreakData");
+                        processData.helperBreakHitIdAddress = FindVariableAddress(nativeModuleInstance, "luaHelperBreakHitId");
+
                         processData.helperStepOverAddress = FindVariableAddress(nativeModuleInstance, "luaHelperStepOver");
                         processData.helperStepIntoAddress = FindVariableAddress(nativeModuleInstance, "luaHelperStepInto");
                         processData.helperStepOutAddress = FindVariableAddress(nativeModuleInstance, "luaHelperStepOut");
@@ -1779,7 +1786,10 @@ namespace LuaDkmDebuggerComponent
                         // Tell remote component about helper library locations
                         var data = new HelperLocationsMessage
                         {
-                            helperBreakLineAddress = processData.helperBreakLineAddress,
+                            helperBreakCountAddress = processData.helperBreakCountAddress,
+                            helperBreakDataAddress = processData.helperBreakDataAddress,
+                            helperBreakHitIdAddress = processData.helperBreakHitIdAddress,
+
                             helperStepOverAddress = processData.helperStepOverAddress,
                             helperStepIntoAddress = processData.helperStepIntoAddress,
                             helperStepOutAddress = processData.helperStepOutAddress,
