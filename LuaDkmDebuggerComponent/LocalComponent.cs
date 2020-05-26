@@ -369,8 +369,7 @@ namespace LuaDkmDebuggerComponent
                     if (currFunctionData == null)
                         return null;
 
-                    Debug.Assert(callInfoData.savedInstructionPointerAddress >= currFunctionData.codeDataAddress);
-
+                    // Possible in bad break locations
                     if (callInfoData.savedInstructionPointerAddress < currFunctionData.codeDataAddress)
                         return null;
 
@@ -593,6 +592,11 @@ namespace LuaDkmDebuggerComponent
                             prevCallInfoData.ReadFrom(process, currCallInfoData.previousAddress);
                             prevCallInfoData.ReadFunction(process);
 
+                            LuaValueDataLuaFunction currCallLuaFunction = null;
+
+                            if (currCallInfoData.func.extendedType == LuaExtendedType.LuaFunction)
+                                currCallLuaFunction = currCallInfoData.func as LuaValueDataLuaFunction;
+
                             string currFunctionName = "[name unavailable]";
 
                             // Can't get function name if previous call status is not 'Lua'
@@ -614,16 +618,34 @@ namespace LuaDkmDebuggerComponent
                                 if (prevCallInfoData.func.extendedType != LuaExtendedType.LuaFunction)
                                     break;
 
-                                string functionName = GetLuaFunctionName(currCallInfoData.previousAddress);
+                                if (currCallLuaFunction != null)
+                                {
+                                    var stateSumbols = processData.symbolStore.FetchOrCreate(stateAddress.Value);
 
-                                if (functionName != null)
-                                    currFunctionName = functionName;
+                                    string functionName = stateSumbols.FetchFunctionName(currCallLuaFunction.value.functionAddress);
+
+                                    if (functionName == null)
+                                    {
+                                        functionName = GetLuaFunctionName(currCallInfoData.previousAddress);
+
+                                        if (functionName != null)
+                                            stateSumbols.AddFunctionName(currCallLuaFunction.value.functionAddress, functionName);
+                                    }
+
+                                    if (functionName != null)
+                                        currFunctionName = functionName;
+                                }
+                                else
+                                {
+                                    string functionName = GetLuaFunctionName(currCallInfoData.previousAddress);
+
+                                    if (functionName != null)
+                                        currFunctionName = functionName;
+                                }
                             }
 
                             if (currCallInfoData.func.extendedType == LuaExtendedType.LuaFunction)
                             {
-                                var currCallLuaFunction = currCallInfoData.func as LuaValueDataLuaFunction;
-
                                 Debug.Assert(currCallLuaFunction != null);
 
                                 if (currCallLuaFunction == null)

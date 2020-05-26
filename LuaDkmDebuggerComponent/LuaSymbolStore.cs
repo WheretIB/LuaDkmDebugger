@@ -15,6 +15,7 @@ namespace LuaDkmDebuggerComponent
     public class LuaStateSymbols
     {
         public Dictionary<string, LuaSourceSymbols> knownSources = new Dictionary<string, LuaSourceSymbols>();
+        public Dictionary<ulong, string> functionNames = new Dictionary<ulong, string>();
 
         public void Add(DkmProcess process, LuaFunctionData function)
         {
@@ -43,6 +44,22 @@ namespace LuaDkmDebuggerComponent
             {
                 function.ReadLocalFunctions(process);
             }
+        }
+
+        public void AddFunctionName(ulong address, string name)
+        {
+            if (!functionNames.ContainsKey(address))
+                functionNames.Add(address, name);
+            else
+                functionNames[address] = name;
+        }
+
+        public string FetchFunctionName(ulong address)
+        {
+            if (functionNames.ContainsKey(address))
+                return functionNames[address];
+
+            return null;
         }
     }
 
