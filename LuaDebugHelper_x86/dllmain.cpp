@@ -223,7 +223,7 @@ extern "C" __declspec(dllexport) void LuaHelperHook(void *L, Lua_5_3::lua_Debug 
 
             OnLuaHelperStepInto();
         }
-        else if(luaHelperStepOver)
+        else if(luaHelperStepOver || luaHelperStepOut)
         {
             printf("hook call at line %d from '%s', step over (skip depth raised to %d)\n", ar->currentline, sourceName, luaHelperSkipDepth + 1);
 
@@ -243,13 +243,13 @@ extern "C" __declspec(dllexport) void LuaHelperHook(void *L, Lua_5_3::lua_Debug 
 
     if(ar->event == LUA_HOOKRET)
     {
-        if(luaHelperStepOut)
+        if(luaHelperStepOut && luaHelperSkipDepth == 0)
         {
             printf("hook return at line %d from '%s', step out (skip depth %d)\n", ar->currentline, sourceName, luaHelperSkipDepth);
 
             OnLuaHelperStepOut();
         }
-        else if(luaHelperStepOver && luaHelperSkipDepth > 0)
+        else if((luaHelperStepOver || luaHelperStepOut) && luaHelperSkipDepth > 0)
         {
             printf("hook return at line %d from '%s', step over (skip depth dropped to %d)\n", ar->currentline, sourceName, luaHelperSkipDepth - 1);
 
@@ -257,7 +257,7 @@ extern "C" __declspec(dllexport) void LuaHelperHook(void *L, Lua_5_3::lua_Debug 
         }
     }
 
-    if(ar->event == LUA_HOOKLINE && (luaHelperStepOver || luaHelperStepInto || luaHelperStepOut))
+    if(ar->event == LUA_HOOKLINE && (luaHelperStepOver || luaHelperStepInto))
     {
         printf("hook line at line %d from '%s', step%s%s%s (skip depth %d)\n", ar->currentline, sourceName, luaHelperStepOver ? " over" : "", luaHelperStepInto ? " into" : "", luaHelperStepOut ? " out" : "", luaHelperSkipDepth);
 
@@ -272,26 +272,36 @@ extern "C" __declspec(dllexport) void LuaHelperHook(void *L, Lua_5_3::lua_Debug 
     if(ar->event == LUA_HOOKCALL)
     {
         if(luaHelperStepInto)
+        {
             OnLuaHelperStepInto();
-        else if(luaHelperStepOver)
+        }
+        else if(luaHelperStepOver || luaHelperStepOut)
+        {
             luaHelperSkipDepth++;
+        }
     }
 
     if(ar->event == LUA_HOOKTAILCALL)
     {
         if(luaHelperStepInto)
+        {
             OnLuaHelperStepInto();
+        }
     }
 
     if(ar->event == LUA_HOOKRET)
     {
-        if(luaHelperStepOut)
+        if(luaHelperStepOut && luaHelperSkipDepth == 0)
+        {
             OnLuaHelperStepOut();
-        else if(luaHelperStepOver && luaHelperSkipDepth > 0)
+        }
+        else if((luaHelperStepOver || luaHelperStepOut) && luaHelperSkipDepth > 0)
+        {
             luaHelperSkipDepth--;
+        }
     }
 
-    if(ar->event == LUA_HOOKLINE && (luaHelperStepOver || luaHelperStepInto || luaHelperStepOut) && luaHelperSkipDepth == 0)
+    if(ar->event == LUA_HOOKLINE && (luaHelperStepOver || luaHelperStepInto) && luaHelperSkipDepth == 0)
         OnLuaHelperStepComplete();
 #endif
 
