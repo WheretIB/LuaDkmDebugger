@@ -4,7 +4,7 @@ using System.Diagnostics;
 
 namespace LuaDkmDebuggerComponent
 {
-    public class SymbolSource
+    public class LuaSourceSymbols
     {
         public string sourceFileName = null;
         public string resolvedFileName = null;
@@ -12,9 +12,9 @@ namespace LuaDkmDebuggerComponent
         public Dictionary<ulong, LuaFunctionData> knownFunctions = new Dictionary<ulong, LuaFunctionData>();
     }
 
-    public class SymbolStore
+    public class LuaStateSymbols
     {
-        public Dictionary<string, SymbolSource> knownSources = new Dictionary<string, SymbolSource>();
+        public Dictionary<string, LuaSourceSymbols> knownSources = new Dictionary<string, LuaSourceSymbols>();
 
         public void Add(DkmProcess process, LuaFunctionData function)
         {
@@ -30,9 +30,9 @@ namespace LuaDkmDebuggerComponent
                 return;
 
             if (!knownSources.ContainsKey(function.source))
-                knownSources.Add(function.source, new SymbolSource() { sourceFileName = function.source });
+                knownSources.Add(function.source, new LuaSourceSymbols() { sourceFileName = function.source });
 
-            SymbolSource source = knownSources[function.source];
+            LuaSourceSymbols source = knownSources[function.source];
 
             if (source.knownFunctions.ContainsKey(function.originalAddress))
                 return;
@@ -43,6 +43,24 @@ namespace LuaDkmDebuggerComponent
             {
                 function.ReadLocalFunctions(process);
             }
+        }
+    }
+
+    public class LuaSymbolStore
+    {
+        public Dictionary<ulong, LuaStateSymbols> knownStates = new Dictionary<ulong, LuaStateSymbols>();
+
+        public LuaStateSymbols FetchOrCreate(ulong stateAddress)
+        {
+            if (!knownStates.ContainsKey(stateAddress))
+                knownStates.Add(stateAddress, new LuaStateSymbols());
+
+            return knownStates[stateAddress];
+        }
+
+        public void Remove(ulong stateAddress)
+        {
+            knownStates.Remove(stateAddress);
         }
     }
 }

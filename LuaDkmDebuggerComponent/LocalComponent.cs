@@ -46,7 +46,7 @@ namespace LuaDkmDebuggerComponent
 
         public LuaDebugConfiguration configuration = null;
 
-        public SymbolStore symbolStore = new SymbolStore();
+        public LuaSymbolStore symbolStore = new LuaSymbolStore();
 
         public DkmNativeModuleInstance moduleWithLoadedLua = null;
         public ulong loadLibraryAddress = 0;
@@ -115,7 +115,7 @@ namespace LuaDkmDebuggerComponent
 
     internal class LuaResolvedDocumentItem : DkmDataItem
     {
-        public SymbolSource source;
+        public LuaSourceSymbols source;
     }
 
     public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery, IDkmModuleInstanceLoadNotification, IDkmCustomMessageCallbackReceiver, IDkmLanguageInstructionDecoder
@@ -390,7 +390,7 @@ namespace LuaDkmDebuggerComponent
 
                         LuaFunctionData functionData = currFunctionData;
 
-                        processData.symbolStore.Add(process, functionData);
+                        processData.symbolStore.FetchOrCreate(stateAddress.Value).Add(process, functionData);
 
                         string argumentList = "";
 
@@ -1573,21 +1573,24 @@ namespace LuaDkmDebuggerComponent
             var process = moduleInstance.Process;
             var processData = process.GetDataItem<LuaLocalProcessData>();
 
-            foreach (var source in processData.symbolStore.knownSources)
+            foreach (var state in processData.symbolStore.knownStates)
             {
-                if (source.Value.resolvedFileName == null)
-                    source.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, source.Key);
-
-                var fileName = source.Value.resolvedFileName;
-
-                if (sourceFileId.DocumentName == fileName)
+                foreach (var source in state.Value.knownSources)
                 {
-                    var dataItem = new LuaResolvedDocumentItem
-                    {
-                        source = source.Value
-                    };
+                    if (source.Value.resolvedFileName == null)
+                        source.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, source.Key);
 
-                    return new DkmResolvedDocument[1] { DkmResolvedDocument.Create(module, sourceFileId.DocumentName, null, DkmDocumentMatchStrength.FullPath, DkmResolvedDocumentWarning.None, false, dataItem) };
+                    var fileName = source.Value.resolvedFileName;
+
+                    if (sourceFileId.DocumentName == fileName)
+                    {
+                        var dataItem = new LuaResolvedDocumentItem
+                        {
+                            source = source.Value
+                        };
+
+                        return new DkmResolvedDocument[1] { DkmResolvedDocument.Create(module, sourceFileId.DocumentName, null, DkmDocumentMatchStrength.FullPath, DkmResolvedDocumentWarning.None, false, dataItem) };
+                    }
                 }
             }
 
@@ -2017,7 +2020,7 @@ namespace LuaDkmDebuggerComponent
 
                     if (stateAddress.HasValue)
                     {
-                        Log($"new Lua state 0x{stateAddress:x} version {version.GetValueOrDefault(501)}");
+                        Log($"New Lua state 0x{stateAddress:x} version {version.GetValueOrDefault(501)}");
 
                         if (version.GetValueOrDefault(501) == 503)
                         {
@@ -2038,6 +2041,23 @@ namespace LuaDkmDebuggerComponent
                 else if (data.breakpointId == processData.breakpointLuaThreadDestroy)
                 {
                     Log("Detected Lua thread destruction");
+
+                    const int CV_ALLREG_VFRAME = 0x00007536;
+                    var vFrameRegister = DkmUnwoundRegister.Create(CV_ALLREG_VFRAME, new ReadOnlyCollection<byte>(BitConverter.GetBytes(data.vframe)));
+                    var registers = thread.GetCurrentRegisters(new[] { vFrameRegister });
+                    var instructionAddress = process.CreateNativeInstructionAddress(registers.GetInstructionPointer());
+                    var frame = DkmStackWalkFrame.Create(thread, instructionAddress, data.frameBase, 0, DkmStackWalkFrameFlags.None, null, registers, null);
+
+                    var inspectionSession = DkmInspectionSession.Create(process, null);
+
+                    ulong? stateAddress = TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+
+                    if (stateAddress.HasValue)
+                    {
+                        Log($"Removing Lua state 0x{stateAddress:x} from symbol store");
+
+                        processData.symbolStore.Remove(stateAddress.Value);
+                    }
                 }
                 else if (data.breakpointId == processData.breakpointLuaHelperInitialized)
                 {
