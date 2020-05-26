@@ -14,7 +14,7 @@ namespace LuaDkmDebuggerComponent
 {
     public class LuaBreakpoint
     {
-        public int line = 0;
+        public int instructionLine = 0;
         public ulong functionAddress = 0;
 
         public DkmRuntimeBreakpoint runtimeBreakpoint = null;
@@ -135,12 +135,12 @@ namespace LuaDkmDebuggerComponent
 
                 if (pointerSize == 4)
                 {
-                    DebugHelpers.TryWriteVariable(process, dataAddress, (uint)breakpoint.line);
+                    DebugHelpers.TryWriteVariable(process, dataAddress, (uint)breakpoint.instructionLine);
                     DebugHelpers.TryWriteVariable(process, dataAddress + pointerSize, (uint)breakpoint.functionAddress);
                 }
                 else
                 {
-                    DebugHelpers.TryWriteVariable(process, dataAddress, (ulong)breakpoint.line);
+                    DebugHelpers.TryWriteVariable(process, dataAddress, (ulong)breakpoint.instructionLine);
                     DebugHelpers.TryWriteVariable(process, dataAddress + pointerSize, (ulong)breakpoint.functionAddress);
                 }
             }
@@ -267,7 +267,14 @@ namespace LuaDkmDebuggerComponent
 
                     additionalData.ReadFrom(customInstructionAddress.AdditionalData.ToArray());
 
-                    processData.activeBreakpoints.Add(new LuaBreakpoint { line = additionalData.instructionLine, functionAddress = entityData.functionAddress, runtimeBreakpoint = runtimeBreakpoint });
+                    var breakpoint = new LuaBreakpoint
+                    {
+                        instructionLine = additionalData.instructionLine,
+                        functionAddress = entityData.functionAddress,
+                        runtimeBreakpoint = runtimeBreakpoint
+                    };
+
+                    processData.activeBreakpoints.Add(breakpoint);
                     UpdateBreakpoints(process, processData);
                 }
             }
@@ -315,7 +322,7 @@ namespace LuaDkmDebuggerComponent
 
                     additionalData.ReadFrom(customInstructionAddress.AdditionalData.ToArray());
 
-                    processData.activeBreakpoints.RemoveAll(el => el.line == additionalData.instructionLine && el.functionAddress == entityData.functionAddress);
+                    processData.activeBreakpoints.RemoveAll(el => el.instructionLine == additionalData.instructionLine && el.functionAddress == entityData.functionAddress);
                     UpdateBreakpoints(process, processData);
                 }
             }
