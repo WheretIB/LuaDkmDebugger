@@ -256,6 +256,8 @@ namespace LuaDkmDebuggerComponent
 
             if (input.BasicSymbolInfo.MethodName == "luaV_execute")
             {
+                bool fromHook = stackContextData.hideTopLuaLibraryFrames;
+
                 stackContextData.hideTopLuaLibraryFrames = false;
 
                 var process = stackContext.InspectionSession.Process;
@@ -650,7 +652,8 @@ namespace LuaDkmDebuggerComponent
 
                                 stackContextData.seenFrames++;
 
-                                luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[{currFunctionName} C function]", input.Registers, input.Annotations));
+                                if (!fromHook)
+                                    luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[{currFunctionName} C function]", input.Registers, input.Annotations));
 
                                 luaFrameFlags &= ~DkmStackWalkFrameFlags.TopFrame;
                             }
