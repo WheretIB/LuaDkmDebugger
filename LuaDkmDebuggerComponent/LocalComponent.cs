@@ -56,6 +56,7 @@ namespace LuaDkmDebuggerComponent
         public bool helperInitializationWaitActive = false;
         public bool helperInitializationWaitUsed = false;
         public bool helperInitialized = false;
+        public bool helperFailed = false;
         public DkmThread helperInitializionSuspensionThread;
 
         public ulong helperHookFunctionAddress = 0;
@@ -1917,6 +1918,12 @@ namespace LuaDkmDebuggerComponent
 
                                     processData.helperInitializationWaitActive = true;
                                 }
+                                else
+                                {
+                                    Log("Failed to set breakpoint at 'OnLuaHelperInitialized'");
+
+                                    processData.helperFailed = true;
+                                }
                             }
                             else if (initialized.Value == 1)
                             {
@@ -1924,6 +1931,10 @@ namespace LuaDkmDebuggerComponent
 
                                 processData.helperInitialized = true;
                             }
+                        }
+                        else
+                        {
+                            processData.helperFailed = true;
                         }
                     }
 
@@ -2068,7 +2079,7 @@ namespace LuaDkmDebuggerComponent
                 {
                     Log("Detected Lua initialization");
 
-                    if (processData.helperInjected && !processData.helperInitialized && !processData.helperInitializationWaitUsed)
+                    if (processData.helperInjected && !processData.helperInitialized && !processData.helperFailed && !processData.helperInitializationWaitUsed)
                     {
                         Log("Helper was injected but hasn't been initialized, suspening thread");
 
@@ -2105,7 +2116,11 @@ namespace LuaDkmDebuggerComponent
                     {
                         Log($"New Lua state 0x{stateAddress:x} version {version.GetValueOrDefault(501)}");
 
-                        if (version.GetValueOrDefault(501) == 503)
+                        if (!processData.helperInitialized)
+                        {
+                            Log("No helper to hook Lua state to");
+                        }
+                        else if (version.GetValueOrDefault(501) == 503)
                         {
                             // TODO: check evaluations
                             DebugHelpers.TryWritePointerVariable(process, hookFunctionAddress.Value, processData.helperHookFunctionAddress);
@@ -2114,6 +2129,10 @@ namespace LuaDkmDebuggerComponent
                             DebugHelpers.TryWriteIntVariable(process, hookMaskAddress.Value, 7); // LUA_HOOKLINE | LUA_HOOKCALL | LUA_HOOKRET
 
                             Log("Hooked Lua state");
+                        }
+                        else
+                        {
+                            Log("Hook does not support this Lua version");
                         }
                     }
                     else
