@@ -1717,6 +1717,27 @@ namespace LuaDkmDebuggerComponent
 
                 return breakpoint.UniqueId;
             }
+            else
+            {
+                var nativeFunctionAddress = FindFunctionAddress(nativeModuleInstance, functionName);
+
+                if (nativeFunctionAddress != 0)
+                {
+                    Log($"Creating 'native' breakpoint in '{functionName}'");
+
+                    var nativeAddress = nativeModuleInstance.Process.CreateNativeInstructionAddress(nativeFunctionAddress);
+
+                    var breakpoint = DkmRuntimeInstructionBreakpoint.Create(Guids.luaSupportBreakpointGuid, null, nativeAddress, false, null);
+
+                    breakpoint.Enable();
+
+                    return breakpoint.UniqueId;
+                }
+                else
+                {
+                    Log($"Failed to create breakpoint in '{functionName}' with {error}");
+                }
+            }
 
             return null;
         }
