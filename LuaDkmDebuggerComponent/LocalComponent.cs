@@ -121,6 +121,7 @@ namespace LuaDkmDebuggerComponent
     public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery, IDkmModuleInstanceLoadNotification, IDkmCustomMessageCallbackReceiver, IDkmLanguageInstructionDecoder
     {
         public double startTime = DateTime.Now.Ticks / 10000.0;
+        public string logPath = null;
 
         internal string ExecuteExpression(string expression, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame input, DkmEvaluationFlags flags, bool allowZero, out ulong address)
         {
@@ -1807,16 +1808,24 @@ namespace LuaDkmDebuggerComponent
             {
                 var process = moduleInstance.Process;
 
+                logPath = $"{Path.GetDirectoryName(process.Path)}\\lua_dkm_debug_log.txt";
+
                 var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
 
                 if (nativeModuleInstance.FullName != null && nativeModuleInstance.FullName.EndsWith(".exe"))
                 {
+                    Log("Check if Lua library is loaded");
+
                     // Check if Lua library is loaded
                     if (DebugHelpers.TryGetFunctionAddress(nativeModuleInstance, "lua_newstate", out _).GetValueOrDefault(0) != 0)
                     {
                         Log("Found Lua library");
 
                         processData.moduleWithLoadedLua = nativeModuleInstance;
+                    }
+                    else
+                    {
+                        Log("Failed to find Lua library");
                     }
 
                     processData.executionStartAddress = DebugHelpers.TryGetFunctionAddressAtDebugStart(processData.moduleWithLoadedLua, "luaV_execute", out _).GetValueOrDefault(0);
@@ -1988,14 +1997,31 @@ namespace LuaDkmDebuggerComponent
                             UseShellExecute = false
                         };
 
-                        var attachProcess = Process.Start(processStartInfo);
-
-                        attachProcess.WaitForExit();
-
-                        if (attachProcess.ExitCode != 0)
+                        try
                         {
-                            Log("Failed to start thread (x64)");
-                            return;
+                            var attachProcess = Process.Start(processStartInfo);
+
+                            attachProcess.WaitForExit();
+
+                            if (attachProcess.ExitCode != 0)
+                            {
+                                Log($"Failed to start thread (x64) code {attachProcess.ExitCode}");
+
+                                string errors = attachProcess.StandardError.ReadToEnd();
+
+                                if (errors != null)
+                                    Log(errors);
+
+                                string output = attachProcess.StandardOutput.ReadToEnd();
+
+                                if (output != null)
+                                    Log(output);
+                                return;
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            Log("Failed to start atatcher process (x64) with " + e.Message);
                         }
                     }
                     else
@@ -2139,7 +2165,14 @@ namespace LuaDkmDebuggerComponent
 
         void Log(string text)
         {
-            Debug.WriteLine($"{text} at {(DateTime.Now.Ticks / 10000.0) - startTime}ms");
+#if DEBUG
+            string formatted = $"{text} at {(DateTime.Now.Ticks / 10000.0) - startTime}ms";
+
+            Debug.WriteLine(formatted);
+
+            using (var writer = File.AppendText(logPath))
+                writer.WriteLine(formatted);
+#endif
         }
     }
 }
