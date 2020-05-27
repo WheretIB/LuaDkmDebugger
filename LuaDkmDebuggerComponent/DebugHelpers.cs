@@ -4,7 +4,6 @@ using Microsoft.VisualStudio.Debugger.DefaultPort;
 using Microsoft.VisualStudio.Debugger.Native;
 using Dia2Lib;
 using System.Runtime.InteropServices;
-using System.Security.Policy;
 
 namespace LuaDkmDebuggerComponent
 {
@@ -497,9 +496,9 @@ namespace LuaDkmDebuggerComponent
 
             if (exeSymEnum.count != 1)
             {
-                ReleaseComObject(diaSession);
-
                 error = $"TryGetDiaSymbols() exeSymEnum.count {exeSymEnum.count} != 1";
+
+                ReleaseComObject(diaSession);
                 return null;
             }
 
@@ -518,9 +517,10 @@ namespace LuaDkmDebuggerComponent
 
             if (enumSymbols.count != 1)
             {
+                error = $"TryGetDiaSymbols() enumSymbols.count {enumSymbols.count} != 1";
+
                 ReleaseComObject(enumSymbols);
 
-                error = $"TryGetDiaSymbols() enumSymbols.count {enumSymbols.count} != 1";
                 return null;
             }
 
