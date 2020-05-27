@@ -2082,6 +2082,17 @@ namespace LuaDkmDebuggerComponent
             }
         }
 
+        DkmInspectionSession CreateInspectionSession(DkmProcess process, DkmThread thread, SupportBreakpointHitMessage data, out DkmStackWalkFrame frame)
+        {
+            const int CV_ALLREG_VFRAME = 0x00007536;
+            var vFrameRegister = DkmUnwoundRegister.Create(CV_ALLREG_VFRAME, new ReadOnlyCollection<byte>(BitConverter.GetBytes(data.vframe)));
+            var registers = thread.GetCurrentRegisters(new[] { vFrameRegister });
+            var instructionAddress = process.CreateNativeInstructionAddress(registers.GetInstructionPointer());
+            frame = DkmStackWalkFrame.Create(thread, instructionAddress, data.frameBase, 0, DkmStackWalkFrameFlags.None, null, registers, null);
+
+            return DkmInspectionSession.Create(process, null);
+        }
+
         DkmCustomMessage IDkmCustomMessageCallbackReceiver.SendHigher(DkmCustomMessage customMessage)
         {
             var process = customMessage.Process;
@@ -2116,13 +2127,7 @@ namespace LuaDkmDebuggerComponent
                 {
                     Log("Detected Lua thread start");
 
-                    const int CV_ALLREG_VFRAME = 0x00007536;
-                    var vFrameRegister = DkmUnwoundRegister.Create(CV_ALLREG_VFRAME, new ReadOnlyCollection<byte>(BitConverter.GetBytes(data.vframe)));
-                    var registers = thread.GetCurrentRegisters(new[] { vFrameRegister });
-                    var instructionAddress = process.CreateNativeInstructionAddress(registers.GetInstructionPointer());
-                    var frame = DkmStackWalkFrame.Create(thread, instructionAddress, data.frameBase, 0, DkmStackWalkFrameFlags.None, null, registers, null);
-
-                    var inspectionSession = DkmInspectionSession.Create(process, null);
+                    var inspectionSession = CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
 
                     ulong? stateAddress = TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
                     long? version = TryEvaluateNumberExpression($"(int)*L->l_G->version", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
@@ -2165,13 +2170,7 @@ namespace LuaDkmDebuggerComponent
                 {
                     Log("Detected Lua thread destruction");
 
-                    const int CV_ALLREG_VFRAME = 0x00007536;
-                    var vFrameRegister = DkmUnwoundRegister.Create(CV_ALLREG_VFRAME, new ReadOnlyCollection<byte>(BitConverter.GetBytes(data.vframe)));
-                    var registers = thread.GetCurrentRegisters(new[] { vFrameRegister });
-                    var instructionAddress = process.CreateNativeInstructionAddress(registers.GetInstructionPointer());
-                    var frame = DkmStackWalkFrame.Create(thread, instructionAddress, data.frameBase, 0, DkmStackWalkFrameFlags.None, null, registers, null);
-
-                    var inspectionSession = DkmInspectionSession.Create(process, null);
+                    var inspectionSession = CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
 
                     ulong? stateAddress = TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
