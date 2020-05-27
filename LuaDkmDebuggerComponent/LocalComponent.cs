@@ -244,9 +244,6 @@ namespace LuaDkmDebuggerComponent
             if (input.InstructionAddress.ModuleInstance == null)
                 return new DkmStackWalkFrame[1] { input };
 
-            if (input.BasicSymbolInfo == null)
-                return new DkmStackWalkFrame[1] { input };
-
             var stackContextData = DebugHelpers.GetOrCreateDataItem<LuaStackContextData>(stackContext);
 
             if (input.ModuleInstance != null && (input.ModuleInstance.Name == "LuaDebugHelper_x86.dll" || input.ModuleInstance.Name == "LuaDebugHelper_x64.dll"))
@@ -255,6 +252,9 @@ namespace LuaDkmDebuggerComponent
 
                 return new DkmStackWalkFrame[1] { DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, DkmStackWalkFrameFlags.NonuserCode | DkmStackWalkFrameFlags.Hidden, "[Lua Debugger Helper]", input.Registers, input.Annotations) };
             }
+
+            if (input.BasicSymbolInfo == null)
+                return new DkmStackWalkFrame[1] { input };
 
             if (input.BasicSymbolInfo.MethodName == "luaV_execute")
             {
