@@ -350,9 +350,13 @@ namespace LuaDkmDebuggerComponent
                 }
 
                 ulong? registryAddress = TryEvaluateAddressExpression($"&L->l_G->l_registry", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
-                long? version = TryEvaluateNumberExpression($"(int)*L->l_G->version", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
-                LuaHelpers.luaVersion = (int)version.GetValueOrDefault(501); // Lua 5.1 doesn't have version field
+                if (LuaHelpers.luaVersion == 0)
+                {
+                    long? version = TryEvaluateNumberExpression($"(int)*L->l_G->version", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+
+                    LuaHelpers.luaVersion = (int)version.GetValueOrDefault(501); // Lua 5.1 doesn't have version field
+                }
 
                 string GetLuaFunctionName(ulong callInfoAddress)
                 {
@@ -435,7 +439,7 @@ namespace LuaDkmDebuggerComponent
                             state = stateAddress.Value,
 
                             registryAddress = registryAddress.GetValueOrDefault(0),
-                            version = (int)version.GetValueOrDefault(503),
+                            version = LuaHelpers.luaVersion,
 
                             callInfo = callInfoAddress,
 
