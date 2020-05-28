@@ -1935,14 +1935,14 @@ namespace LuaDkmDebuggerComponent
                         log.Debug("Found Lua library");
 
                         processData.moduleWithLoadedLua = nativeModuleInstance;
+
+                        processData.executionStartAddress = DebugHelpers.TryGetFunctionAddressAtDebugStart(processData.moduleWithLoadedLua, "luaV_execute", out _).GetValueOrDefault(0);
+                        processData.executionEndAddress = DebugHelpers.TryGetFunctionAddressAtDebugEnd(processData.moduleWithLoadedLua, "luaV_execute", out _).GetValueOrDefault(0);
                     }
                     else
                     {
                         log.Warning("Failed to find Lua library");
                     }
-
-                    processData.executionStartAddress = DebugHelpers.TryGetFunctionAddressAtDebugStart(processData.moduleWithLoadedLua, "luaV_execute", out _).GetValueOrDefault(0);
-                    processData.executionEndAddress = DebugHelpers.TryGetFunctionAddressAtDebugEnd(processData.moduleWithLoadedLua, "luaV_execute", out _).GetValueOrDefault(0);
                 }
 
                 if (nativeModuleInstance.FullName != null && nativeModuleInstance.FullName.EndsWith("kernel32.dll"))

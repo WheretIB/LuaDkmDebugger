@@ -475,6 +475,12 @@ namespace LuaDkmDebuggerComponent
 
         internal static IDiaSymbol TryGetDiaSymbols(DkmModuleInstance moduleInstance, out string error)
         {
+            if (moduleInstance == null)
+            {
+                error = $"TryGetDiaSymbols() Module instance is null";
+                return null;
+            }
+
             if (moduleInstance.Module == null)
             {
                 error = $"TryGetDiaSymbols() Module is null";
