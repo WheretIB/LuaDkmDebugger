@@ -372,12 +372,17 @@ namespace LuaDkmDebuggerComponent
 
                         if (value.HasValue)
                         {
+                            LuaExternalClosureData target = new LuaExternalClosureData();
+
+                            target.ReadFrom(process, value.Value);
+
                             return new LuaValueDataExternalClosure()
                             {
                                 baseType = GetBaseType(typeTag.Value),
                                 extendedType = GetExtendedType(typeTag.Value),
                                 evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
                                 originalAddress = address,
+                                value = target,
                                 targetAddress = value.Value
                             };
                         }
@@ -1003,6 +1008,40 @@ namespace LuaDkmDebuggerComponent
             function.ReadFrom(process, functionAddress);
 
             return function;
+        }
+    }
+
+    public class LuaExternalClosureData
+    {
+        // CommonHeader
+        public ulong nextAddress;
+        public byte typeTag;
+        public byte marked;
+
+        // ClosureHeader
+        public byte isC_5_1;
+        public byte upvalueSize;
+        public ulong gcListAddress;
+
+        // CClosure
+        public ulong functionAddress;
+
+        public void ReadFrom(DkmProcess process, ulong address)
+        {
+            nextAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+            typeTag = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+            marked = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+
+            if (LuaHelpers.luaVersion == 501)
+                isC_5_1 = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+
+            upvalueSize = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+            gcListAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+
+            if (LuaHelpers.luaVersion == 501)
+                DebugHelpers.SkipStructPointer(process, ref address); // env
+
+            functionAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
         }
     }
 

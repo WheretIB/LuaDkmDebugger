@@ -609,9 +609,15 @@ namespace LuaDkmDebuggerComponent
                             prevCallInfoData.ReadFunction(process);
 
                             LuaValueDataLuaFunction currCallLuaFunction = null;
+                            LuaValueDataExternalFunction currCallExternalFunction = null;
+                            LuaValueDataExternalClosure currCallExternalClosure = null;
 
                             if (currCallInfoData.func.extendedType == LuaExtendedType.LuaFunction)
                                 currCallLuaFunction = currCallInfoData.func as LuaValueDataLuaFunction;
+                            else if (currCallInfoData.func.extendedType == LuaExtendedType.ExternalFunction)
+                                currCallExternalFunction = currCallInfoData.func as LuaValueDataExternalFunction;
+                            else if (currCallInfoData.func.extendedType == LuaExtendedType.ExternalClosure)
+                                currCallExternalClosure = currCallInfoData.func as LuaValueDataExternalClosure;
 
                             string currFunctionName = "[name unavailable]";
 
@@ -634,10 +640,10 @@ namespace LuaDkmDebuggerComponent
                                 if (prevCallInfoData.func.extendedType != LuaExtendedType.LuaFunction)
                                     break;
 
+                                var stateSumbols = processData.symbolStore.FetchOrCreate(stateAddress.Value);
+
                                 if (currCallLuaFunction != null)
                                 {
-                                    var stateSumbols = processData.symbolStore.FetchOrCreate(stateAddress.Value);
-
                                     string functionName = stateSumbols.FetchFunctionName(currCallLuaFunction.value.functionAddress);
 
                                     if (functionName == null)
@@ -651,14 +657,39 @@ namespace LuaDkmDebuggerComponent
                                     if (functionName != null)
                                         currFunctionName = functionName;
                                 }
-                                else
+                                else if (currCallExternalFunction != null)
                                 {
-                                    log.Verbose($"IDkmCallStackFilter.FilterNextFrame fetching non-lua function name");
+                                    string functionName = stateSumbols.FetchFunctionName(currCallExternalFunction.targetAddress);
 
-                                    string functionName = GetLuaFunctionName(currCallInfoData.previousAddress);
+                                    if (functionName == null)
+                                    {
+                                        functionName = GetLuaFunctionName(currCallInfoData.previousAddress);
+
+                                        if (functionName != null)
+                                            stateSumbols.AddFunctionName(currCallExternalFunction.targetAddress, functionName);
+                                    }
 
                                     if (functionName != null)
                                         currFunctionName = functionName;
+                                }
+                                else if (currCallExternalClosure != null)
+                                {
+                                    string functionName = stateSumbols.FetchFunctionName(currCallExternalClosure.value.functionAddress);
+
+                                    if (functionName == null)
+                                    {
+                                        functionName = GetLuaFunctionName(currCallInfoData.previousAddress);
+
+                                        if (functionName != null)
+                                            stateSumbols.AddFunctionName(currCallExternalClosure.value.functionAddress, functionName);
+                                    }
+
+                                    if (functionName != null)
+                                        currFunctionName = functionName;
+                                }
+                                else
+                                {
+                                    log.Warning($"IDkmCallStackFilter.FilterNextFrame unknown functiontype");
                                 }
                             }
 
