@@ -53,6 +53,7 @@
   <ItemGroup>
     <Compile Include="Bytecode.cs" />
     <Compile Include="ExpressionEvaluation.cs" />
+    <Compile Include="Log.cs" />
     <Compile Include="LuaConstants.cs" />
     <Compile Include="DebugHelpers.cs" />
     <Compile Include="Guids.cs" />
