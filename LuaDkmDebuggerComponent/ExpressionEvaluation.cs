@@ -1,5 +1,4 @@
 using Microsoft.VisualStudio.Debugger;
-using System.Diagnostics;
 
 namespace LuaDkmDebuggerComponent
 {
