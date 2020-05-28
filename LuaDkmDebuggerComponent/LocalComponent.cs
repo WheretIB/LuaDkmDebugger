@@ -1385,7 +1385,7 @@ namespace LuaDkmDebuggerComponent
 
             int count = 1 + functionData.activeLocals.Count; // 1 pseudo variable for '[registry]' table
 
-            completionRoutine(new DkmGetFrameLocalsAsyncResult(DkmEvaluationResultEnumContext.Create(functionData.localVariableSize, stackFrame, inspectionContext, frameLocalsEnumData)));
+            completionRoutine(new DkmGetFrameLocalsAsyncResult(DkmEvaluationResultEnumContext.Create(count, stackFrame, inspectionContext, frameLocalsEnumData)));
 
             log.Debug($"IDkmSymbolQuery.GetFrameLocals success");
         }
@@ -1437,6 +1437,7 @@ namespace LuaDkmDebuggerComponent
                 completionRoutine(new DkmEvaluationEnumAsyncResult(results));
 
                 log.Debug($"IDkmSymbolQuery.GetItems success (locals)");
+                return;
             }
 
             var evalData = enumContext.GetDataItem<LuaEvaluationDataItem>();
