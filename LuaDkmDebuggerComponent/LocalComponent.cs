@@ -1648,7 +1648,7 @@ namespace LuaDkmDebuggerComponent
 
             log.Debug($"IDkmSymbolQuery.GetMethodName success");
 
-            return $"[{source}:{breakpointAdditionalData.instructionLine}]({argumentList})"; ;
+            return $"[{source}:{breakpointAdditionalData.instructionLine}]({argumentList})";
         }
 
         DkmCompilerId IDkmSymbolCompilerIdQuery.GetCompilerId(DkmInstructionSymbol instruction, DkmInspectionSession inspectionSession)
