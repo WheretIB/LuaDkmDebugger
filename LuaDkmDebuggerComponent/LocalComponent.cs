@@ -74,6 +74,9 @@ namespace LuaDkmDebuggerComponent
 
         public Guid breakpointLuaThreadCreate;
         public Guid breakpointLuaThreadDestroy;
+
+        public Guid breakpointLuaBufferLoaded;
+
         public Guid breakpointLuaHelperInitialized;
 
         public Guid breakpointLuaHelperBreakpointHit;
@@ -1780,7 +1783,7 @@ namespace LuaDkmDebuggerComponent
 
             if (address != null)
             {
-                Log($"Hooking Lua '{desc}' ({name}) function");
+                Log($"Hooking Lua '{desc}' ({name}) function (address 0x{address.Value:x})");
 
                 var nativeAddress = process.CreateNativeInstructionAddress(address.Value);
 
@@ -1804,7 +1807,7 @@ namespace LuaDkmDebuggerComponent
 
             if (address != null)
             {
-                Log($"Hooking Lua '{desc}' ({name}) function");
+                Log($"Hooking Lua '{desc}' ({name}) function (address 0x{address.Value:x})");
 
                 var nativeAddress = process.CreateNativeInstructionAddress(address.Value);
 
@@ -1992,6 +1995,9 @@ namespace LuaDkmDebuggerComponent
 
                     // Track Lua state destruction (breakpoint at the start of the function)
                     processData.breakpointLuaThreadDestroy = CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "lua_close", "Lua thread destruction").GetValueOrDefault(Guid.Empty);
+
+                    // Track Lua scripts loaded from buffers
+                    processData.breakpointLuaBufferLoaded = CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadbufferx", "Lua script load from buffer").GetValueOrDefault(Guid.Empty);
 
                     string assemblyFolder = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 
@@ -2181,6 +2187,26 @@ namespace LuaDkmDebuggerComponent
                         processData.symbolStore.Remove(stateAddress.Value);
                     }
                 }
+                else if (data.breakpointId == processData.breakpointLuaBufferLoaded)
+                {
+                    Log("Detected Lua script buffer load");
+
+                    var inspectionSession = CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
+
+                    ulong? stateAddress = TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+
+                    ulong? scriptBufferAddress = TryEvaluateAddressExpression($"buff", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                    long? scriptSize = TryEvaluateNumberExpression($"size", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                    ulong? scriptNameAddress = TryEvaluateAddressExpression($"name", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+
+                    if (scriptBufferAddress.HasValue && scriptSize.HasValue && scriptNameAddress.HasValue)
+                    {
+                        string scriptContent = DebugHelpers.ReadStringVariable(process, scriptBufferAddress.Value, (int)scriptSize.Value);
+                        string scriptName = DebugHelpers.ReadStringVariable(process, scriptNameAddress.Value, 1024);
+
+                        processData.symbolStore.FetchOrCreate(stateAddress.Value).AddScriptSource(scriptName, scriptContent);
+                    }
+                }
                 else if (data.breakpointId == processData.breakpointLuaHelperInitialized)
                 {
                     Log("Detected Helper initialization");
@@ -2196,6 +2222,10 @@ namespace LuaDkmDebuggerComponent
 
                         processData.helperInitializionSuspensionThread = null;
                     }
+                }
+                else
+                {
+                    Log("Recevied unknown breakpoint hit");
                 }
             }
 

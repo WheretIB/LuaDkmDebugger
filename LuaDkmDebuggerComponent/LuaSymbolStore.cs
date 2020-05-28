@@ -16,6 +16,7 @@ namespace LuaDkmDebuggerComponent
     {
         public Dictionary<string, LuaSourceSymbols> knownSources = new Dictionary<string, LuaSourceSymbols>();
         public Dictionary<ulong, string> functionNames = new Dictionary<ulong, string>();
+        public Dictionary<string, string> knownScripts = new Dictionary<string, string>();
 
         public void Add(DkmProcess process, LuaFunctionData function)
         {
@@ -60,6 +61,14 @@ namespace LuaDkmDebuggerComponent
                 return functionNames[address];
 
             return null;
+        }
+
+        public void AddScriptSource(string scriptName, string scriptContent)
+        {
+            if (!knownScripts.ContainsKey(scriptName))
+                knownScripts.Add(scriptName, scriptContent);
+            else
+                knownScripts[scriptName] = scriptContent;
         }
     }
 
