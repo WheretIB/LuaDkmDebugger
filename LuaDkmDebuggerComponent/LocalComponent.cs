@@ -44,6 +44,7 @@ namespace LuaDkmDebuggerComponent
         public bool workingDirectoryRequested = false;
         public string workingDirectory = null;
 
+        public bool configurationMissing = false;
         public LuaDebugConfiguration configuration = null;
 
         public LuaSymbolStore symbolStore = new LuaSymbolStore();
@@ -206,7 +207,7 @@ namespace LuaDkmDebuggerComponent
         internal void LoadConfigurationFile(DkmProcess process, LuaLocalProcessData processData)
         {
             // Check if already loaded
-            if (processData.configuration != null)
+            if (processData.configuration != null || processData.configurationMissing)
                 return;
 
             log.Debug($"Loading configuration data");
@@ -242,6 +243,8 @@ namespace LuaDkmDebuggerComponent
 
             if (TryLoad($"{processData.workingDirectory}\\" + "lua_dkm_debug.json"))
                 return;
+
+            processData.configurationMissing = true;
         }
 
         DkmStackWalkFrame[] IDkmCallStackFilter.FilterNextFrame(DkmStackContext stackContext, DkmStackWalkFrame input)
