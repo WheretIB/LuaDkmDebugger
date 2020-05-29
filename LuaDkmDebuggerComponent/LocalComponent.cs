@@ -431,11 +431,11 @@ namespace LuaDkmDebuggerComponent
 
                         LuaAddressEntityData entityData = new LuaAddressEntityData
                         {
+                            source = sourceName,
+                            line = currLine,
+
                             functionAddress = callLuaFunction.value.functionAddress,
-
-                            instructionPointer = prevInstructionPointer,
-
-                            source = sourceName
+                            functionInstructionPointer = prevInstructionPointer,
                         };
 
                         LuaFrameData frameData = new LuaFrameData
@@ -459,7 +459,7 @@ namespace LuaDkmDebuggerComponent
                         var entityDataBytes = entityData.Encode();
                         var frameDataBytes = frameData.Encode();
 
-                        DkmInstructionAddress instructionAddress = DkmCustomInstructionAddress.Create(processData.runtimeInstance, processData.moduleInstance, entityDataBytes, (ulong)prevInstructionPointer, frameDataBytes, null);
+                        DkmInstructionAddress instructionAddress = DkmCustomInstructionAddress.Create(processData.runtimeInstance, processData.moduleInstance, entityDataBytes, (ulong)((currLine << 16) + prevInstructionPointer), frameDataBytes, null);
 
                         var description = $"{sourceName} {functionName}({argumentList}) Line {currLine}";
 
@@ -1659,30 +1659,16 @@ namespace LuaDkmDebuggerComponent
 
             addressEntityData.ReadFrom(customInstructionAddress.EntityId.ToArray());
 
-            var breakpointAdditionalData = new LuaBreakpointAdditionalData();
-
-            if (!breakpointAdditionalData.ReadFrom(customInstructionAddress.AdditionalData.ToArray()))
-            {
-                log.Error($"IDkmSymbolQuery.GetMethodName failure");
-
-                return languageInstructionAddress.GetMethodName(argumentFlags);
-            }
-
             if (addressEntityData.functionAddress == 0)
             {
                 log.Debug($"IDkmSymbolQuery.GetMethodName success (weak match)");
 
-                return $"[unknown](...)";
+                return $"[{addressEntityData.source}:{addressEntityData.line}](...)";
             }
 
             var functionData = new LuaFunctionData();
 
             functionData.ReadFrom(process, addressEntityData.functionAddress);
-
-            string source = functionData.ReadSource(process);
-
-            if (source == null)
-                source = "unknown script";
 
             string argumentList = "";
 
@@ -1695,9 +1681,21 @@ namespace LuaDkmDebuggerComponent
                 argumentList += (i == 0 ? "" : ", ") + argument.name;
             }
 
-            log.Debug($"IDkmSymbolQuery.GetMethodName success");
+            foreach (var state in processData.symbolStore.knownStates)
+            {
+                string functionName = state.Value.FetchFunctionName(addressEntityData.functionAddress);
 
-            return $"[{source}:{breakpointAdditionalData.instructionLine}]({argumentList})";
+                if (functionName != null)
+                {
+                    log.Debug($"IDkmSymbolQuery.GetMethodName success");
+
+                    return $"{functionName}({argumentList})";
+                }
+            }
+
+            log.Debug($"IDkmSymbolQuery.GetMethodName success (no name)");
+
+            return $"[{addressEntityData.source}:{addressEntityData.line}]({argumentList})";
         }
 
         DkmCompilerId IDkmSymbolCompilerIdQuery.GetCompilerId(DkmInstructionSymbol instruction, DkmInspectionSession inspectionSession)
@@ -1848,18 +1846,17 @@ namespace LuaDkmDebuggerComponent
 
                         LuaAddressEntityData entityData = new LuaAddressEntityData
                         {
+                            source = documentData.source.sourceFileName,
+                            line = line,
+
                             functionAddress = luaFunctionData.originalAddress,
-
-                            instructionPointer = instructionPointer,
-
-                            source = documentData.source.sourceFileName
+                            functionInstructionPointer = instructionPointer,
                         };
 
                         LuaBreakpointAdditionalData additionalData = new LuaBreakpointAdditionalData
                         {
-                            instructionLine = line,
-
-                            source = documentData.source.sourceFileName
+                            source = documentData.source.sourceFileName,
+                            line = line,
                         };
 
                         var entityDataBytes = entityData.Encode();
@@ -1867,7 +1864,7 @@ namespace LuaDkmDebuggerComponent
 
                         log.Debug($"IDkmSymbolQuery.FindSymbols success");
 
-                        return new DkmInstructionSymbol[1] { DkmCustomInstructionSymbol.Create(resolvedDocument.Module, Guids.luaRuntimeGuid, entityDataBytes, (ulong)instructionPointer, additionalDataBytes) };
+                        return new DkmInstructionSymbol[1] { DkmCustomInstructionSymbol.Create(resolvedDocument.Module, Guids.luaRuntimeGuid, entityDataBytes, (ulong)((line << 16) + instructionPointer), additionalDataBytes) };
                     }
                 }
             }
@@ -1881,18 +1878,17 @@ namespace LuaDkmDebuggerComponent
 
                 LuaAddressEntityData entityData = new LuaAddressEntityData
                 {
+                    source = documentData.script.sourceFileName,
+                    line = textSpan.StartLine,
+
                     functionAddress = 0,
-
-                    instructionPointer = 0,
-
-                    source = documentData.script.sourceFileName
+                    functionInstructionPointer = 0,
                 };
 
                 LuaBreakpointAdditionalData additionalData = new LuaBreakpointAdditionalData
                 {
-                    instructionLine = textSpan.StartLine,
-
-                    source = documentData.script.sourceFileName
+                    source = documentData.script.sourceFileName,
+                    line = textSpan.StartLine,
                 };
 
                 var entityDataBytes = entityData.Encode();
@@ -1900,7 +1896,7 @@ namespace LuaDkmDebuggerComponent
 
                 log.Debug($"IDkmSymbolQuery.FindSymbols success (weak match)");
 
-                return new DkmInstructionSymbol[1] { DkmCustomInstructionSymbol.Create(resolvedDocument.Module, Guids.luaRuntimeGuid, entityDataBytes, (ulong)textSpan.StartLine/* TODO: use line? and for base info, add line as well */, additionalDataBytes) };
+                return new DkmInstructionSymbol[1] { DkmCustomInstructionSymbol.Create(resolvedDocument.Module, Guids.luaRuntimeGuid, entityDataBytes, (ulong)((textSpan.StartLine << 16) + 0), additionalDataBytes) };
             }
 
             log.Error($"IDkmSymbolQuery.FindSymbols failure (not found)");

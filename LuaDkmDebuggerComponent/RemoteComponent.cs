@@ -15,11 +15,12 @@ namespace LuaDkmDebuggerComponent
 {
     public class LuaBreakpoint
     {
-        public int instructionLine = 0;
-        public ulong functionAddress = 0;
-
+        // Main level - source:line
         public string source = null;
-        public ulong sourceNameAddress = 0;
+        public int line = 0;
+
+        // Extended level - function (Proto) address, to avoid string comparisons in the line hook function
+        public ulong functionAddress = 0;
 
         public DkmRuntimeBreakpoint runtimeBreakpoint = null;
     }
@@ -139,24 +140,26 @@ namespace LuaDkmDebuggerComponent
 
                 var breakpoint = processData.activeBreakpoints[i];
 
-                DebugHelpers.TryWritePointerVariable(process, dataAddress, (ulong)breakpoint.instructionLine);
-                DebugHelpers.TryWritePointerVariable(process, dataAddress + pointerSize, breakpoint.functionAddress);
-
-                ulong currSourceNameAddress = sourceNameAddress;
+                DebugHelpers.TryWritePointerVariable(process, dataAddress, (ulong)breakpoint.line);
 
                 if (breakpoint.functionAddress == 0)
                 {
                     Debug.Assert(breakpoint.source != null);
 
                     byte[] sourceNameBytes = Encoding.UTF8.GetBytes(breakpoint.source);
+
                     DebugHelpers.TryWriteRawBytes(process, sourceNameAddress, sourceNameBytes);
                     DebugHelpers.TryWriteByteVariable(process, sourceNameAddress + (ulong)sourceNameBytes.Length, 0);
+
+                    ulong currSourceNameAddress = sourceNameAddress;
                     sourceNameAddress += (ulong)sourceNameBytes.Length + 1;
 
+                    DebugHelpers.TryWritePointerVariable(process, dataAddress + pointerSize, 0);
                     DebugHelpers.TryWritePointerVariable(process, dataAddress + pointerSize * 2, currSourceNameAddress);
                 }
                 else
                 {
+                    DebugHelpers.TryWritePointerVariable(process, dataAddress + pointerSize, breakpoint.functionAddress);
                     DebugHelpers.TryWritePointerVariable(process, dataAddress + pointerSize * 2, 0);
                 }
             }
@@ -279,15 +282,13 @@ namespace LuaDkmDebuggerComponent
 
                     entityData.ReadFrom(customInstructionAddress.EntityId.ToArray());
 
-                    LuaBreakpointAdditionalData additionalData = new LuaBreakpointAdditionalData();
-
-                    additionalData.ReadFrom(customInstructionAddress.AdditionalData.ToArray());
-
                     var breakpoint = new LuaBreakpoint
                     {
-                        instructionLine = additionalData.instructionLine,
+                        source = entityData.source,
+                        line = entityData.line,
+
                         functionAddress = entityData.functionAddress,
-                        source = additionalData.source,
+
                         runtimeBreakpoint = runtimeBreakpoint
                     };
 
@@ -311,7 +312,7 @@ namespace LuaDkmDebuggerComponent
 
                     additionalData.ReadFrom(customInstructionAddress.AdditionalData.ToArray());
 
-                    if (additionalData.instructionLine == 0)
+                    if (additionalData.line == 0)
                         throw new Exception("Invalid instruction breakpoint location");
                 }
             }
@@ -335,11 +336,7 @@ namespace LuaDkmDebuggerComponent
 
                     entityData.ReadFrom(customInstructionAddress.EntityId.ToArray());
 
-                    LuaBreakpointAdditionalData additionalData = new LuaBreakpointAdditionalData();
-
-                    additionalData.ReadFrom(customInstructionAddress.AdditionalData.ToArray());
-
-                    processData.activeBreakpoints.RemoveAll(el => el.instructionLine == additionalData.instructionLine && el.functionAddress == entityData.functionAddress && el.source == entityData.source);
+                    processData.activeBreakpoints.RemoveAll(el => el.line == entityData.line && el.source == entityData.source && el.functionAddress == entityData.functionAddress);
                     UpdateBreakpoints(process, processData);
                 }
             }

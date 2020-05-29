@@ -1047,11 +1047,14 @@ namespace LuaDkmDebuggerComponent
 
     public class LuaAddressEntityData
     {
-        public ulong functionAddress; // Address of the Proto struct
-
-        public int instructionPointer;
-
+        // Main level - source:line
         public string source;
+        public int line;
+
+        // Extended level 'inside' source and line - function and instruction number
+        // When this information is missing we can assume that we have the 'first' insrtuciton on source:line
+        public ulong functionAddress; // Address of the Proto struct
+        public int functionInstructionPointer;
 
         public ReadOnlyCollection<byte> Encode()
         {
@@ -1059,11 +1062,11 @@ namespace LuaDkmDebuggerComponent
             {
                 using (var writer = new BinaryWriter(stream))
                 {
-                    writer.Write(functionAddress);
-
-                    writer.Write(instructionPointer);
-
                     writer.Write(source);
+                    writer.Write(line);
+
+                    writer.Write(functionAddress);
+                    writer.Write(functionInstructionPointer);
 
                     writer.Flush();
 
@@ -1078,11 +1081,11 @@ namespace LuaDkmDebuggerComponent
             {
                 using (var reader = new BinaryReader(stream))
                 {
-                    functionAddress = reader.ReadUInt64();
-
-                    instructionPointer = reader.ReadInt32();
-
                     source = reader.ReadString();
+                    line = reader.ReadInt32();
+
+                    functionAddress = reader.ReadUInt64();
+                    functionInstructionPointer = reader.ReadInt32();
                 }
             }
         }
@@ -1173,9 +1176,8 @@ namespace LuaDkmDebuggerComponent
     {
         public int marker = 2;
 
-        public int instructionLine;
-
         public string source;
+        public int line;
 
         public ReadOnlyCollection<byte> Encode()
         {
@@ -1185,17 +1187,8 @@ namespace LuaDkmDebuggerComponent
                 {
                     writer.Write(marker);
 
-                    writer.Write(instructionLine);
-
-                    if (source != null)
-                    {
-                        writer.Write(1);
-                        writer.Write(source);
-                    }
-                    else
-                    {
-                        writer.Write(0);
-                    }
+                    writer.Write(source);
+                    writer.Write(line);
 
                     writer.Flush();
 
@@ -1215,14 +1208,8 @@ namespace LuaDkmDebuggerComponent
                     if (marker != 2)
                         return false;
 
-                    instructionLine = reader.ReadInt32();
-
-                    int hasSource = reader.ReadInt32();
-
-                    if (hasSource == 1)
-                        source = reader.ReadString();
-                    else
-                        source = null;
+                    source = reader.ReadString();
+                    line = reader.ReadInt32();
                 }
             }
 
