@@ -185,23 +185,29 @@ namespace LuaDkmDebuggerComponent
 
                         eventDescriptor.Suppress();
 
-                        try
+                        var breakpointPos = DebugHelpers.ReadUintVariable(process, processData.locations.helperBreakHitIdAddress);
+
+                        if (!breakpointPos.HasValue)
+                            return;
+
+                        if (breakpointPos.Value < processData.activeBreakpoints.Count)
                         {
-                            var breakpointPos = DebugHelpers.ReadUintVariable(process, processData.locations.helperBreakHitIdAddress);
-
-                            if (!breakpointPos.HasValue)
-                                return;
-
-                            if (breakpointPos.Value < processData.activeBreakpoints.Count)
+                            try
                             {
                                 var breakpoint = processData.activeBreakpoints[(int)breakpointPos.Value];
 
-                                breakpoint.runtimeBreakpoint.OnHit(thread, false);
+                                if (breakpoint.runtimeBreakpoint != null)
+                                    breakpoint.runtimeBreakpoint.OnHit(thread, false);
                             }
-                        }
-                        catch (DkmException)
-                        {
-                            // In case another component evaluates a function
+                            catch (System.ObjectDisposedException)
+                            {
+                                // Breakpoint was implicitly closed
+                                processData.activeBreakpoints.RemoveAt((int)breakpointPos.Value);
+                            }
+                            catch (DkmException)
+                            {
+                                // In case another component evaluates a function
+                            }
                         }
 
                         return;
