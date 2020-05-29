@@ -35,13 +35,13 @@ namespace LuaDkmDebuggerComponent
         public void Debug(string text)
         {
             if (logLevel >= LogLevel.Debug)
-                Output($"DEBUG: {text}");
+                Output($"INFO: {text}");
         }
 
         public void Verbose(string text)
         {
             if (logLevel >= LogLevel.Verbose)
-                Output($"INFO: {text}");
+                Output($"VERBOSE: {text}");
         }
 
         protected void Output(string text)

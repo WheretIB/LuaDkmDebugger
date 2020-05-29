@@ -1192,7 +1192,7 @@ namespace LuaDkmDebuggerComponent
 
             if (!frameData.ReadFrom(instructionAddress.AdditionalData.ToArray()))
             {
-                log.Error($"IDkmSymbolQuery.EvaluateExpression failure");
+                log.Error($"IDkmSymbolQuery.EvaluateExpression failure (no frame data)");
 
                 completionRoutine(new DkmEvaluateExpressionAsyncResult(DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, expression.Text, expression.Text, "Missing function frame data", DkmEvaluationResultFlags.Invalid, null)));
                 return;
@@ -1225,7 +1225,7 @@ namespace LuaDkmDebuggerComponent
             {
                 var resultAsError = result as LuaValueDataError;
 
-                log.Error($"IDkmSymbolQuery.EvaluateExpression failure");
+                log.Error($"IDkmSymbolQuery.EvaluateExpression failure (error result)");
 
                 completionRoutine(new DkmEvaluateExpressionAsyncResult(DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, expression.Text, expression.Text, resultAsError.value, DkmEvaluationResultFlags.Invalid, null)));
                 return;
@@ -1234,7 +1234,7 @@ namespace LuaDkmDebuggerComponent
             // If result is an 'l-value' re-evaluate as a Lua value at address
             if (result.originalAddress != 0)
             {
-                log.Error($"IDkmSymbolQuery.EvaluateExpression failure");
+                log.Debug($"IDkmSymbolQuery.EvaluateExpression completed (l-value)");
 
                 completionRoutine(new DkmEvaluateExpressionAsyncResult(EvaluateDataAtLuaValue(inspectionContext, stackFrame, expression.Text, expression.Text, result, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None)));
                 return;
