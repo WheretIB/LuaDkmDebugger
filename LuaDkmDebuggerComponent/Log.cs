@@ -23,25 +23,25 @@ namespace LuaDkmDebuggerComponent
         public void Error(string text)
         {
             if (logLevel >= LogLevel.Error)
-                Output(text);
+                Output($"ERROR: {text}");
         }
 
         public void Warning(string text)
         {
             if (logLevel >= LogLevel.Warning)
-                Output(text);
+                Output($"WARNING: {text}");
         }
 
         public void Debug(string text)
         {
             if (logLevel >= LogLevel.Debug)
-                Output(text);
+                Output($"DEBUG: {text}");
         }
 
         public void Verbose(string text)
         {
             if (logLevel >= LogLevel.Verbose)
-                Output(text);
+                Output($"INFO: {text}");
         }
 
         protected void Output(string text)
