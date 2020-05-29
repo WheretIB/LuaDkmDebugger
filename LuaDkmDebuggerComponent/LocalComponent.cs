@@ -104,6 +104,7 @@ namespace LuaDkmDebuggerComponent
         public int seenFrames = 0; // How many Lua frames we have seen
 
         public bool hideTopLuaLibraryFrames = false;
+        public bool hideInternalLuaLibraryFrames = false;
     }
 
     internal class LuaFrameLocalsEnumData : DkmDataItem
@@ -282,6 +283,7 @@ namespace LuaDkmDebuggerComponent
                 bool fromHook = stackContextData.hideTopLuaLibraryFrames;
 
                 stackContextData.hideTopLuaLibraryFrames = false;
+                stackContextData.hideInternalLuaLibraryFrames = false;
 
                 var process = stackContext.InspectionSession.Process;
 
@@ -722,6 +724,15 @@ namespace LuaDkmDebuggerComponent
 
                                     luaFrameFlags &= ~DkmStackWalkFrameFlags.TopFrame;
                                 }
+
+                                // When Lua function is called from Lua through C functions (for example, metatable operations), we will have a fresh 'luaV_execute' frame
+                                if (LuaHelpers.luaVersion == 503 && prevCallInfoData.CheckCallStatusLua() && (currCallInfoData.callStatus & (int)CallStatus_5_3.Fresh) != 0)
+                                {
+                                    stackContextData.skipFrames = stackContextData.seenFrames;
+
+                                    stackContextData.hideInternalLuaLibraryFrames = true;
+                                    break;
+                                }
                             }
                             else if (currCallInfoData.func.extendedType == LuaExtendedType.ExternalFunction)
                             {
@@ -764,7 +775,8 @@ namespace LuaDkmDebuggerComponent
                     }
                 }
 
-                luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, null, input.FrameBase, input.FrameSize, DkmStackWalkFrameFlags.NonuserCode, "[Transition to Lua]", input.Registers, input.Annotations));
+                if (!stackContextData.hideInternalLuaLibraryFrames)
+                    luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, null, input.FrameBase, input.FrameSize, DkmStackWalkFrameFlags.NonuserCode, "[Transition to Lua]", input.Registers, input.Annotations));
 
                 log.Verbose($"Completed 'luaV_execute' stack frame");
 
@@ -776,7 +788,7 @@ namespace LuaDkmDebuggerComponent
             {
                 var flags = (input.Flags & ~DkmStackWalkFrameFlags.UserStatusNotDetermined) | DkmStackWalkFrameFlags.NonuserCode;
 
-                if (stackContextData.hideTopLuaLibraryFrames)
+                if (stackContextData.hideTopLuaLibraryFrames || stackContextData.hideInternalLuaLibraryFrames)
                     flags |= DkmStackWalkFrameFlags.Hidden;
 
                 return new DkmStackWalkFrame[1] { DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, flags, input.Description, input.Registers, input.Annotations) };
