@@ -2402,7 +2402,7 @@ namespace LuaDkmDebuggerComponent
                     }
                     else
                     {
-                        log.Error($"Failed to evaluate Luas state location");
+                        log.Error($"Failed to evaluate Lua state location");
                     }
                 }
                 else if (data.breakpointId == processData.breakpointLuaThreadDestroy)
