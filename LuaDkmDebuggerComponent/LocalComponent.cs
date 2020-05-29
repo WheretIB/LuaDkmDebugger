@@ -81,6 +81,7 @@ namespace LuaDkmDebuggerComponent
         public Guid breakpointLuaThreadDestroy;
 
         public Guid breakpointLuaFileLoaded;
+        public Guid breakpointLuaFileLoadedSolCompat;
         public Guid breakpointLuaBufferLoaded;
 
         public Guid breakpointLuaHelperInitialized;
@@ -2283,7 +2284,11 @@ namespace LuaDkmDebuggerComponent
                     processData.breakpointLuaFileLoaded = CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadfilex", "Lua script load from file").GetValueOrDefault(Guid.Empty);
 
                     if (processData.breakpointLuaFileLoaded == Guid.Empty)
+                    {
                         processData.breakpointLuaFileLoaded = CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadfile", "Lua script load from file").GetValueOrDefault(Guid.Empty);
+
+                        processData.breakpointLuaFileLoadedSolCompat = CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "kp_compat53L_loadfilex", "Lua script load from file").GetValueOrDefault(Guid.Empty);
+                    }
 
                     // Track Lua scripts loaded from buffers
                     processData.breakpointLuaBufferLoaded = CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadbufferx", "Lua script load from buffer").GetValueOrDefault(Guid.Empty);
@@ -2507,7 +2512,7 @@ namespace LuaDkmDebuggerComponent
                         processData.symbolStore.Remove(stateAddress.Value);
                     }
                 }
-                else if (data.breakpointId == processData.breakpointLuaFileLoaded)
+                else if (data.breakpointId == processData.breakpointLuaFileLoaded || data.breakpointId == processData.breakpointLuaFileLoadedSolCompat)
                 {
                     log.Debug("Detected Lua script file load");
 
