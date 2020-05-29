@@ -57,6 +57,7 @@ namespace LuaDkmDebuggerComponent
         public ulong helperBreakCountAddress = 0;
         public ulong helperBreakDataAddress = 0;
         public ulong helperBreakHitIdAddress = 0;
+        public ulong helperBreakSourcesAddress = 0;
 
         public ulong helperStepOverAddress = 0;
         public ulong helperStepIntoAddress = 0;
@@ -83,6 +84,7 @@ namespace LuaDkmDebuggerComponent
                     writer.Write(helperBreakCountAddress);
                     writer.Write(helperBreakDataAddress);
                     writer.Write(helperBreakHitIdAddress);
+                    writer.Write(helperBreakSourcesAddress);
 
                     writer.Write(helperStepOverAddress);
                     writer.Write(helperStepIntoAddress);
@@ -116,6 +118,7 @@ namespace LuaDkmDebuggerComponent
                     helperBreakCountAddress = reader.ReadUInt64();
                     helperBreakDataAddress = reader.ReadUInt64();
                     helperBreakHitIdAddress = reader.ReadUInt64();
+                    helperBreakSourcesAddress = reader.ReadUInt64();
 
                     helperStepOverAddress = reader.ReadUInt64();
                     helperStepIntoAddress = reader.ReadUInt64();

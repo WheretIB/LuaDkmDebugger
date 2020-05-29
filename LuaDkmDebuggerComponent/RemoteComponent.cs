@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Text;
 
 namespace LuaDkmDebuggerComponent
 {
@@ -16,6 +17,9 @@ namespace LuaDkmDebuggerComponent
     {
         public int instructionLine = 0;
         public ulong functionAddress = 0;
+
+        public string source = null;
+        public ulong sourceNameAddress = 0;
 
         public DkmRuntimeBreakpoint runtimeBreakpoint = null;
     }
@@ -127,14 +131,34 @@ namespace LuaDkmDebuggerComponent
 
             ulong pointerSize = (ulong)DebugHelpers.GetPointerSize(process);
 
+            ulong sourceNameAddress = processData.locations.helperBreakSourcesAddress;
+
             for (int i = 0; i < count; i++)
             {
-                ulong dataAddress = processData.locations.helperBreakDataAddress + (ulong)i * 2 * pointerSize;
+                ulong dataAddress = processData.locations.helperBreakDataAddress + (ulong)i * 3 * pointerSize;
 
                 var breakpoint = processData.activeBreakpoints[i];
 
                 DebugHelpers.TryWritePointerVariable(process, dataAddress, (ulong)breakpoint.instructionLine);
                 DebugHelpers.TryWritePointerVariable(process, dataAddress + pointerSize, breakpoint.functionAddress);
+
+                ulong currSourceNameAddress = sourceNameAddress;
+
+                if (breakpoint.functionAddress == 0)
+                {
+                    Debug.Assert(breakpoint.source != null);
+
+                    byte[] sourceNameBytes = Encoding.UTF8.GetBytes(breakpoint.source);
+                    DebugHelpers.TryWriteRawBytes(process, sourceNameAddress, sourceNameBytes);
+                    DebugHelpers.TryWriteByteVariable(process, sourceNameAddress + (ulong)sourceNameBytes.Length, 0);
+                    sourceNameAddress += (ulong)sourceNameBytes.Length + 1;
+
+                    DebugHelpers.TryWritePointerVariable(process, dataAddress + pointerSize * 2, currSourceNameAddress);
+                }
+                else
+                {
+                    DebugHelpers.TryWritePointerVariable(process, dataAddress + pointerSize * 2, 0);
+                }
             }
 
             DebugHelpers.TryWriteIntVariable(process, processData.locations.helperBreakCountAddress, count);
@@ -263,6 +287,7 @@ namespace LuaDkmDebuggerComponent
                     {
                         instructionLine = additionalData.instructionLine,
                         functionAddress = entityData.functionAddress,
+                        source = additionalData.source,
                         runtimeBreakpoint = runtimeBreakpoint
                     };
 
@@ -314,7 +339,7 @@ namespace LuaDkmDebuggerComponent
 
                     additionalData.ReadFrom(customInstructionAddress.AdditionalData.ToArray());
 
-                    processData.activeBreakpoints.RemoveAll(el => el.instructionLine == additionalData.instructionLine && el.functionAddress == entityData.functionAddress);
+                    processData.activeBreakpoints.RemoveAll(el => el.instructionLine == additionalData.instructionLine && el.functionAddress == entityData.functionAddress && el.source == entityData.source);
                     UpdateBreakpoints(process, processData);
                 }
             }

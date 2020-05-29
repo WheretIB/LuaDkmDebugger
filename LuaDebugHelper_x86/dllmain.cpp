@@ -110,8 +110,32 @@ namespace Lua_5_3
 
     struct LocVar;
     struct Upvaldesc;
+    struct TString;
 
-    struct Proto;
+    struct Proto
+    {
+        GCObject *next; lu_byte tt; lu_byte marked;
+        lu_byte numparams;  /* number of fixed parameters */
+        lu_byte is_vararg;
+        lu_byte maxstacksize;  /* number of registers needed by this function */
+        int sizeupvalues;  /* size of 'upvalues' */
+        int sizek;  /* size of 'k' */
+        int sizecode;
+        int sizelineinfo;
+        int sizep;  /* size of 'p' */
+        int sizelocvars;
+        int linedefined;  /* debug information  */
+        int lastlinedefined;  /* debug information  */
+        TValue *k;  /* constants used by the function */
+        Instruction *code;  /* opcodes */
+        struct Proto **p;  /* functions defined inside the function */
+        int *lineinfo;  /* map from opcodes to source lines (debug information) */
+        LocVar *locvars;  /* information about local variables (debug information) */
+        Upvaldesc *upvalues;  /* upvalue information */
+        struct LClosure *cache;  /* last-created closure with this prototype */
+        TString  *source;  /* used for debug information */
+        GCObject *gclist;
+    };
 
     struct LClosure
     {
@@ -151,7 +175,6 @@ namespace Lua_5_3
         struct CallInfo *i_ci;  /* active function */
     };
 
-#if defined(DEBUG_MODE)
     struct TString
     {
         GCObject *next; lu_byte tt; lu_byte marked;
@@ -164,43 +187,19 @@ namespace Lua_5_3
             struct TString *hnext;  /* linked list for hash table */
         } u;
     };
-
-    struct Proto
-    {
-        GCObject *next; lu_byte tt; lu_byte marked;
-        lu_byte numparams;  /* number of fixed parameters */
-        lu_byte is_vararg;
-        lu_byte maxstacksize;  /* number of registers needed by this function */
-        int sizeupvalues;  /* size of 'upvalues' */
-        int sizek;  /* size of 'k' */
-        int sizecode;
-        int sizelineinfo;
-        int sizep;  /* size of 'p' */
-        int sizelocvars;
-        int linedefined;  /* debug information  */
-        int lastlinedefined;  /* debug information  */
-        TValue *k;  /* constants used by the function */
-        Instruction *code;  /* opcodes */
-        struct Proto **p;  /* functions defined inside the function */
-        int *lineinfo;  /* map from opcodes to source lines (debug information) */
-        LocVar *locvars;  /* information about local variables (debug information) */
-        Upvaldesc *upvalues;  /* upvalue information */
-        struct LClosure *cache;  /* last-created closure with this prototype */
-        TString  *source;  /* used for debug information */
-        GCObject *gclist;
-    };
-#endif
 }
 
 struct LuaHelperBreakData
 {
     uintptr_t line;
     uintptr_t proto;
+    const char *sourceName;
 };
 
 extern "C" __declspec(dllexport) unsigned luaHelperBreakCount = 0;
 extern "C" __declspec(dllexport) LuaHelperBreakData luaHelperBreakData[256] = {};
 extern "C" __declspec(dllexport) unsigned luaHelperBreakHitId = 0;
+extern "C" __declspec(dllexport) char luaHelperBreakSources[128 * 256] = {};
 
 extern "C" __declspec(dllexport) unsigned luaHelperStepOver = 0;
 extern "C" __declspec(dllexport) unsigned luaHelperStepInto = 0;
@@ -315,11 +314,34 @@ extern "C" __declspec(dllexport) void LuaHelperHook(void *L, Lua_5_3::lua_Debug 
 
         for(auto curr = luaHelperBreakData, end = luaHelperBreakData + luaHelperBreakCount; curr != end; curr++)
         {
-            if(ar->currentline == curr->line && uintptr_t(proto) == curr->proto)
-            {
-                luaHelperBreakHitId = unsigned(curr - luaHelperBreakData);
+            if(ar->currentline != curr->line)
+                continue;
 
-                OnLuaHelperBreakpointHit();
+            if(curr->proto)
+            {
+                //printf("Line %d match, checking proto %u against %u %s\n", curr->line, uintptr_t(proto), curr->proto, curr->sourceName ? curr->sourceName : "(null)");
+
+                if(uintptr_t(proto) == curr->proto)
+                {
+                    luaHelperBreakHitId = unsigned(curr - luaHelperBreakData);
+
+                    OnLuaHelperBreakpointHit();
+                    break;
+                }
+            }
+            else
+            {
+                const char *sourceName = (char*)proto->source + sizeof(Lua_5_3::TString);
+
+                //printf("Line %d match, checking source name %s against %u %s\n", curr->line, sourceName, curr->proto, curr->sourceName ? curr->sourceName : "(null)");
+
+                if(strcmp(curr->sourceName, sourceName) == 0)
+                {
+                    luaHelperBreakHitId = unsigned(curr - luaHelperBreakData);
+
+                    OnLuaHelperBreakpointHit();
+                    break;
+                }
             }
         }
     }

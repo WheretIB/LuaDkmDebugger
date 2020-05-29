@@ -66,6 +66,7 @@ namespace LuaDkmDebuggerComponent
         public ulong helperBreakCountAddress = 0;
         public ulong helperBreakDataAddress = 0;
         public ulong helperBreakHitIdAddress = 0;
+        public ulong helperBreakSourcesAddress = 0;
 
         public ulong helperStepOverAddress = 0;
         public ulong helperStepIntoAddress = 0;
@@ -122,6 +123,7 @@ namespace LuaDkmDebuggerComponent
     internal class LuaResolvedDocumentItem : DkmDataItem
     {
         public LuaSourceSymbols source;
+        public LuaScriptSymbols script;
     }
 
     public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery, IDkmModuleInstanceLoadNotification, IDkmCustomMessageCallbackReceiver, IDkmLanguageInstructionDecoder
@@ -413,7 +415,7 @@ namespace LuaDkmDebuggerComponent
 
                         LuaFunctionData functionData = currFunctionData;
 
-                        processData.symbolStore.FetchOrCreate(stateAddress.Value).Add(process, functionData);
+                        processData.symbolStore.FetchOrCreate(stateAddress.Value).AddSourceFromFunction(process, functionData);
 
                         string argumentList = "";
 
@@ -1665,6 +1667,13 @@ namespace LuaDkmDebuggerComponent
                 return languageInstructionAddress.GetMethodName(argumentFlags);
             }
 
+            if (addressEntityData.functionAddress == 0)
+            {
+                log.Debug($"IDkmSymbolQuery.GetMethodName success (weak match)");
+
+                return $"[unknown](...)";
+            }
+
             var functionData = new LuaFunctionData();
 
             functionData.ReadFrom(process, addressEntityData.functionAddress);
@@ -1702,7 +1711,7 @@ namespace LuaDkmDebuggerComponent
             if (moduleInstance == null)
                 return module.FindDocuments(sourceFileId);
 
-            log.Debug($"IDkmSymbolQuery.FindDocuments begin");
+            log.Debug($"IDkmSymbolQuery.FindDocuments begin ({sourceFileId.DocumentName})");
 
             var process = moduleInstance.Process;
             var processData = process.GetDataItem<LuaLocalProcessData>();
@@ -1712,7 +1721,12 @@ namespace LuaDkmDebuggerComponent
                 foreach (var source in state.Value.knownSources)
                 {
                     if (source.Value.resolvedFileName == null)
+                    {
                         source.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, source.Key);
+
+                        if (source.Value.resolvedFileName != null)
+                            log.Debug($"IDkmSymbolQuery.FindDocuments Resolved {source.Value.sourceFileName} to {source.Value.resolvedFileName}");
+                    }
 
                     var fileName = source.Value.resolvedFileName;
 
@@ -1721,6 +1735,34 @@ namespace LuaDkmDebuggerComponent
                         var dataItem = new LuaResolvedDocumentItem
                         {
                             source = source.Value
+                        };
+
+                        log.Debug($"IDkmSymbolQuery.FindDocuments success");
+
+                        return new DkmResolvedDocument[1] { DkmResolvedDocument.Create(module, sourceFileId.DocumentName, null, DkmDocumentMatchStrength.FullPath, DkmResolvedDocumentWarning.None, false, dataItem) };
+                    }
+                }
+            }
+
+            foreach (var state in processData.symbolStore.knownStates)
+            {
+                foreach (var script in state.Value.knownScripts)
+                {
+                    if (script.Value.resolvedFileName == null)
+                    {
+                        script.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, script.Key);
+
+                        if (script.Value.resolvedFileName != null)
+                            log.Debug($"IDkmSymbolQuery.FindDocuments Resolved {script.Value.sourceFileName} to {script.Value.resolvedFileName}");
+                    }
+
+                    var fileName = script.Value.resolvedFileName;
+
+                    if (sourceFileId.DocumentName == fileName)
+                    {
+                        var dataItem = new LuaResolvedDocumentItem
+                        {
+                            script = script.Value
                         };
 
                         log.Debug($"IDkmSymbolQuery.FindDocuments success");
@@ -1791,37 +1833,73 @@ namespace LuaDkmDebuggerComponent
 
             var process = moduleInstance.Process;
 
-            foreach (var el in documentData.source.knownFunctions)
+            if (documentData.source != null)
             {
-                if (FindFunctionInstructionForLine(process, el.Value, textSpan.StartLine, textSpan.EndLine, out LuaFunctionData luaFunctionData, out int instructionPointer, out int line))
+                foreach (var el in documentData.source.knownFunctions)
                 {
-                    var sourceFileId = DkmSourceFileId.Create(resolvedDocument.DocumentName, null, null, null);
-
-                    var resultSpan = new DkmTextSpan(line, line, 0, 0);
-
-                    symbolLocation = new DkmSourcePosition[1] { DkmSourcePosition.Create(sourceFileId, resultSpan) };
-
-                    LuaAddressEntityData entityData = new LuaAddressEntityData
+                    if (FindFunctionInstructionForLine(process, el.Value, textSpan.StartLine, textSpan.EndLine, out LuaFunctionData luaFunctionData, out int instructionPointer, out int line))
                     {
-                        functionAddress = luaFunctionData.originalAddress,
+                        var sourceFileId = DkmSourceFileId.Create(resolvedDocument.DocumentName, null, null, null);
 
-                        instructionPointer = instructionPointer,
+                        var resultSpan = new DkmTextSpan(line, line, 0, 0);
 
-                        source = documentData.source.sourceFileName
-                    };
+                        symbolLocation = new DkmSourcePosition[1] { DkmSourcePosition.Create(sourceFileId, resultSpan) };
 
-                    LuaBreakpointAdditionalData additionalData = new LuaBreakpointAdditionalData
-                    {
-                        instructionLine = line
-                    };
+                        LuaAddressEntityData entityData = new LuaAddressEntityData
+                        {
+                            functionAddress = luaFunctionData.originalAddress,
 
-                    var entityDataBytes = entityData.Encode();
-                    var additionalDataBytes = additionalData.Encode();
+                            instructionPointer = instructionPointer,
 
-                    log.Debug($"IDkmSymbolQuery.FindSymbols failure (success)");
+                            source = documentData.source.sourceFileName
+                        };
 
-                    return new DkmInstructionSymbol[1] { DkmCustomInstructionSymbol.Create(resolvedDocument.Module, Guids.luaRuntimeGuid, entityDataBytes, (ulong)instructionPointer, additionalDataBytes) };
+                        LuaBreakpointAdditionalData additionalData = new LuaBreakpointAdditionalData
+                        {
+                            instructionLine = line,
+
+                            source = documentData.source.sourceFileName
+                        };
+
+                        var entityDataBytes = entityData.Encode();
+                        var additionalDataBytes = additionalData.Encode();
+
+                        log.Debug($"IDkmSymbolQuery.FindSymbols success");
+
+                        return new DkmInstructionSymbol[1] { DkmCustomInstructionSymbol.Create(resolvedDocument.Module, Guids.luaRuntimeGuid, entityDataBytes, (ulong)instructionPointer, additionalDataBytes) };
+                    }
                 }
+            }
+            else if (documentData.script != null)
+            {
+                var sourceFileId = DkmSourceFileId.Create(resolvedDocument.DocumentName, null, null, null);
+
+                var resultSpan = new DkmTextSpan(textSpan.StartLine, textSpan.StartLine, 0, 0);
+
+                symbolLocation = new DkmSourcePosition[1] { DkmSourcePosition.Create(sourceFileId, resultSpan) };
+
+                LuaAddressEntityData entityData = new LuaAddressEntityData
+                {
+                    functionAddress = 0,
+
+                    instructionPointer = 0,
+
+                    source = documentData.script.sourceFileName
+                };
+
+                LuaBreakpointAdditionalData additionalData = new LuaBreakpointAdditionalData
+                {
+                    instructionLine = textSpan.StartLine,
+
+                    source = documentData.script.sourceFileName
+                };
+
+                var entityDataBytes = entityData.Encode();
+                var additionalDataBytes = additionalData.Encode();
+
+                log.Debug($"IDkmSymbolQuery.FindSymbols success (weak match)");
+
+                return new DkmInstructionSymbol[1] { DkmCustomInstructionSymbol.Create(resolvedDocument.Module, Guids.luaRuntimeGuid, entityDataBytes, (ulong)textSpan.StartLine/* TODO: use line? and for base info, add line as well */, additionalDataBytes) };
             }
 
             log.Error($"IDkmSymbolQuery.FindSymbols failure (not found)");
@@ -2005,6 +2083,7 @@ namespace LuaDkmDebuggerComponent
                         processData.helperBreakCountAddress = FindVariableAddress(nativeModuleInstance, "luaHelperBreakCount");
                         processData.helperBreakDataAddress = FindVariableAddress(nativeModuleInstance, "luaHelperBreakData");
                         processData.helperBreakHitIdAddress = FindVariableAddress(nativeModuleInstance, "luaHelperBreakHitId");
+                        processData.helperBreakSourcesAddress = FindVariableAddress(nativeModuleInstance, "luaHelperBreakSources");
 
                         processData.helperStepOverAddress = FindVariableAddress(nativeModuleInstance, "luaHelperStepOver");
                         processData.helperStepIntoAddress = FindVariableAddress(nativeModuleInstance, "luaHelperStepInto");
@@ -2027,6 +2106,7 @@ namespace LuaDkmDebuggerComponent
                             helperBreakCountAddress = processData.helperBreakCountAddress,
                             helperBreakDataAddress = processData.helperBreakDataAddress,
                             helperBreakHitIdAddress = processData.helperBreakHitIdAddress,
+                            helperBreakSourcesAddress = processData.helperBreakSourcesAddress,
 
                             helperStepOverAddress = processData.helperStepOverAddress,
                             helperStepIntoAddress = processData.helperStepIntoAddress,

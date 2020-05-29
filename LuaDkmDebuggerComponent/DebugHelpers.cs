@@ -227,6 +227,20 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
+        internal static bool TryWriteRawBytes(DkmProcess process, ulong address, byte[] value)
+        {
+            try
+            {
+                process.WriteMemory(address, value);
+            }
+            catch (DkmException)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
         internal static bool TryWriteByteVariable(DkmProcess process, ulong address, byte value)
         {
             try

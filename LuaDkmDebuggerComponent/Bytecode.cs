@@ -1175,6 +1175,8 @@ namespace LuaDkmDebuggerComponent
 
         public int instructionLine;
 
+        public string source;
+
         public ReadOnlyCollection<byte> Encode()
         {
             using (var stream = new MemoryStream())
@@ -1184,6 +1186,16 @@ namespace LuaDkmDebuggerComponent
                     writer.Write(marker);
 
                     writer.Write(instructionLine);
+
+                    if (source != null)
+                    {
+                        writer.Write(1);
+                        writer.Write(source);
+                    }
+                    else
+                    {
+                        writer.Write(0);
+                    }
 
                     writer.Flush();
 
@@ -1204,6 +1216,13 @@ namespace LuaDkmDebuggerComponent
                         return false;
 
                     instructionLine = reader.ReadInt32();
+
+                    int hasSource = reader.ReadInt32();
+
+                    if (hasSource == 1)
+                        source = reader.ReadString();
+                    else
+                        source = null;
                 }
             }
 

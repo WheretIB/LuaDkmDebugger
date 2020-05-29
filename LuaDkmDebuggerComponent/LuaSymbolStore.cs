@@ -4,9 +4,17 @@ using System.Diagnostics;
 
 namespace LuaDkmDebuggerComponent
 {
+    public class LuaScriptSymbols
+    {
+        public string sourceFileName = null;
+        public string scriptContent = null;
+        public string resolvedFileName = null;
+    }
+
     public class LuaSourceSymbols
     {
         public string sourceFileName = null;
+        public ulong address = 0;
         public string resolvedFileName = null;
 
         public Dictionary<ulong, LuaFunctionData> knownFunctions = new Dictionary<ulong, LuaFunctionData>();
@@ -16,9 +24,9 @@ namespace LuaDkmDebuggerComponent
     {
         public Dictionary<string, LuaSourceSymbols> knownSources = new Dictionary<string, LuaSourceSymbols>();
         public Dictionary<ulong, string> functionNames = new Dictionary<ulong, string>();
-        public Dictionary<string, string> knownScripts = new Dictionary<string, string>();
+        public Dictionary<string, LuaScriptSymbols> knownScripts = new Dictionary<string, LuaScriptSymbols>();
 
-        public void Add(DkmProcess process, LuaFunctionData function)
+        public void AddSourceFromFunction(DkmProcess process, LuaFunctionData function)
         {
             if (function.originalAddress == 0)
             {
@@ -32,7 +40,7 @@ namespace LuaDkmDebuggerComponent
                 return;
 
             if (!knownSources.ContainsKey(function.source))
-                knownSources.Add(function.source, new LuaSourceSymbols() { sourceFileName = function.source });
+                knownSources.Add(function.source, new LuaSourceSymbols() { sourceFileName = function.source, address = function.sourceAddress });
 
             LuaSourceSymbols source = knownSources[function.source];
 
@@ -66,9 +74,9 @@ namespace LuaDkmDebuggerComponent
         public void AddScriptSource(string scriptName, string scriptContent)
         {
             if (!knownScripts.ContainsKey(scriptName))
-                knownScripts.Add(scriptName, scriptContent);
+                knownScripts.Add(scriptName, new LuaScriptSymbols { sourceFileName = scriptName, scriptContent = scriptContent });
             else
-                knownScripts[scriptName] = scriptContent;
+                knownScripts[scriptName] = new LuaScriptSymbols { sourceFileName = scriptName, scriptContent = scriptContent };
         }
     }
 
