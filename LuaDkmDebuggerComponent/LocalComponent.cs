@@ -60,6 +60,7 @@ namespace LuaDkmDebuggerComponent
         public bool helperFailed = false;
         public DkmThread helperInitializionSuspensionThread;
 
+        public ulong helperWorkingDirectoryAddress = 0;
         public ulong helperHookFunctionAddress = 0;
 
         public ulong helperBreakCountAddress = 0;
@@ -1998,6 +1999,7 @@ namespace LuaDkmDebuggerComponent
 
                     if (variableAddress != null)
                     {
+                        processData.helperWorkingDirectoryAddress = FindVariableAddress(nativeModuleInstance, "luaHelperWorkingDirectory");
                         processData.helperHookFunctionAddress = FindFunctionAddress(nativeModuleInstance, "LuaHelperHook");
 
                         processData.helperBreakCountAddress = FindVariableAddress(nativeModuleInstance, "luaHelperBreakCount");
@@ -2080,6 +2082,23 @@ namespace LuaDkmDebuggerComponent
                                 log.Debug("Helper has been initialized");
 
                                 processData.helperInitialized = true;
+
+                                if (processData.helperWorkingDirectoryAddress != 0)
+                                {
+                                    processData.workingDirectoryRequested = true;
+                                    processData.workingDirectory = DebugHelpers.ReadStringVariable(process, processData.helperWorkingDirectoryAddress, 1024);
+
+                                    if (processData.workingDirectory != null && processData.workingDirectory.Length != 0)
+                                    {
+                                        log.Debug($"Found process working directory {processData.workingDirectory}");
+
+                                        LoadConfigurationFile(process, processData);
+                                    }
+                                    else
+                                    {
+                                        log.Error("Failed to get process working directory'");
+                                    }
+                                }
                             }
                         }
                         else
@@ -2351,6 +2370,23 @@ namespace LuaDkmDebuggerComponent
                         processData.helperInitializionSuspensionThread.Resume(true);
 
                         processData.helperInitializionSuspensionThread = null;
+                    }
+
+                    if (processData.helperWorkingDirectoryAddress != 0)
+                    {
+                        processData.workingDirectoryRequested = true;
+                        processData.workingDirectory = DebugHelpers.ReadStringVariable(process, processData.helperWorkingDirectoryAddress, 1024);
+
+                        if (processData.workingDirectory != null && processData.workingDirectory.Length != 0)
+                        {
+                            log.Debug($"Found process working directory {processData.workingDirectory}");
+
+                            LoadConfigurationFile(process, processData);
+                        }
+                        else
+                        {
+                            log.Error("Failed to get process working directory'");
+                        }
                     }
                 }
                 else

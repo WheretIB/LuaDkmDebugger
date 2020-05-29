@@ -25,6 +25,8 @@ extern "C"
 {
     __declspec(dllexport) volatile char luaHelperIsInitialized;
 
+    __declspec(dllexport) char luaHelperWorkingDirectory[1024] = {};
+
     __declspec(dllexport) __declspec(noinline) void OnLuaHelperInitialized()
     {
         volatile char dummy = 0;
@@ -56,6 +58,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 	switch(ul_reason_for_call)
 	{
     case DLL_PROCESS_ATTACH:
+        GetCurrentDirectoryA(1024, luaHelperWorkingDirectory);
+
         luaHelperIsInitialized = 1;
         OnLuaHelperInitialized();
         break;
