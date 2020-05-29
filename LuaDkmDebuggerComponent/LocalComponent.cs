@@ -78,6 +78,7 @@ namespace LuaDkmDebuggerComponent
         public Guid breakpointLuaThreadCreate;
         public Guid breakpointLuaThreadDestroy;
 
+        public Guid breakpointLuaFileLoaded;
         public Guid breakpointLuaBufferLoaded;
 
         public Guid breakpointLuaHelperInitialized;
@@ -2221,6 +2222,9 @@ namespace LuaDkmDebuggerComponent
                     // Track Lua state destruction (breakpoint at the start of the function)
                     processData.breakpointLuaThreadDestroy = CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "lua_close", "Lua thread destruction").GetValueOrDefault(Guid.Empty);
 
+                    // Track Lua scripts loaded from files
+                    processData.breakpointLuaFileLoaded = CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadfilex", "Lua script load from file").GetValueOrDefault(Guid.Empty);
+
                     // Track Lua scripts loaded from buffers
                     processData.breakpointLuaBufferLoaded = CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadbufferx", "Lua script load from buffer").GetValueOrDefault(Guid.Empty);
 
@@ -2416,6 +2420,39 @@ namespace LuaDkmDebuggerComponent
                         processData.symbolStore.Remove(stateAddress.Value);
                     }
                 }
+                else if (data.breakpointId == processData.breakpointLuaFileLoaded)
+                {
+                    log.Debug("Detected Lua script file load");
+
+                    var inspectionSession = CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
+
+                    ulong? stateAddress = TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+
+                    ulong? scriptNameAddress = TryEvaluateAddressExpression($"filename", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+
+                    if (scriptNameAddress.HasValue)
+                    {
+                        string scriptContent = "";
+                        string scriptName = DebugHelpers.ReadStringVariable(process, scriptNameAddress.Value, 1024);
+
+                        if (scriptName != null)
+                        {
+                            scriptName = "@" + scriptName;
+
+                            processData.symbolStore.FetchOrCreate(stateAddress.Value).AddScriptSource(scriptName, scriptContent);
+
+                            log.Debug($"Adding script {scriptName} to symbol store of Lua state {stateAddress.Value} (without content)");
+                        }
+                        else
+                        {
+                            log.Error("Failed to load script name from process");
+                        }
+                    }
+                    else
+                    {
+                        log.Error("Failed to evaluate Lua buffer data");
+                    }
+                }
                 else if (data.breakpointId == processData.breakpointLuaBufferLoaded)
                 {
                     log.Debug("Detected Lua script buffer load");
@@ -2433,7 +2470,20 @@ namespace LuaDkmDebuggerComponent
                         string scriptContent = DebugHelpers.ReadStringVariable(process, scriptBufferAddress.Value, (int)scriptSize.Value);
                         string scriptName = DebugHelpers.ReadStringVariable(process, scriptNameAddress.Value, 1024);
 
-                        processData.symbolStore.FetchOrCreate(stateAddress.Value).AddScriptSource(scriptName, scriptContent);
+                        if (scriptName != null)
+                        {
+                            processData.symbolStore.FetchOrCreate(stateAddress.Value).AddScriptSource(scriptName, scriptContent);
+
+                            log.Debug($"Adding script {scriptName} to symbol store of Lua state {stateAddress.Value} (with content)");
+                        }
+                        else
+                        {
+                            log.Error("Failed to load script name from process");
+                        }
+                    }
+                    else
+                    {
+                        log.Error("Failed to evaluate Lua buffer data");
                     }
                 }
                 else if (data.breakpointId == processData.breakpointLuaHelperInitialized)
