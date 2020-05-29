@@ -6,7 +6,7 @@ namespace Tests
     [TestClass]
     public class ExpressionEvaluationUnitTests
     {
-        LuaDkmDebuggerComponent.ExpressionEvaluation evaluation = new LuaDkmDebuggerComponent.ExpressionEvaluation(null, null, 0);
+        LuaDkmDebuggerComponent.ExpressionEvaluation evaluation = new LuaDkmDebuggerComponent.ExpressionEvaluation(null, null, 0, null);
 
         [TestMethod]
         public void TestSimpleValues()

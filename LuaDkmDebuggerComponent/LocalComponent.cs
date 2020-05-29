@@ -1188,15 +1188,22 @@ namespace LuaDkmDebuggerComponent
             LuaFunctionCallInfoData callInfoData = new LuaFunctionCallInfoData();
 
             callInfoData.ReadFrom(process, frameData.callInfo); // TODO: cache?
+            callInfoData.ReadFunction(process);
 
             // Load function data
             LuaFunctionData functionData = new LuaFunctionData();
 
             functionData.ReadFrom(process, frameData.functionAddress); // TODO: cache?
 
+            functionData.ReadUpvalues(process);
             functionData.ReadLocals(process, frameData.instructionPointer);
 
-            ExpressionEvaluation evaluation = new ExpressionEvaluation(process, functionData, callInfoData.stackBaseAddress);
+            LuaClosureData closureData = null;
+
+            if (callInfoData.func != null && callInfoData.func.extendedType == LuaExtendedType.LuaFunction)
+                closureData = (callInfoData.func as LuaValueDataLuaFunction).value;
+
+            ExpressionEvaluation evaluation = new ExpressionEvaluation(process, functionData, callInfoData.stackBaseAddress, closureData);
 
             var result = evaluation.Evaluate(expression.Text);
 
@@ -1410,6 +1417,7 @@ namespace LuaDkmDebuggerComponent
             LuaFunctionCallInfoData callInfoData = new LuaFunctionCallInfoData();
 
             callInfoData.ReadFrom(process, frameData.callInfo); // TODO: cache?
+            callInfoData.ReadFunction(process);
 
             // Load function data
             LuaFunctionData functionData = new LuaFunctionData();
@@ -1423,9 +1431,13 @@ namespace LuaDkmDebuggerComponent
                 function = functionData
             };
 
+            functionData.ReadUpvalues(process);
             functionData.ReadLocals(process, frameData.instructionPointer);
 
             int count = 1 + functionData.activeLocals.Count; // 1 pseudo variable for '[registry]' table
+
+            if (callInfoData.func != null && callInfoData.func.extendedType == LuaExtendedType.LuaFunction)
+                count += functionData.upvalues.Count;
 
             completionRoutine(new DkmGetFrameLocalsAsyncResult(DkmEvaluationResultEnumContext.Create(count, stackFrame, inspectionContext, frameLocalsEnumData)));
 
@@ -1442,10 +1454,22 @@ namespace LuaDkmDebuggerComponent
 
             if (frameLocalsEnumData != null)
             {
-                frameLocalsEnumData.function.ReadLocals(process, frameLocalsEnumData.frameData.instructionPointer);
+                var function = frameLocalsEnumData.function;
+
+                function.ReadUpvalues(process);
+                function.ReadLocals(process, frameLocalsEnumData.frameData.instructionPointer);
 
                 // Visual Studio doesn't respect enumeration size for GetFrameLocals, so we need to limit it back
-                var actualCount = 1 + frameLocalsEnumData.function.activeLocals.Count;
+                var actualCount = 1 + function.activeLocals.Count;
+
+                LuaClosureData closureData = null;
+
+                if (frameLocalsEnumData.callInfo.func != null && frameLocalsEnumData.callInfo.func.extendedType == LuaExtendedType.LuaFunction)
+                {
+                    closureData = (frameLocalsEnumData.callInfo.func as LuaValueDataLuaFunction).value;
+
+                    actualCount += function.upvalues.Count;
+                }
 
                 int finalCount = actualCount - startIndex;
 
@@ -1455,24 +1479,45 @@ namespace LuaDkmDebuggerComponent
 
                 for (int i = startIndex; i < startIndex + finalCount; i++)
                 {
-                    if (i == 0)
+                    int index = i;
+
+                    if (index == 0)
                     {
                         ulong address = frameLocalsEnumData.frameData.registryAddress;
 
                         string name = "[registry]";
 
                         results[i - startIndex] = EvaluateDataAtAddress(enumContext.InspectionContext, enumContext.StackFrame, name, name, address, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+                        continue;
                     }
-                    else
-                    {
-                        int index = i - 1;
 
+                    index -= 1;
+
+                    if (index < function.activeLocals.Count)
+                    {
                         // Base stack contains arguments and locals that are live at the current instruction
                         ulong address = frameLocalsEnumData.callInfo.stackBaseAddress + (ulong)index * LuaHelpers.GetValueSize(process);
 
-                        string name = frameLocalsEnumData.function.activeLocals[index].name;
+                        string name = function.activeLocals[index].name;
 
                         results[i - startIndex] = EvaluateDataAtAddress(enumContext.InspectionContext, enumContext.StackFrame, name, name, address, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+                        continue;
+                    }
+
+                    index -= function.activeLocals.Count;
+
+                    if (index < function.upvalues.Count)
+                    {
+                        var upvalueData = closureData.ReadUpvalue(process, index);
+
+                        string name = function.upvalues[index].name;
+
+                        if (upvalueData == null)
+                            results[i - startIndex] = DkmFailedEvaluationResult.Create(enumContext.InspectionContext, enumContext.StackFrame, name, name, "[internal error: missing upvalue]", DkmEvaluationResultFlags.Invalid, null);
+                        else
+                            results[i - startIndex] = EvaluateDataAtLuaValue(enumContext.InspectionContext, enumContext.StackFrame, name, name, upvalueData.value, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+
+                        continue;
                     }
                 }
 

@@ -4,16 +4,18 @@ namespace LuaDkmDebuggerComponent
 {
     public class ExpressionEvaluation
     {
-        public ExpressionEvaluation(DkmProcess process, LuaFunctionData functionData, ulong frameBaseAddress)
+        public ExpressionEvaluation(DkmProcess process, LuaFunctionData functionData, ulong frameBaseAddress, LuaClosureData luaClosure)
         {
             this.process = process;
             this.functionData = functionData;
             this.frameBaseAddress = frameBaseAddress;
+            this.luaClosure = luaClosure;
         }
 
         DkmProcess process;
         LuaFunctionData functionData;
         ulong frameBaseAddress;
+        LuaClosureData luaClosure;
 
         private string expression;
         private int pos = 0;
@@ -150,6 +152,24 @@ namespace LuaDkmDebuggerComponent
                         return Report($"Failed to read variable '{name}'");
 
                     return result;
+                }
+            }
+
+            if (luaClosure != null)
+            {
+                for (int i = 0; i < functionData.upvalues.Count; i++)
+                {
+                    var upvalue = functionData.upvalues[i];
+
+                    if (upvalue.name == name)
+                    {
+                        LuaUpvalueData upvalueData = luaClosure.ReadUpvalue(process, i);
+
+                        if (upvalueData == null || upvalueData.value == null)
+                            return Report($"Failed to read variable '{name}'");
+
+                        return upvalueData.value;
+                    }
                 }
             }
 
