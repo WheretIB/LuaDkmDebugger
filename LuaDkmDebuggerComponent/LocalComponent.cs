@@ -61,7 +61,9 @@ namespace LuaDkmDebuggerComponent
         public DkmThread helperInitializionSuspensionThread;
 
         public ulong helperWorkingDirectoryAddress = 0;
-        public ulong helperHookFunctionAddress = 0;
+        public ulong helperHookFunctionAddress_5_1 = 0;
+        public ulong helperHookFunctionAddress_5_2 = 0;
+        public ulong helperHookFunctionAddress_5_3 = 0;
 
         public ulong helperBreakCountAddress = 0;
         public ulong helperBreakDataAddress = 0;
@@ -794,7 +796,7 @@ namespace LuaDkmDebuggerComponent
                 return new DkmStackWalkFrame[1] { DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, flags, input.Description, input.Registers, input.Annotations) };
             }
 
-            if (stackContextData.hideTopLuaLibraryFrames && input.BasicSymbolInfo.MethodName == "callhook")
+            if (stackContextData.hideTopLuaLibraryFrames && (input.BasicSymbolInfo.MethodName == "callhook" || input.BasicSymbolInfo.MethodName == "traceexec"))
             {
                 var flags = (input.Flags & ~DkmStackWalkFrameFlags.UserStatusNotDetermined) | DkmStackWalkFrameFlags.NonuserCode | DkmStackWalkFrameFlags.Hidden;
 
@@ -2132,7 +2134,9 @@ namespace LuaDkmDebuggerComponent
                     if (variableAddress != null)
                     {
                         processData.helperWorkingDirectoryAddress = FindVariableAddress(nativeModuleInstance, "luaHelperWorkingDirectory");
-                        processData.helperHookFunctionAddress = FindFunctionAddress(nativeModuleInstance, "LuaHelperHook");
+                        processData.helperHookFunctionAddress_5_1 = FindFunctionAddress(nativeModuleInstance, "LuaHelperHook_5_1");
+                        processData.helperHookFunctionAddress_5_2 = FindFunctionAddress(nativeModuleInstance, "LuaHelperHook_5_2");
+                        processData.helperHookFunctionAddress_5_3 = FindFunctionAddress(nativeModuleInstance, "LuaHelperHook_5_3");
 
                         processData.helperBreakCountAddress = FindVariableAddress(nativeModuleInstance, "luaHelperBreakCount");
                         processData.helperBreakDataAddress = FindVariableAddress(nativeModuleInstance, "luaHelperBreakData");
@@ -2278,8 +2282,14 @@ namespace LuaDkmDebuggerComponent
                     // Track Lua scripts loaded from files
                     processData.breakpointLuaFileLoaded = CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadfilex", "Lua script load from file").GetValueOrDefault(Guid.Empty);
 
+                    if (processData.breakpointLuaFileLoaded == Guid.Empty)
+                        processData.breakpointLuaFileLoaded = CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadfile", "Lua script load from file").GetValueOrDefault(Guid.Empty);
+
                     // Track Lua scripts loaded from buffers
                     processData.breakpointLuaBufferLoaded = CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadbufferx", "Lua script load from buffer").GetValueOrDefault(Guid.Empty);
+
+                    if (processData.breakpointLuaBufferLoaded == Guid.Empty)
+                        processData.breakpointLuaBufferLoaded = CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadbuffer", "Lua script load from file").GetValueOrDefault(Guid.Empty);
 
                     string assemblyFolder = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 
@@ -2423,30 +2433,54 @@ namespace LuaDkmDebuggerComponent
 
                     ulong? stateAddress = TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
                     long? version = TryEvaluateNumberExpression($"(int)*L->l_G->version", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
-                    ulong? hookFunctionAddress = TryEvaluateAddressExpression($"&L->hook", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
-                    ulong? hookBaseCountAddress = TryEvaluateAddressExpression($"&L->basehookcount", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
-                    ulong? hookCountAddress = TryEvaluateAddressExpression($"&L->hookcount", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
-                    ulong? hookMaskAddress = TryEvaluateAddressExpression($"&L->hookmask", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
                     log.Debug("Completed evaluation");
 
+                    // Don't check version, Lua 5.1 doesn't have it
                     if (stateAddress.HasValue)
                     {
                         log.Debug($"New Lua state 0x{stateAddress:x} version {version.GetValueOrDefault(501)}");
+
+                        LuaHelpers.luaVersion = (int)version.GetValueOrDefault(501);
 
                         if (!processData.helperInitialized)
                         {
                             log.Warning("No helper to hook Lua state to");
                         }
-                        else if (version.GetValueOrDefault(501) == 503)
+                        else if (LuaHelpers.luaVersion == 501 || LuaHelpers.luaVersion == 502 || LuaHelpers.luaVersion == 503)
                         {
-                            // TODO: check evaluations
-                            DebugHelpers.TryWritePointerVariable(process, hookFunctionAddress.Value, processData.helperHookFunctionAddress);
-                            DebugHelpers.TryWriteIntVariable(process, hookBaseCountAddress.Value, 0);
-                            DebugHelpers.TryWriteIntVariable(process, hookCountAddress.Value, 0);
-                            DebugHelpers.TryWriteIntVariable(process, hookMaskAddress.Value, 7); // LUA_HOOKLINE | LUA_HOOKCALL | LUA_HOOKRET
+                            ulong? hookFunctionAddress = TryEvaluateAddressExpression($"&L->hook", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                            ulong? hookBaseCountAddress = TryEvaluateAddressExpression($"&L->basehookcount", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                            ulong? hookCountAddress = TryEvaluateAddressExpression($"&L->hookcount", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                            ulong? hookMaskAddress = TryEvaluateAddressExpression($"&L->hookmask", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
-                            log.Debug("Hooked Lua state");
+                            if (hookFunctionAddress.HasValue && hookBaseCountAddress.HasValue && hookCountAddress.HasValue && hookMaskAddress.HasValue)
+                            {
+                                if (LuaHelpers.luaVersion == 501)
+                                {
+                                    DebugHelpers.TryWritePointerVariable(process, hookFunctionAddress.Value, processData.helperHookFunctionAddress_5_1);
+                                    DebugHelpers.TryWriteByteVariable(process, hookMaskAddress.Value, 7); // LUA_HOOKLINE | LUA_HOOKCALL | LUA_HOOKRET
+                                }
+                                else if (LuaHelpers.luaVersion == 502)
+                                {
+                                    DebugHelpers.TryWritePointerVariable(process, hookFunctionAddress.Value, processData.helperHookFunctionAddress_5_2);
+                                    DebugHelpers.TryWriteByteVariable(process, hookMaskAddress.Value, 7); // LUA_HOOKLINE | LUA_HOOKCALL | LUA_HOOKRET
+                                }
+                                else if (LuaHelpers.luaVersion == 503)
+                                {
+                                    DebugHelpers.TryWritePointerVariable(process, hookFunctionAddress.Value, processData.helperHookFunctionAddress_5_3);
+                                    DebugHelpers.TryWriteIntVariable(process, hookMaskAddress.Value, 7); // LUA_HOOKLINE | LUA_HOOKCALL | LUA_HOOKRET
+                                }
+
+                                DebugHelpers.TryWriteIntVariable(process, hookBaseCountAddress.Value, 0);
+                                DebugHelpers.TryWriteIntVariable(process, hookCountAddress.Value, 0);
+
+                                log.Debug("Hooked Lua state");
+                            }
+                            else
+                            {
+                                log.Warning("Failed to evaluate variables to hook");
+                            }
                         }
                         else
                         {

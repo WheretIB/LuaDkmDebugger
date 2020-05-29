@@ -79,6 +79,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 #define LUA_HOOKLINE	2
 #define LUA_HOOKCOUNT	3
 #define LUA_HOOKTAILCALL 4
+#define LUA_HOOKTAILRET 4
 
 namespace Lua_5_3
 {
@@ -189,6 +190,249 @@ namespace Lua_5_3
     };
 }
 
+namespace Lua_5_2
+{
+    const unsigned LUA_IDSIZE = 60;
+
+    typedef unsigned char lu_byte;
+
+    struct GCObject;
+
+    union Value
+    {
+        GCObject *gc;    /* collectable objects */
+        void *p;         /* light userdata */
+        int b;           /* booleans */
+        void *f; /* light C functions */
+    };
+
+    struct TValue
+    {
+        union
+        {
+            struct
+            {
+                Value v__; int tt__;
+            } i;
+            double d__;
+        } u;
+    };
+
+    typedef TValue *StkId;
+
+    typedef unsigned Instruction;
+
+    struct LocVar;
+    struct Upvaldesc;
+    union TString;
+
+    struct Proto
+    {
+        GCObject *next; lu_byte tt; lu_byte marked;
+        TValue *k;  /* constants used by the function */
+        Instruction *code;
+        struct Proto **p;  /* functions defined inside the function */
+        int *lineinfo;  /* map from opcodes to source lines (debug information) */
+        LocVar *locvars;  /* information about local variables (debug information) */
+        Upvaldesc *upvalues;  /* upvalue information */
+        union Closure *cache;  /* last created closure with this prototype */
+        TString  *source;  /* used for debug information */
+        int sizeupvalues;  /* size of 'upvalues' */
+        int sizek;  /* size of `k' */
+        int sizecode;
+        int sizelineinfo;
+        int sizep;  /* size of `p' */
+        int sizelocvars;
+        int linedefined;
+        int lastlinedefined;
+        GCObject *gclist;
+        lu_byte numparams;  /* number of fixed parameters */
+        lu_byte is_vararg;
+        lu_byte maxstacksize;  /* maximum stack used by this function */
+    };
+
+    struct LClosure
+    {
+        GCObject *next; lu_byte tt; lu_byte marked; lu_byte nupvalues; GCObject *gclist;
+        struct Proto *p;
+
+        // Don't care for other fields
+    };
+
+    struct CallInfo
+    {
+        StkId func;  /* function index in the stack */
+
+        // Don't care for other fields
+    };
+
+    struct lua_Debug
+    {
+        int event;
+        const char *name;	/* (n) */
+        const char *namewhat;	/* (n) 'global', 'local', 'field', 'method' */
+        const char *what;	/* (S) 'Lua', 'C', 'main', 'tail' */
+        const char *source;	/* (S) */
+        int currentline;	/* (l) */
+        int linedefined;	/* (S) */
+        int lastlinedefined;	/* (S) */
+        unsigned char nups;	/* (u) number of upvalues */
+        unsigned char nparams;/* (u) number of parameters */
+        char isvararg;        /* (u) */
+        char istailcall;	/* (t) */
+        char short_src[LUA_IDSIZE]; /* (S) */
+        /* private part */
+        struct CallInfo *i_ci;  /* active function */
+    };
+
+    union TString
+    {
+        union
+        {
+            double u; void *s; long l;
+        } dummy;  /* ensures maximum alignment for strings */
+        struct
+        {
+            GCObject *next; lu_byte tt; lu_byte marked;
+            lu_byte extra;  /* reserved words for short strings; "has hash" for longs */
+            unsigned int hash;
+            size_t len;  /* number of characters in string */
+        } tsv;
+    };
+}
+
+namespace Lua_5_1
+{
+    const unsigned LUA_IDSIZE = 60;
+
+    typedef unsigned char lu_byte;
+
+    union GCObject;
+
+    union Value
+    {
+        GCObject *gc;
+        void *p;
+        double n;
+        int b;
+    };
+
+    struct TValue
+    {
+        Value value; int tt;
+    };
+
+    typedef TValue *StkId;
+
+    typedef unsigned Instruction;
+
+    struct LocVar;
+    struct Upvaldesc;
+    union TString;
+
+    struct Proto
+    {
+        GCObject *next; lu_byte tt; lu_byte marked;
+        TValue *k;  /* constants used by the function */
+        Instruction *code;
+        struct Proto **p;  /* functions defined inside the function */
+        int *lineinfo;  /* map from opcodes to source lines */
+        struct LocVar *locvars;  /* information about local variables */
+        TString **upvalues;  /* upvalue names */
+        TString  *source;
+        int sizeupvalues;
+        int sizek;  /* size of `k' */
+        int sizecode;
+        int sizelineinfo;
+        int sizep;  /* size of `p' */
+        int sizelocvars;
+        int linedefined;
+        int lastlinedefined;
+        GCObject *gclist;
+        lu_byte nups;  /* number of upvalues */
+        lu_byte numparams;
+        lu_byte is_vararg;
+        lu_byte maxstacksize;
+    };
+
+    struct LClosure
+    {
+        GCObject *next; lu_byte tt; lu_byte marked; lu_byte isC; lu_byte nupvalues; GCObject *gclist;
+        struct Table *env;
+        struct Proto *p;
+
+        // Don't care for other fields
+    };
+
+    struct CallInfo
+    {
+        StkId base;  /* base for this function */
+        StkId func;  /* function index in the stack */
+        StkId top;  /* top for this function */
+        const Instruction *savedpc;
+        int nresults;  /* expected number of results from this function */
+        int tailcalls;  /* number of tail calls lost under this entry */
+    };
+
+    struct lua_Debug
+    {
+        int event;
+        const char *name;	/* (n) */
+        const char *namewhat;	/* (n) `global', `local', `field', `method' */
+        const char *what;	/* (S) `Lua', `C', `main', `tail' */
+        const char *source;	/* (S) */
+        int currentline;	/* (l) */
+        int nups;		/* (u) number of upvalues */
+        int linedefined;	/* (S) */
+        int lastlinedefined;	/* (S) */
+        char short_src[LUA_IDSIZE]; /* (S) */
+        /* private part */
+        int i_ci;  /* active function */
+    };
+
+    struct global_State;
+
+    struct lua_State
+    {
+        GCObject *next; lu_byte tt; lu_byte marked;
+        lu_byte status;
+        StkId top;  /* first free slot in the stack */
+        StkId base;  /* base of current function */
+        global_State *l_G;
+        CallInfo *ci;  /* call info for current function */
+        const Instruction *savedpc;  /* `savedpc' of current function */
+        StkId stack_last;  /* last free slot in the stack */
+        StkId stack;  /* stack base */
+        CallInfo *end_ci;  /* points after end of ci array*/
+        CallInfo *base_ci;  /* array of CallInfo's */
+        int stacksize;
+        int size_ci;  /* size of array `base_ci' */
+        unsigned short nCcalls;  /* number of nested C calls */
+        unsigned short baseCcalls;  /* nested C calls when resuming coroutine */
+        lu_byte hookmask;
+        lu_byte allowhook;
+        int basehookcount;
+        int hookcount;
+
+        // Don't care for other fields
+    };
+
+    union TString
+    {
+        union
+        {
+            double u; void *s; long l;
+        } dummy;  /* ensures maximum alignment for strings */
+        struct
+        {
+            GCObject *next; lu_byte tt; lu_byte marked;
+            lu_byte reserved;
+            unsigned int hash;
+            size_t len;
+        } tsv;
+    };
+}
+
 struct LuaHelperBreakData
 {
     uintptr_t line;
@@ -206,7 +450,75 @@ extern "C" __declspec(dllexport) unsigned luaHelperStepInto = 0;
 extern "C" __declspec(dllexport) unsigned luaHelperStepOut = 0;
 extern "C" __declspec(dllexport) unsigned luaHelperSkipDepth = 0;
 
-extern "C" __declspec(dllexport) void LuaHelperHook(void *L, Lua_5_3::lua_Debug *ar)
+void LuaHelperStepHook(int event)
+{
+    if(event == LUA_HOOKCALL)
+    {
+        if(luaHelperStepInto)
+        {
+            OnLuaHelperStepInto();
+        }
+        else if(luaHelperStepOver || luaHelperStepOut)
+        {
+            luaHelperSkipDepth++;
+        }
+    }
+
+    if(event == LUA_HOOKTAILCALL)
+    {
+        if(luaHelperStepInto)
+        {
+            OnLuaHelperStepInto();
+        }
+    }
+
+    if(event == LUA_HOOKRET)
+    {
+        if(luaHelperStepOut && luaHelperSkipDepth == 0)
+        {
+            OnLuaHelperStepOut();
+        }
+        else if((luaHelperStepOver || luaHelperStepOut) && luaHelperSkipDepth > 0)
+        {
+            luaHelperSkipDepth--;
+        }
+    }
+
+    if(event == LUA_HOOKLINE && (luaHelperStepOver || luaHelperStepInto) && luaHelperSkipDepth == 0)
+        OnLuaHelperStepComplete();
+}
+
+void LuaHelperBreakpointHook(int line, uintptr_t proto, const char *sourceName)
+{
+    for(auto curr = luaHelperBreakData, end = luaHelperBreakData + luaHelperBreakCount; curr != end; curr++)
+    {
+        if(line != curr->line)
+            continue;
+
+        if(curr->proto)
+        {
+            if(proto == curr->proto)
+            {
+                luaHelperBreakHitId = unsigned(curr - luaHelperBreakData);
+
+                OnLuaHelperBreakpointHit();
+                break;
+            }
+        }
+        else
+        {
+            if(strcmp(curr->sourceName, sourceName) == 0)
+            {
+                luaHelperBreakHitId = unsigned(curr - luaHelperBreakData);
+
+                OnLuaHelperBreakpointHit();
+                break;
+            }
+        }
+    }
+}
+
+extern "C" __declspec(dllexport) void LuaHelperHook_5_3(void *L, Lua_5_3::lua_Debug *ar)
 {
 #if defined(DEBUG_MODE)
     const char *sourceName = "uknown location";
@@ -272,6 +584,35 @@ extern "C" __declspec(dllexport) void LuaHelperHook(void *L, Lua_5_3::lua_Debug 
         }
     }
 #else
+    LuaHelperStepHook(ar->event);
+#endif
+
+    if(ar->i_ci && (ar->i_ci->func->tt_ & 0x3f) == 6)
+    {
+        auto proto = ((Lua_5_3::LClosure*)ar->i_ci->func->value_.gc)->p;
+
+        const char *sourceName = (char*)proto->source + sizeof(Lua_5_3::TString);
+
+        LuaHelperBreakpointHook(ar->currentline, uintptr_t(proto), sourceName);
+    }
+}
+
+extern "C" __declspec(dllexport) void LuaHelperHook_5_2(void *L, Lua_5_2::lua_Debug *ar)
+{
+    LuaHelperStepHook(ar->event);
+
+    if(ar->i_ci && (ar->i_ci->func->u.i.tt__ & 0x3f) == 6)
+    {
+        auto proto = ((Lua_5_2::LClosure*)ar->i_ci->func->u.i.v__.gc)->p;
+
+        const char *sourceName = (char*)proto->source + sizeof(Lua_5_2::TString);
+
+        LuaHelperBreakpointHook(ar->currentline, uintptr_t(proto), sourceName);
+    }
+}
+
+extern "C" __declspec(dllexport) void LuaHelperHook_5_1(Lua_5_1::lua_State *L, Lua_5_1::lua_Debug *ar)
+{
     if(ar->event == LUA_HOOKCALL)
     {
         if(luaHelperStepInto)
@@ -284,15 +625,7 @@ extern "C" __declspec(dllexport) void LuaHelperHook(void *L, Lua_5_3::lua_Debug 
         }
     }
 
-    if(ar->event == LUA_HOOKTAILCALL)
-    {
-        if(luaHelperStepInto)
-        {
-            OnLuaHelperStepInto();
-        }
-    }
-
-    if(ar->event == LUA_HOOKRET)
+    if(ar->event == LUA_HOOKRET || ar->event == LUA_HOOKTAILRET)
     {
         if(luaHelperStepOut && luaHelperSkipDepth == 0)
         {
@@ -305,43 +638,25 @@ extern "C" __declspec(dllexport) void LuaHelperHook(void *L, Lua_5_3::lua_Debug 
     }
 
     if(ar->event == LUA_HOOKLINE && (luaHelperStepOver || luaHelperStepInto) && luaHelperSkipDepth == 0)
-        OnLuaHelperStepComplete();
-#endif
-
-    if(ar->i_ci && (ar->i_ci->func->tt_ & 0x3f) == 6)
     {
-        auto proto = ((Lua_5_3::LClosure*)ar->i_ci->func->value_.gc)->p;
+        OnLuaHelperStepComplete();
+    }
 
-        for(auto curr = luaHelperBreakData, end = luaHelperBreakData + luaHelperBreakCount; curr != end; curr++)
+    if(ar->i_ci >= 0)
+    {
+        auto function = L->base_ci[ar->i_ci].func;
+
+        if((function->tt & 0x3f) == 6)
         {
-            if(ar->currentline != curr->line)
-                continue;
+            auto luaClosure = (Lua_5_1::LClosure*)function->value.gc;
 
-            if(curr->proto)
+            if(!luaClosure->isC)
             {
-                //printf("Line %d match, checking proto %u against %u %s\n", curr->line, uintptr_t(proto), curr->proto, curr->sourceName ? curr->sourceName : "(null)");
+                auto proto = luaClosure->p;
 
-                if(uintptr_t(proto) == curr->proto)
-                {
-                    luaHelperBreakHitId = unsigned(curr - luaHelperBreakData);
+                const char *sourceName = (char*)proto->source + sizeof(Lua_5_1::TString);
 
-                    OnLuaHelperBreakpointHit();
-                    break;
-                }
-            }
-            else
-            {
-                const char *sourceName = (char*)proto->source + sizeof(Lua_5_3::TString);
-
-                //printf("Line %d match, checking source name %s against %u %s\n", curr->line, sourceName, curr->proto, curr->sourceName ? curr->sourceName : "(null)");
-
-                if(strcmp(curr->sourceName, sourceName) == 0)
-                {
-                    luaHelperBreakHitId = unsigned(curr - luaHelperBreakData);
-
-                    OnLuaHelperBreakpointHit();
-                    break;
-                }
+                LuaHelperBreakpointHook(ar->currentline, uintptr_t(proto), sourceName);
             }
         }
     }
