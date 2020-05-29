@@ -794,7 +794,7 @@ namespace LuaDkmDebuggerComponent
 
         string CheckConfigPaths(string processPath, LuaLocalProcessData processData, string winSourcePath)
         {
-            log.Debug($"Checking for file in configuration paths");
+            log.Verbose($"Checking for file in configuration paths");
 
             if (processData.configuration != null && processData.configuration.ScriptPaths != null)
             {
@@ -2153,7 +2153,7 @@ namespace LuaDkmDebuggerComponent
                                 }
                                 else
                                 {
-                                    log.Debug("Failed to set breakpoint at 'OnLuaHelperInitialized'");
+                                    log.Error("Failed to set breakpoint at 'OnLuaHelperInitialized'");
 
                                     processData.helperFailed = true;
                                 }
