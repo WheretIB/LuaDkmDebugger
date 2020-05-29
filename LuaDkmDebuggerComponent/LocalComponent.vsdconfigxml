@@ -3,8 +3,9 @@
 	<DefineGuid Name="guidLuaLocalDebuggerComponent" Value="CF3F5D48-EFBB-49CB-916A-F19812A322ED"/>
 	<DefineGuid Name="guidLuaSymbolProvider" Value="00BB9B25-E5EA-4B0F-AD3D-C017B16F4FA1"/>
 	<DefineGuid Name="guidLuaLanguage" Value="C241D4C1-BC0C-45F7-99D3-D5264155BD05"/>
+	<DefineGuid Name="guidLuaMessageToLocal" Value="40C433F5-7EB9-400F-8DAC-DC4CAC739BE4"/>
 
-	<ManagedComponent ComponentId="guidLuaLocalDebuggerComponent" ComponentLevel="1999000" AssemblyName="LuaDkmDebuggerComponent">
+	<ManagedComponent ComponentId="guidLuaLocalDebuggerComponent" ComponentLevel="9995000" AssemblyName="LuaDkmDebuggerComponent">
 		<Class Name="LuaDkmDebuggerComponent.LocalComponent">
 			<Implements>
 				<InterfaceGroup>
@@ -27,6 +28,19 @@
 						<LanguageId RequiredValue="guidLuaLanguage"/>
 					</Filter>
 					<Interface Name="IDkmLanguageExpressionEvaluator"/>
+					<Interface Name="IDkmLanguageInstructionDecoder"/>
+				</InterfaceGroup>
+
+				<InterfaceGroup>
+					<NoFilter/>
+					<Interface Name="IDkmModuleInstanceLoadNotification"/>
+				</InterfaceGroup>
+
+				<InterfaceGroup>
+					<Filter>
+						<SourceId RequiredValue="guidLuaMessageToLocal"/>
+					</Filter>
+					<Interface Name="IDkmCustomMessageCallbackReceiver"/>
 				</InterfaceGroup>
 			</Implements>
 		</Class>

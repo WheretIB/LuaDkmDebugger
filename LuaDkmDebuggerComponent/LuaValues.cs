@@ -363,6 +363,7 @@ namespace LuaDkmDebuggerComponent
             return $"0x{targetAddress:x}";
         }
 
+        public LuaExternalClosureData value;
         public ulong targetAddress;
     }
 

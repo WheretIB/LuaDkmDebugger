@@ -2,6 +2,8 @@ using System;
 using Microsoft.VisualStudio.Debugger;
 using Microsoft.VisualStudio.Debugger.DefaultPort;
 using Microsoft.VisualStudio.Debugger.Native;
+using Dia2Lib;
+using System.Runtime.InteropServices;
 
 namespace LuaDkmDebuggerComponent
 {
@@ -21,22 +23,17 @@ namespace LuaDkmDebuggerComponent
             return item;
         }
 
-        internal static string FindFunctionAddress(DkmRuntimeInstance runtimeInstance, string name)
+        internal static ulong FindFunctionAddress(DkmRuntimeInstance runtimeInstance, string name)
         {
-            string result = null;
-
             foreach (var module in runtimeInstance.GetModuleInstances())
             {
                 var address = (module as DkmNativeModuleInstance)?.FindExportName(name, IgnoreDataExports: true);
 
                 if (address != null)
-                {
-                    result = $"0x{address.CPUInstructionPart.InstructionPointer:X}";
-                    break;
-                }
+                    return address.CPUInstructionPart.InstructionPointer;
             }
 
-            return result;
+            return 0;
         }
 
         internal static bool Is64Bit(DkmProcess process)
@@ -230,7 +227,21 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
-        internal static bool TryWriteVariable(DkmProcess process, ulong address, byte value)
+        internal static bool TryWriteRawBytes(DkmProcess process, ulong address, byte[] value)
+        {
+            try
+            {
+                process.WriteMemory(address, value);
+            }
+            catch (DkmException)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        internal static bool TryWriteByteVariable(DkmProcess process, ulong address, byte value)
         {
             try
             {
@@ -244,7 +255,7 @@ namespace LuaDkmDebuggerComponent
             return true;
         }
 
-        internal static bool TryWriteVariable(DkmProcess process, ulong address, short value)
+        internal static bool TryWriteShortVariable(DkmProcess process, ulong address, short value)
         {
             try
             {
@@ -258,7 +269,7 @@ namespace LuaDkmDebuggerComponent
             return true;
         }
 
-        internal static bool TryWriteVariable(DkmProcess process, ulong address, int value)
+        internal static bool TryWriteIntVariable(DkmProcess process, ulong address, int value)
         {
             try
             {
@@ -272,7 +283,7 @@ namespace LuaDkmDebuggerComponent
             return true;
         }
 
-        internal static bool TryWriteVariable(DkmProcess process, ulong address, long value)
+        internal static bool TryWriteUintVariable(DkmProcess process, ulong address, uint value)
         {
             try
             {
@@ -286,7 +297,7 @@ namespace LuaDkmDebuggerComponent
             return true;
         }
 
-        internal static bool TryWriteVariable(DkmProcess process, ulong address, float value)
+        internal static bool TryWriteLongVariable(DkmProcess process, ulong address, long value)
         {
             try
             {
@@ -300,7 +311,7 @@ namespace LuaDkmDebuggerComponent
             return true;
         }
 
-        internal static bool TryWriteVariable(DkmProcess process, ulong address, double value)
+        internal static bool TryWriteUlongVariable(DkmProcess process, ulong address, ulong value)
         {
             try
             {
@@ -312,6 +323,42 @@ namespace LuaDkmDebuggerComponent
             }
 
             return true;
+        }
+
+        internal static bool TryWriteFloatVariable(DkmProcess process, ulong address, float value)
+        {
+            try
+            {
+                process.WriteMemory(address, BitConverter.GetBytes(value));
+            }
+            catch (DkmException)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        internal static bool TryWriteDoubleVariable(DkmProcess process, ulong address, double value)
+        {
+            try
+            {
+                process.WriteMemory(address, BitConverter.GetBytes(value));
+            }
+            catch (DkmException)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        internal static bool TryWritePointerVariable(DkmProcess process, ulong address, ulong value)
+        {
+            if (!Is64Bit(process))
+                return TryWriteUintVariable(process, address, (uint)value);
+
+            return TryWriteUlongVariable(process, address, value);
         }
 
         internal static byte? ReadStructByte(DkmProcess process, ref ulong address)
@@ -432,6 +479,156 @@ namespace LuaDkmDebuggerComponent
                 SkipStructUint(process, ref address);
             else
                 SkipStructUlong(process, ref address);
+        }
+
+        internal static void ReleaseComObject(object obj)
+        {
+            if (obj != null && Marshal.IsComObject(obj))
+                Marshal.ReleaseComObject(obj);
+        }
+
+        internal static IDiaSymbol TryGetDiaSymbols(DkmModuleInstance moduleInstance, out string error)
+        {
+            if (moduleInstance == null)
+            {
+                error = $"TryGetDiaSymbols() Module instance is null";
+                return null;
+            }
+
+            if (moduleInstance.Module == null)
+            {
+                error = $"TryGetDiaSymbols() Module is null";
+                return null;
+            }
+
+            IDiaSession diaSession;
+            try
+            {
+                diaSession = (IDiaSession)moduleInstance.Module.GetSymbolInterface(typeof(IDiaSession).GUID);
+            }
+            catch (InvalidCastException)
+            {
+                error = $"TryGetDiaSymbols() diaSession InvalidCastException";
+                return null;
+            }
+
+            diaSession.findChildren(null, SymTagEnum.SymTagExe, null, 0, out IDiaEnumSymbols exeSymEnum);
+
+            if (exeSymEnum.count != 1)
+            {
+                error = $"TryGetDiaSymbols() exeSymEnum.count {exeSymEnum.count} != 1";
+
+                ReleaseComObject(diaSession);
+                return null;
+            }
+
+            var symbol = exeSymEnum.Item(0);
+
+            ReleaseComObject(exeSymEnum);
+            ReleaseComObject(diaSession);
+
+            error = null;
+            return symbol;
+        }
+
+        internal static IDiaSymbol TryGetDiaSymbol(IDiaSymbol symbol, SymTagEnum symTag, string name, out string error)
+        {
+            symbol.findChildren(symTag, name, 1, out IDiaEnumSymbols enumSymbols);
+
+            if (enumSymbols.count != 1)
+            {
+                error = $"TryGetDiaSymbols() enumSymbols.count {enumSymbols.count} != 1";
+
+                ReleaseComObject(enumSymbols);
+
+                return null;
+            }
+
+            error = null;
+            return enumSymbols.Item(0u);
+        }
+
+        internal static IDiaSymbol TryGetDiaFunctionSymbol(DkmNativeModuleInstance moduleInstance, string name, out string error)
+        {
+            var moduleSymbols = TryGetDiaSymbols(moduleInstance, out error);
+
+            if (moduleSymbols == null)
+                return null;
+
+            var functionSymbol = TryGetDiaSymbol(moduleSymbols, SymTagEnum.SymTagFunction, name, out error);
+
+            if (functionSymbol == null)
+            {
+                ReleaseComObject(moduleSymbols);
+
+                return null;
+            }
+
+            ReleaseComObject(moduleSymbols);
+
+            return functionSymbol;
+        }
+
+        internal static ulong? TryGetFunctionAddress(DkmNativeModuleInstance moduleInstance, string name, out string error)
+        {
+            var functionSymbol = TryGetDiaFunctionSymbol(moduleInstance, name, out error);
+
+            if (functionSymbol == null)
+                return null;
+
+            uint rva = functionSymbol.relativeVirtualAddress;
+
+            ReleaseComObject(functionSymbol);
+
+            return moduleInstance.BaseAddress + rva;
+        }
+
+        internal static ulong? TryGetFunctionAddressAtDebugStart(DkmNativeModuleInstance moduleInstance, string name, out string error)
+        {
+            var functionSymbol = TryGetDiaFunctionSymbol(moduleInstance, name, out error);
+
+            if (functionSymbol == null)
+                return null;
+
+            var functionStartSymbol = TryGetDiaSymbol(functionSymbol, SymTagEnum.SymTagFuncDebugStart, null, out error);
+
+            if (functionStartSymbol == null)
+            {
+                ReleaseComObject(functionSymbol);
+
+                return null;
+            }
+
+            uint rva = functionStartSymbol.relativeVirtualAddress;
+
+            ReleaseComObject(functionStartSymbol);
+            ReleaseComObject(functionSymbol);
+
+            return moduleInstance.BaseAddress + rva;
+        }
+
+        internal static ulong? TryGetFunctionAddressAtDebugEnd(DkmNativeModuleInstance moduleInstance, string name, out string error)
+        {
+            var functionSymbol = TryGetDiaFunctionSymbol(moduleInstance, name, out error);
+
+            if (functionSymbol == null)
+                return null;
+
+            var functionEndSymbol = TryGetDiaSymbol(functionSymbol, SymTagEnum.SymTagFuncDebugEnd, null, out error);
+
+            if (functionEndSymbol == null)
+            {
+                ReleaseComObject(functionSymbol);
+
+                return null;
+            }
+
+            uint rva = functionEndSymbol.relativeVirtualAddress;
+
+            ReleaseComObject(functionEndSymbol);
+            ReleaseComObject(functionSymbol);
+
+            return moduleInstance.BaseAddress + rva;
         }
     }
 }

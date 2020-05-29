@@ -372,12 +372,17 @@ namespace LuaDkmDebuggerComponent
 
                         if (value.HasValue)
                         {
+                            LuaExternalClosureData target = new LuaExternalClosureData();
+
+                            target.ReadFrom(process, value.Value);
+
                             return new LuaValueDataExternalClosure()
                             {
                                 baseType = GetBaseType(typeTag.Value),
                                 extendedType = GetExtendedType(typeTag.Value),
                                 evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
                                 originalAddress = address,
+                                value = target,
                                 targetAddress = value.Value
                             };
                         }
@@ -484,6 +489,84 @@ namespace LuaDkmDebuggerComponent
         }
     }
 
+    public class LuaUpvalueDescriptionData
+    {
+        public ulong nameAddress; // TString
+        public string name;
+
+        // Not available in Lua 5.1
+        public byte isInStack;
+        public byte index;
+
+        public static int StructSize(DkmProcess process)
+        {
+            if (LuaHelpers.luaVersion == 501)
+                return DebugHelpers.GetPointerSize(process);
+
+            return DebugHelpers.GetPointerSize(process) * 2;
+        }
+
+        public void ReadFrom(DkmProcess process, ulong address)
+        {
+            if (LuaHelpers.luaVersion == 501)
+            {
+                nameAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+            }
+            else
+            {
+                // Same in Lua 5.2 and 5.3
+                nameAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+
+                isInStack = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
+                index = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
+            }
+
+            if (nameAddress != 0)
+            {
+                byte[] nameData = process.ReadMemoryString(nameAddress + LuaHelpers.GetStringDataOffset(process), DkmReadMemoryFlags.None, 1, 256);
+
+                if (nameData != null && nameData.Length != 0)
+                    name = System.Text.Encoding.UTF8.GetString(nameData, 0, nameData.Length - 1);
+                else
+                    name = "failed_to_read_name";
+            }
+            else
+            {
+                name = "nil";
+            }
+        }
+    }
+
+    public class LuaUpvalueData
+    {
+        public ulong valueAddress;
+        public LuaValueDataBase value;
+
+        // Not interested in other data
+
+        public void ReadFrom(DkmProcess process, ulong address)
+        {
+            if (LuaHelpers.luaVersion == 501 || LuaHelpers.luaVersion == 502)
+            {
+                // Same in Lua 5.1 and 5.2
+
+                // Skip CommonHeader
+                DebugHelpers.SkipStructPointer(process, ref address);
+                DebugHelpers.SkipStructByte(process, ref address);
+                DebugHelpers.SkipStructByte(process, ref address);
+
+                valueAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+            }
+            else if (LuaHelpers.luaVersion == 503)
+            {
+                valueAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+            }
+
+            if (valueAddress != 0)
+                value = LuaHelpers.ReadValue(process, valueAddress);
+        }
+    }
+
     public class LuaFunctionData
     {
         public ulong originalAddress;
@@ -517,6 +600,8 @@ namespace LuaDkmDebuggerComponent
         public int[] lineInfo;
 
         public string source;
+
+        public List<LuaUpvalueDescriptionData> upvalues;
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
@@ -637,6 +722,15 @@ namespace LuaDkmDebuggerComponent
                 gclistAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
                 address += pointerSize;
             }
+
+            // Sanity checks to 'guess' if we have wrong function data
+            Debug.Assert(definitionStartLine >= 0 && definitionStartLine < 1000000);
+            Debug.Assert(definitionEndLine >= 0 && definitionEndLine < 1000000);
+            Debug.Assert(lineInfoSize >= 0 && lineInfoSize < 1000000);
+
+            Debug.Assert(localFunctionSize >= 0 && localFunctionSize < 10000);
+            Debug.Assert(localVariableSize >= 0 && localVariableSize < 10000);
+            Debug.Assert(upvalueSize >= 0 && upvalueSize < 10000);
         }
 
         public void ReadLocals(DkmProcess process, int instructionPointer)
@@ -679,7 +773,12 @@ namespace LuaDkmDebuggerComponent
             {
                 LuaFunctionData data = new LuaFunctionData();
 
-                data.ReadFrom(process, localFunctionDataAddress + (ulong)(i * DebugHelpers.GetPointerSize(process)));
+                var targetAddress = DebugHelpers.ReadPointerVariable(process, localFunctionDataAddress + (ulong)(i * DebugHelpers.GetPointerSize(process)));
+
+                if (!targetAddress.HasValue)
+                    continue;
+
+                data.ReadFrom(process, targetAddress.Value);
 
                 localFunctions.Add(data);
             }
@@ -714,6 +813,24 @@ namespace LuaDkmDebuggerComponent
             source = DebugHelpers.ReadStringVariable(process, sourceAddress + LuaHelpers.GetStringDataOffset(process), 1024);
 
             return source;
+        }
+
+        public void ReadUpvalues(DkmProcess process)
+        {
+            // Check if alraedy loaded
+            if (upvalues != null)
+                return;
+
+            upvalues = new List<LuaUpvalueDescriptionData>();
+
+            for (int i = 0; i < upvalueSize; i++)
+            {
+                LuaUpvalueDescriptionData upvalue = new LuaUpvalueDescriptionData();
+
+                upvalue.ReadFrom(process, upvalueDataAddress + (ulong)(i * LuaUpvalueDescriptionData.StructSize(process)));
+
+                upvalues.Add(upvalue);
+            }
         }
     }
 
@@ -956,6 +1073,8 @@ namespace LuaDkmDebuggerComponent
         // LClosure
         public ulong functionAddress;
 
+        public ulong firstUpvaluePointerAddress;
+
         public LuaFunctionData function;
 
         public void ReadFrom(DkmProcess process, ulong address)
@@ -974,6 +1093,8 @@ namespace LuaDkmDebuggerComponent
                 DebugHelpers.SkipStructPointer(process, ref address); // env
 
             functionAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+
+            firstUpvaluePointerAddress = address;
         }
 
         public LuaFunctionData ReadFunction(DkmProcess process)
@@ -990,10 +1111,108 @@ namespace LuaDkmDebuggerComponent
 
             return function;
         }
+
+        public LuaUpvalueData ReadUpvalue(DkmProcess process, int index)
+        {
+            Debug.Assert(index < upvalueSize);
+
+            ulong upvalueAddress = DebugHelpers.ReadPointerVariable(process, firstUpvaluePointerAddress + (ulong)(index * DebugHelpers.GetPointerSize(process))).GetValueOrDefault(0);
+
+            if (upvalueAddress == 0)
+                return null;
+
+            LuaUpvalueData result = new LuaUpvalueData();
+
+            result.ReadFrom(process, upvalueAddress);
+
+            return result;
+        }
+    }
+
+    public class LuaExternalClosureData
+    {
+        // CommonHeader
+        public ulong nextAddress;
+        public byte typeTag;
+        public byte marked;
+
+        // ClosureHeader
+        public byte isC_5_1;
+        public byte upvalueSize;
+        public ulong gcListAddress;
+
+        // CClosure
+        public ulong functionAddress;
+
+        public void ReadFrom(DkmProcess process, ulong address)
+        {
+            nextAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+            typeTag = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+            marked = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+
+            if (LuaHelpers.luaVersion == 501)
+                isC_5_1 = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+
+            upvalueSize = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+            gcListAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+
+            if (LuaHelpers.luaVersion == 501)
+                DebugHelpers.SkipStructPointer(process, ref address); // env
+
+            functionAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+        }
+    }
+
+    public class LuaAddressEntityData
+    {
+        // Main level - source:line
+        public string source;
+        public int line;
+
+        // Extended level 'inside' source and line - function and instruction number
+        // When this information is missing we can assume that we have the 'first' insrtuciton on source:line
+        public ulong functionAddress; // Address of the Proto struct
+        public int functionInstructionPointer;
+
+        public ReadOnlyCollection<byte> Encode()
+        {
+            using (var stream = new MemoryStream())
+            {
+                using (var writer = new BinaryWriter(stream))
+                {
+                    writer.Write(source);
+                    writer.Write(line);
+
+                    writer.Write(functionAddress);
+                    writer.Write(functionInstructionPointer);
+
+                    writer.Flush();
+
+                    return new ReadOnlyCollection<byte>(stream.ToArray());
+                }
+            }
+        }
+
+        public void ReadFrom(byte[] data)
+        {
+            using (var stream = new MemoryStream(data))
+            {
+                using (var reader = new BinaryReader(stream))
+                {
+                    source = reader.ReadString();
+                    line = reader.ReadInt32();
+
+                    functionAddress = reader.ReadUInt64();
+                    functionInstructionPointer = reader.ReadInt32();
+                }
+            }
+        }
     }
 
     public class LuaFrameData
     {
+        public int marker = 1;
+
         public ulong state; // Address of the Lua state, called 'L' in Lua library
 
         public ulong registryAddress; // Address of the Lua global registry, accessible as '&L->l_G->l_registry' in Lua library
@@ -1015,6 +1234,8 @@ namespace LuaDkmDebuggerComponent
             {
                 using (var writer = new BinaryWriter(stream))
                 {
+                    writer.Write(marker);
+
                     writer.Write(state);
 
                     writer.Write(registryAddress);
@@ -1037,12 +1258,17 @@ namespace LuaDkmDebuggerComponent
             }
         }
 
-        public void ReadFrom(byte[] data)
+        public bool ReadFrom(byte[] data)
         {
             using (var stream = new MemoryStream(data))
             {
                 using (var reader = new BinaryReader(stream))
                 {
+                    marker = reader.ReadInt32();
+
+                    if (marker != 1)
+                        return false;
+
                     state = reader.ReadUInt64();
 
                     registryAddress = reader.ReadUInt64();
@@ -1059,16 +1285,17 @@ namespace LuaDkmDebuggerComponent
                     source = reader.ReadString();
                 }
             }
+
+            return true;
         }
     }
 
-    public class LuaAddressEntityData
+    public class LuaBreakpointAdditionalData
     {
-        public ulong functionAddress; // Address of the Proto struct
-
-        public int instructionPointer;
+        public int marker = 2;
 
         public string source;
+        public int line;
 
         public ReadOnlyCollection<byte> Encode()
         {
@@ -1076,11 +1303,10 @@ namespace LuaDkmDebuggerComponent
             {
                 using (var writer = new BinaryWriter(stream))
                 {
-                    writer.Write(functionAddress);
-
-                    writer.Write(instructionPointer);
+                    writer.Write(marker);
 
                     writer.Write(source);
+                    writer.Write(line);
 
                     writer.Flush();
 
@@ -1089,19 +1315,23 @@ namespace LuaDkmDebuggerComponent
             }
         }
 
-        public void ReadFrom(byte[] data)
+        public bool ReadFrom(byte[] data)
         {
             using (var stream = new MemoryStream(data))
             {
                 using (var reader = new BinaryReader(stream))
                 {
-                    functionAddress = reader.ReadUInt64();
+                    marker = reader.ReadInt32();
 
-                    instructionPointer = reader.ReadInt32();
+                    if (marker != 2)
+                        return false;
 
                     source = reader.ReadString();
+                    line = reader.ReadInt32();
                 }
             }
+
+            return true;
         }
     }
 }
