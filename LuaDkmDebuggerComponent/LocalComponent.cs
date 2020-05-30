@@ -1,5 +1,4 @@
 ﻿using Microsoft.VisualStudio.Debugger;
-using Microsoft.VisualStudio.Debugger.Breakpoints;
 using Microsoft.VisualStudio.Debugger.CallStack;
 using Microsoft.VisualStudio.Debugger.ComponentInterfaces;
 using Microsoft.VisualStudio.Debugger.CustomRuntimes;
@@ -13,22 +12,11 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Web.Script.Serialization;
 
 namespace LuaDkmDebuggerComponent
 {
-    // TODO: move to a separate file
-    internal class Kernel32
-    {
-        [DllImport("kernel32.dll")]
-        public static extern IntPtr OpenProcess(uint dwDesiredAccess, [MarshalAs(UnmanagedType.Bool)] bool bInheritHandle, int dwProcessId);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        internal static extern IntPtr CreateRemoteThread(IntPtr hProcess, IntPtr lpThreadAttributes, UIntPtr dwStackSize, IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, IntPtr lpThreadId);
-    }
-
     internal class LuaDebugConfiguration
     {
         public List<string> ScriptPaths = new List<string>();
@@ -134,9 +122,9 @@ namespace LuaDkmDebuggerComponent
     public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery, IDkmModuleInstanceLoadNotification, IDkmCustomMessageCallbackReceiver, IDkmLanguageInstructionDecoder
     {
 #if DEBUG
-        public Log log = new Log(Log.LogLevel.Debug);
+        public static Log log = new Log(Log.LogLevel.Debug);
 #else
-        public Log log = new Log(Log.LogLevel.Error);
+        public static Log log = new Log(Log.LogLevel.Error);
 #endif
 
         internal string ExecuteExpression(string expression, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame input, DkmEvaluationFlags flags, bool allowZero, out ulong address)
@@ -1964,127 +1952,6 @@ namespace LuaDkmDebuggerComponent
             return resolvedDocument.FindSymbols(textSpan, text, out symbolLocation);
         }
 
-        Guid? CreateHelperFunctionBreakpoint(DkmNativeModuleInstance nativeModuleInstance, string functionName)
-        {
-            var functionAddress = DebugHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, functionName, out string error);
-
-            if (functionAddress != null)
-            {
-                log.Debug($"Creating breakpoint in '{functionName}'");
-
-                var nativeAddress = nativeModuleInstance.Process.CreateNativeInstructionAddress(functionAddress.Value);
-
-                var breakpoint = DkmRuntimeInstructionBreakpoint.Create(Guids.luaSupportBreakpointGuid, null, nativeAddress, false, null);
-
-                breakpoint.Enable();
-
-                return breakpoint.UniqueId;
-            }
-            else
-            {
-                var nativeFunctionAddress = FindFunctionAddress(nativeModuleInstance, functionName);
-
-                if (nativeFunctionAddress != 0)
-                {
-                    log.Debug($"Creating 'native' breakpoint in '{functionName}'");
-
-                    var nativeAddress = nativeModuleInstance.Process.CreateNativeInstructionAddress(nativeFunctionAddress);
-
-                    var breakpoint = DkmRuntimeInstructionBreakpoint.Create(Guids.luaSupportBreakpointGuid, null, nativeAddress, false, null);
-
-                    breakpoint.Enable();
-
-                    return breakpoint.UniqueId;
-                }
-                else
-                {
-                    log.Warning($"Failed to create breakpoint in '{functionName}' with {error}");
-                }
-            }
-
-            return null;
-        }
-
-        ulong FindFunctionAddress(DkmNativeModuleInstance nativeModuleInstance, string functionName)
-        {
-            var address = nativeModuleInstance.FindExportName(functionName, IgnoreDataExports: true);
-
-            if (address != null)
-            {
-                log.Debug($"Found helper library '{functionName}' function at 0x{address.CPUInstructionPart.InstructionPointer:x}");
-
-                return address.CPUInstructionPart.InstructionPointer;
-            }
-
-            log.Warning($"Failed to find helper library '{functionName}' function");
-
-            return 0;
-        }
-
-        ulong FindVariableAddress(DkmNativeModuleInstance nativeModuleInstance, string variableName)
-        {
-            var address = nativeModuleInstance.FindExportName(variableName, IgnoreDataExports: false);
-
-            if (address != null)
-            {
-                log.Debug($"Found helper library '{variableName}' variable at 0x{address.CPUInstructionPart.InstructionPointer:x}");
-
-                return address.CPUInstructionPart.InstructionPointer;
-            }
-
-            log.Warning($"Failed to find helper library '{variableName}' variable");
-
-            return 0;
-        }
-
-        Guid? CreateTargetFunctionBreakpointAtDebugStart(DkmProcess process, DkmNativeModuleInstance moduleWithLoadedLua, string name, string desc)
-        {
-            var address = DebugHelpers.TryGetFunctionAddressAtDebugStart(moduleWithLoadedLua, name, out string error);
-
-            if (address != null)
-            {
-                log.Debug($"Hooking Lua '{desc}' ({name}) function (address 0x{address.Value:x})");
-
-                var nativeAddress = process.CreateNativeInstructionAddress(address.Value);
-
-                var breakpoint = DkmRuntimeInstructionBreakpoint.Create(Guids.luaSupportBreakpointGuid, null, nativeAddress, false, null);
-
-                breakpoint.Enable();
-
-                return breakpoint.UniqueId;
-            }
-            else
-            {
-                log.Warning($"Failed to create breakpoint in '{name}' with {error}");
-            }
-
-            return null;
-        }
-
-        Guid? CreateTargetFunctionBreakpointAtDebugEnd(DkmProcess process, DkmNativeModuleInstance moduleWithLoadedLua, string name, string desc)
-        {
-            var address = DebugHelpers.TryGetFunctionAddressAtDebugEnd(moduleWithLoadedLua, name, out string error);
-
-            if (address != null)
-            {
-                log.Debug($"Hooking Lua '{desc}' ({name}) function (address 0x{address.Value:x})");
-
-                var nativeAddress = process.CreateNativeInstructionAddress(address.Value);
-
-                var breakpoint = DkmRuntimeInstructionBreakpoint.Create(Guids.luaSupportBreakpointGuid, null, nativeAddress, false, null);
-
-                breakpoint.Enable();
-
-                return breakpoint.UniqueId;
-            }
-            else
-            {
-                log.Warning($"Failed to create breakpoint in '{name}' with {error}");
-            }
-
-            return null;
-        }
-
         void IDkmModuleInstanceLoadNotification.OnModuleInstanceLoad(DkmModuleInstance moduleInstance, DkmWorkList workList, DkmEventDescriptorS eventDescriptor)
         {
             log.Debug($"IDkmSymbolQuery.OnModuleInstanceLoad begin");
@@ -2104,14 +1971,14 @@ namespace LuaDkmDebuggerComponent
                     log.Debug("Check if Lua library is loaded");
 
                     // Check if Lua library is loaded
-                    if (DebugHelpers.TryGetFunctionAddress(nativeModuleInstance, "lua_newstate", out _).GetValueOrDefault(0) != 0)
+                    if (AttachmentHelpers.TryGetFunctionAddress(nativeModuleInstance, "lua_newstate", out _).GetValueOrDefault(0) != 0)
                     {
                         log.Debug("Found Lua library");
 
                         processData.moduleWithLoadedLua = nativeModuleInstance;
 
-                        processData.executionStartAddress = DebugHelpers.TryGetFunctionAddressAtDebugStart(processData.moduleWithLoadedLua, "luaV_execute", out _).GetValueOrDefault(0);
-                        processData.executionEndAddress = DebugHelpers.TryGetFunctionAddressAtDebugEnd(processData.moduleWithLoadedLua, "luaV_execute", out _).GetValueOrDefault(0);
+                        processData.executionStartAddress = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(processData.moduleWithLoadedLua, "luaV_execute", out _).GetValueOrDefault(0);
+                        processData.executionEndAddress = AttachmentHelpers.TryGetFunctionAddressAtDebugEnd(processData.moduleWithLoadedLua, "luaV_execute", out _).GetValueOrDefault(0);
                     }
                     else
                     {
@@ -2134,25 +2001,25 @@ namespace LuaDkmDebuggerComponent
 
                     if (variableAddress != null)
                     {
-                        processData.helperWorkingDirectoryAddress = FindVariableAddress(nativeModuleInstance, "luaHelperWorkingDirectory");
-                        processData.helperHookFunctionAddress_5_1 = FindFunctionAddress(nativeModuleInstance, "LuaHelperHook_5_1");
-                        processData.helperHookFunctionAddress_5_2 = FindFunctionAddress(nativeModuleInstance, "LuaHelperHook_5_2");
-                        processData.helperHookFunctionAddress_5_3 = FindFunctionAddress(nativeModuleInstance, "LuaHelperHook_5_3");
+                        processData.helperWorkingDirectoryAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperWorkingDirectory");
+                        processData.helperHookFunctionAddress_5_1 = AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "LuaHelperHook_5_1");
+                        processData.helperHookFunctionAddress_5_2 = AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "LuaHelperHook_5_2");
+                        processData.helperHookFunctionAddress_5_3 = AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "LuaHelperHook_5_3");
 
-                        processData.helperBreakCountAddress = FindVariableAddress(nativeModuleInstance, "luaHelperBreakCount");
-                        processData.helperBreakDataAddress = FindVariableAddress(nativeModuleInstance, "luaHelperBreakData");
-                        processData.helperBreakHitIdAddress = FindVariableAddress(nativeModuleInstance, "luaHelperBreakHitId");
-                        processData.helperBreakSourcesAddress = FindVariableAddress(nativeModuleInstance, "luaHelperBreakSources");
+                        processData.helperBreakCountAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperBreakCount");
+                        processData.helperBreakDataAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperBreakData");
+                        processData.helperBreakHitIdAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperBreakHitId");
+                        processData.helperBreakSourcesAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperBreakSources");
 
-                        processData.helperStepOverAddress = FindVariableAddress(nativeModuleInstance, "luaHelperStepOver");
-                        processData.helperStepIntoAddress = FindVariableAddress(nativeModuleInstance, "luaHelperStepInto");
-                        processData.helperStepOutAddress = FindVariableAddress(nativeModuleInstance, "luaHelperStepOut");
-                        processData.helperSkipDepthAddress = FindVariableAddress(nativeModuleInstance, "luaHelperSkipDepth");
+                        processData.helperStepOverAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperStepOver");
+                        processData.helperStepIntoAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperStepInto");
+                        processData.helperStepOutAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperStepOut");
+                        processData.helperSkipDepthAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperSkipDepth");
 
-                        processData.breakpointLuaHelperBreakpointHit = CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperBreakpointHit").GetValueOrDefault(Guid.Empty);
-                        processData.breakpointLuaHelperStepComplete = CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperStepComplete").GetValueOrDefault(Guid.Empty);
-                        processData.breakpointLuaHelperStepInto = CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperStepInto").GetValueOrDefault(Guid.Empty);
-                        processData.breakpointLuaHelperStepOut = CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperStepOut").GetValueOrDefault(Guid.Empty);
+                        processData.breakpointLuaHelperBreakpointHit = AttachmentHelpers.CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperBreakpointHit").GetValueOrDefault(Guid.Empty);
+                        processData.breakpointLuaHelperStepComplete = AttachmentHelpers.CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperStepComplete").GetValueOrDefault(Guid.Empty);
+                        processData.breakpointLuaHelperStepInto = AttachmentHelpers.CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperStepInto").GetValueOrDefault(Guid.Empty);
+                        processData.breakpointLuaHelperStepOut = AttachmentHelpers.CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperStepOut").GetValueOrDefault(Guid.Empty);
 
                         // TODO: check all data
 
@@ -2199,7 +2066,7 @@ namespace LuaDkmDebuggerComponent
                             {
                                 log.Debug("Helper hasn't been initialized");
 
-                                var breakpointId = CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperInitialized");
+                                var breakpointId = AttachmentHelpers.CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperInitialized");
 
                                 if (breakpointId.HasValue)
                                 {
@@ -2269,32 +2136,30 @@ namespace LuaDkmDebuggerComponent
 
                     processData.helperInjectRequested = true;
 
-                    // TODO: helper function
-
                     // Track Lua state initialization (breakpoint at the end of the function)
-                    processData.breakpointLuaInitialization = CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "lua_newstate", "initialization mark").GetValueOrDefault(Guid.Empty);
+                    processData.breakpointLuaInitialization = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "lua_newstate", "initialization mark").GetValueOrDefault(Guid.Empty);
 
                     // Track Lua state creation (breakpoint at the end of the function)
-                    processData.breakpointLuaThreadCreate = CreateTargetFunctionBreakpointAtDebugEnd(process, processData.moduleWithLoadedLua, "lua_newstate", "Lua thread creation").GetValueOrDefault(Guid.Empty);
+                    processData.breakpointLuaThreadCreate = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugEnd(process, processData.moduleWithLoadedLua, "lua_newstate", "Lua thread creation").GetValueOrDefault(Guid.Empty);
 
                     // Track Lua state destruction (breakpoint at the start of the function)
-                    processData.breakpointLuaThreadDestroy = CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "lua_close", "Lua thread destruction").GetValueOrDefault(Guid.Empty);
+                    processData.breakpointLuaThreadDestroy = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "lua_close", "Lua thread destruction").GetValueOrDefault(Guid.Empty);
 
                     // Track Lua scripts loaded from files
-                    processData.breakpointLuaFileLoaded = CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadfilex", "Lua script load from file").GetValueOrDefault(Guid.Empty);
+                    processData.breakpointLuaFileLoaded = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadfilex", "Lua script load from file").GetValueOrDefault(Guid.Empty);
 
                     if (processData.breakpointLuaFileLoaded == Guid.Empty)
                     {
-                        processData.breakpointLuaFileLoaded = CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadfile", "Lua script load from file").GetValueOrDefault(Guid.Empty);
+                        processData.breakpointLuaFileLoaded = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadfile", "Lua script load from file").GetValueOrDefault(Guid.Empty);
 
-                        processData.breakpointLuaFileLoadedSolCompat = CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "kp_compat53L_loadfilex", "Lua script load from file").GetValueOrDefault(Guid.Empty);
+                        processData.breakpointLuaFileLoadedSolCompat = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "kp_compat53L_loadfilex", "Lua script load from file").GetValueOrDefault(Guid.Empty);
                     }
 
                     // Track Lua scripts loaded from buffers
-                    processData.breakpointLuaBufferLoaded = CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadbufferx", "Lua script load from buffer").GetValueOrDefault(Guid.Empty);
+                    processData.breakpointLuaBufferLoaded = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadbufferx", "Lua script load from buffer").GetValueOrDefault(Guid.Empty);
 
                     if (processData.breakpointLuaBufferLoaded == Guid.Empty)
-                        processData.breakpointLuaBufferLoaded = CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadbuffer", "Lua script load from file").GetValueOrDefault(Guid.Empty);
+                        processData.breakpointLuaBufferLoaded = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadbuffer", "Lua script load from file").GetValueOrDefault(Guid.Empty);
 
                     string assemblyFolder = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 
