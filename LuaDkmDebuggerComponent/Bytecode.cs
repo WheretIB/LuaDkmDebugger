@@ -762,6 +762,29 @@ namespace LuaDkmDebuggerComponent
             }
         }
 
+        public void UpdateLocals(DkmProcess process, int instructionPointer)
+        {
+            if (locals == null)
+                ReadLocals(process, -1);
+
+            activeLocals.Clear();
+
+            for (int i = 0; i < localVariableSize; i++)
+            {
+                LuaLocalVariableData local = locals[i];
+
+                if (i < argumentCount || instructionPointer == -1)
+                {
+                    activeLocals.Add(local);
+                }
+                else
+                {
+                    if (instructionPointer >= local.lifetimeStartInstruction && instructionPointer < local.lifetimeEndInstruction)
+                        activeLocals.Add(local);
+                }
+            }
+        }
+
         public void ReadLocalFunctions(DkmProcess process)
         {
             if (localFunctions != null)

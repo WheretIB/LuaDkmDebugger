@@ -45,6 +45,8 @@ namespace LuaDkmDebuggerComponent
         public bool pauseBreakpoints = false;
 
         public DkmStepper activeStepper = null;
+
+        public Dictionary<ulong, LuaFunctionData> functionDataCache = new Dictionary<ulong, LuaFunctionData>();
     }
 
     public class RemoteComponent : IDkmProcessExecutionNotification, IDkmRuntimeInstanceLoadCompleteNotification, IDkmCustomMessageForwardReceiver, IDkmRuntimeBreakpointReceived, IDkmRuntimeMonitorBreakpointHandler, IDkmRuntimeStepper, IDkmLanguageConditionEvaluator
@@ -552,6 +554,7 @@ namespace LuaDkmDebuggerComponent
             LuaFunctionCallInfoData callInfoData = new LuaFunctionCallInfoData();
 
             callInfoData.ReadFrom(process, callInfoAddress); // TODO: cache?
+
             callInfoData.ReadFunction(process);
 
             if (callInfoData.func.extendedType != LuaExtendedType.LuaFunction)
@@ -567,7 +570,21 @@ namespace LuaDkmDebuggerComponent
 
             LuaClosureData closureData = currCallLuaFunction.value;
 
-            LuaFunctionData functionData = closureData.ReadFunction(process);
+            LuaFunctionData functionData = null;
+
+            if (processData.functionDataCache.ContainsKey(closureData.functionAddress))
+            {
+                functionData = processData.functionDataCache[closureData.functionAddress];
+            }
+            else
+            {
+                functionData = closureData.ReadFunction(process);
+
+                functionData.ReadUpvalues(process);
+                functionData.ReadLocals(process, -1);
+
+                processData.functionDataCache.Add(closureData.functionAddress, functionData);
+            }
 
             // Possible in bad break locations
             if (callInfoData.savedInstructionPointerAddress < functionData.codeDataAddress)
@@ -584,8 +601,7 @@ namespace LuaDkmDebuggerComponent
             // If the call was already made, savedpc will be offset by 1 (return location)
             int prevInstructionPointer = currInstructionPointer == 0 ? 0 : (int)currInstructionPointer - 1;
 
-            functionData.ReadUpvalues(process);
-            functionData.ReadLocals(process, prevInstructionPointer);
+            functionData.UpdateLocals(process, prevInstructionPointer);
 
             ExpressionEvaluation evaluation = new ExpressionEvaluation(process, functionData, callInfoData.stackBaseAddress, closureData);
 
