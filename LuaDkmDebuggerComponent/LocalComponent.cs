@@ -121,6 +121,8 @@ namespace LuaDkmDebuggerComponent
 
     public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery, IDkmModuleInstanceLoadNotification, IDkmCustomMessageCallbackReceiver, IDkmLanguageInstructionDecoder
     {
+        public static bool attachOnLaunch = true;
+
 #if DEBUG
         public static Log log = new Log(Log.LogLevel.Debug);
 #else
@@ -1967,6 +1969,13 @@ namespace LuaDkmDebuggerComponent
 
                 if (nativeModuleInstance.FullName != null && nativeModuleInstance.FullName.EndsWith(".exe"))
                 {
+                    if (!attachOnLaunch)
+                    {
+                        log.Warning("Lua attach on launch is disabled, skip search for Lua");
+
+                        return;
+                    }
+
                     log.Debug("Check if Lua library is loaded");
 
                     // Check if Lua library is loaded

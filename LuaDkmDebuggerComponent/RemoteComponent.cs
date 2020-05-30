@@ -125,6 +125,10 @@ namespace LuaDkmDebuggerComponent
 
         void UpdateBreakpoints(DkmProcess process, LuaRemoteProcessData processData)
         {
+            // Can't update breakpoints if we don't have the hook attached
+            if (processData.locations == null)
+                return;
+
             int count = processData.activeBreakpoints.Count;
 
             if (count > 256)
@@ -350,10 +354,13 @@ namespace LuaDkmDebuggerComponent
 
         void ClearStepperData(DkmProcess process, LuaRemoteProcessData processData)
         {
-            DebugHelpers.TryWriteIntVariable(process, processData.locations.helperStepOverAddress, 0);
-            DebugHelpers.TryWriteIntVariable(process, processData.locations.helperStepIntoAddress, 0);
-            DebugHelpers.TryWriteIntVariable(process, processData.locations.helperStepOutAddress, 0);
-            DebugHelpers.TryWriteIntVariable(process, processData.locations.helperSkipDepthAddress, 0);
+            if (processData.locations != null)
+            {
+                DebugHelpers.TryWriteIntVariable(process, processData.locations.helperStepOverAddress, 0);
+                DebugHelpers.TryWriteIntVariable(process, processData.locations.helperStepIntoAddress, 0);
+                DebugHelpers.TryWriteIntVariable(process, processData.locations.helperStepOutAddress, 0);
+                DebugHelpers.TryWriteIntVariable(process, processData.locations.helperSkipDepthAddress, 0);
+            }
 
             processData.activeStepper = null;
         }
@@ -373,6 +380,9 @@ namespace LuaDkmDebuggerComponent
 
             // Stepping can be performed if we are inside the debug helper or inside luaV_execute
             var instructionAddress = stepper.StartingAddress.CPUInstructionPart.InstructionPointer;
+
+            if (processData.locations == null)
+                return false;
 
             if (instructionAddress >= processData.locations.helperStartAddress && instructionAddress < processData.locations.helperEndAddress)
                 return true;

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+	<Extern href="stdidcmd.h"/>
+	<Extern href="vsshlids.h"/>
+
+	<Commands package="guidLuaDkmDebuggerPackage">
+		<Menus>
+			<Menu guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaMainExtensionMenu" priority="0x0002" type="Menu">
+				<Parent guid="guidSHLMainMenu" id="IDG_VS_MM_TOOLSADDINS"/>
+				<Strings>
+					<ButtonText>Lua Debugger</ButtonText>
+					<CommandName>Lua Debugger</CommandName>
+			</Strings>
+			</Menu>
+		</Menus>
+
+		<Groups>
+			<Group guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaMenuGroup" priority="0x0600">
+				<Parent guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaMainExtensionMenu"/>
+			</Group>
+		</Groups>
+
+		<Buttons>
+			<Button guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaEnableBreakpointsCommandId" priority="0x0100" type="Button">
+				<Parent guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaMenuGroup" />
+				<CommandFlag>DontCache</CommandFlag>
+				<Strings>
+					<ButtonText>Attach on Launch</ButtonText>
+					<CommandName>LuaEnableBreakpointsCommandId</CommandName>
+				</Strings>
+			</Button>
+		</Buttons>
+	</Commands>
+
+	<Symbols>
+		<GuidSymbol name="guidLuaDkmDebuggerPackage" value="{99662a30-53ec-42a6-be5d-80aed0e1e2ea}" />
+
+		<GuidSymbol name="guidLuaDkmDebuggerPackageCmdSet" value="{6EB675D6-C146-4843-990E-32D43B56706C}">
+			<IDSymbol name="LuaMainExtensionMenu" value="0x1021" />
+			<IDSymbol name="LuaMenuGroup" value="0x1010" />
+			<IDSymbol name="LuaEnableBreakpointsCommandId" value="0x0120" />
+		</GuidSymbol>
+	</Symbols>
+</CommandTable>
