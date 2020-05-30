@@ -15,9 +15,12 @@ namespace LuaDkmDebuggerComponent
             Verbose
         };
 
-        public Log(LogLevel level)
+        public Log(LogLevel level, bool isGlobal)
         {
             logLevel = level;
+
+            if (isGlobal)
+                instance = this;
         }
 
         public void Error(string text)
@@ -63,6 +66,7 @@ namespace LuaDkmDebuggerComponent
             }
         }
 
+        public static Log instance = null;
         public LogLevel logLevel = LogLevel.Warning;
         public string logPath = null;
         public double startTime = DateTime.Now.Ticks / 10000.0;

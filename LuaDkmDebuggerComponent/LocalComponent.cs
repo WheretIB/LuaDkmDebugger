@@ -125,83 +125,10 @@ namespace LuaDkmDebuggerComponent
         public static bool releaseDebugLogs = false;
 
 #if DEBUG
-        public static Log log = new Log(Log.LogLevel.Debug);
+        public static Log log = new Log(Log.LogLevel.Debug, true);
 #else
-        public static Log log = new Log(Log.LogLevel.Error);
+        public static Log log = new Log(Log.LogLevel.Error, true);
 #endif
-
-        internal string ExecuteExpression(string expression, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame input, DkmEvaluationFlags flags, bool allowZero, out ulong address)
-        {
-            log.Verbose($"ExecuteExpression begin evaluation of '{expression}'");
-
-            var compilerId = new DkmCompilerId(DkmVendorId.Microsoft, DkmLanguageId.Cpp);
-            var language = DkmLanguage.Create("C++", compilerId);
-            var languageExpression = DkmLanguageExpression.Create(language, DkmEvaluationFlags.None, expression, null);
-
-            var inspectionContext = DkmInspectionContext.Create(inspectionSession, input.RuntimeInstance, thread, 200, flags, DkmFuncEvalFlags.None, 10, language, null);
-
-            var workList = DkmWorkList.Create(null);
-
-            try
-            {
-                string resultText = null;
-                ulong resultAddress = 0;
-
-                inspectionContext.EvaluateExpression(workList, languageExpression, input, res =>
-                {
-                    if (res.ErrorCode == 0)
-                    {
-                        var result = res.ResultObject as DkmSuccessEvaluationResult;
-
-                        if (result != null && result.TagValue == DkmEvaluationResult.Tag.SuccessResult && (allowZero || result.Address.Value != 0))
-                        {
-                            resultText = result.Value;
-                            resultAddress = result.Address.Value;
-                        }
-
-                        res.ResultObject.Close();
-                    }
-                });
-
-                workList.Execute();
-
-                log.Verbose($"ExecuteExpression completed");
-
-                address = resultAddress;
-                return resultText;
-            }
-            catch (OperationCanceledException)
-            {
-                address = 0;
-                return null;
-            }
-        }
-
-        internal ulong? TryEvaluateAddressExpression(string expression, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame input, DkmEvaluationFlags flags)
-        {
-            if (ExecuteExpression(expression, inspectionSession, thread, input, flags, true, out ulong address) != null)
-                return address;
-
-            return null;
-        }
-
-        internal long? TryEvaluateNumberExpression(string expression, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame input, DkmEvaluationFlags flags)
-        {
-            string result = ExecuteExpression(expression, inspectionSession, thread, input, flags, true, out _);
-
-            if (result == null)
-                return null;
-
-            if (long.TryParse(result, out long value))
-                return value;
-
-            return null;
-        }
-
-        internal string TryEvaluateStringExpression(string expression, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame input, DkmEvaluationFlags flags)
-        {
-            return ExecuteExpression(expression + ",sb", inspectionSession, thread, input, flags, false, out _);
-        }
 
         internal void LoadConfigurationFile(DkmProcess process, LuaLocalProcessData processData)
         {
@@ -318,10 +245,10 @@ namespace LuaDkmDebuggerComponent
 
                     if (callAddress != 0)
                     {
-                        long? length = TryEvaluateNumberExpression($"((int(*)(int, char*))0x{callAddress:x})(4095, (char*){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
+                        long? length = EvaluationHelpers.TryEvaluateNumberExpression($"((int(*)(int, char*))0x{callAddress:x})(4095, (char*){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
 
                         if (length.HasValue && length.Value != 0)
-                            processData.workingDirectory = TryEvaluateStringExpression($"(const char*){processData.scratchMemory}", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                            processData.workingDirectory = EvaluationHelpers.TryEvaluateStringExpression($"(const char*){processData.scratchMemory}", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
                     }
                 }
 
@@ -338,7 +265,7 @@ namespace LuaDkmDebuggerComponent
                 if (isTopFrame)
                     luaFrameFlags |= DkmStackWalkFrameFlags.TopFrame;
 
-                ulong? stateAddress = TryEvaluateAddressExpression($"L", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                ulong? stateAddress = EvaluationHelpers.TryEvaluateAddressExpression($"L", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
                 // Reset Lua frame skip data if we have switched Lua state
                 if (stackContextData.stateAddress != stateAddress.GetValueOrDefault(0))
@@ -349,11 +276,11 @@ namespace LuaDkmDebuggerComponent
                     stackContextData.seenFrames = 0;
                 }
 
-                ulong? registryAddress = TryEvaluateAddressExpression($"&L->l_G->l_registry", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                ulong? registryAddress = EvaluationHelpers.TryEvaluateAddressExpression($"&L->l_G->l_registry", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
                 if (LuaHelpers.luaVersion == 0)
                 {
-                    long? version = TryEvaluateNumberExpression($"(int)*L->l_G->version", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                    long? version = EvaluationHelpers.TryEvaluateNumberExpression($"(int)*L->l_G->version", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
                     LuaHelpers.luaVersion = (int)version.GetValueOrDefault(501); // Lua 5.1 doesn't have version field
                 }
@@ -366,9 +293,9 @@ namespace LuaDkmDebuggerComponent
 
                     // Note that in Lua 5.1 call info address if for current call info as opposed to previous call info in future versions
                     if (LuaHelpers.luaVersion == 501 || LuaHelpers.luaVersion == 502)
-                        functionNameType = TryEvaluateStringExpression($"getfuncname(L, ((CallInfo*){callInfoAddress}), (const char**){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
+                        functionNameType = EvaluationHelpers.TryEvaluateStringExpression($"getfuncname(L, ((CallInfo*){callInfoAddress}), (const char**){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
                     else
-                        functionNameType = TryEvaluateStringExpression($"funcnamefromcode(L, ((CallInfo*){callInfoAddress}), (const char**){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
+                        functionNameType = EvaluationHelpers.TryEvaluateStringExpression($"funcnamefromcode(L, ((CallInfo*){callInfoAddress}), (const char**){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
 
                     DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.resumeBreakpoints, null, null).SendLower();
 
@@ -584,7 +511,7 @@ namespace LuaDkmDebuggerComponent
                 }
                 else
                 {
-                    ulong? currCallInfoAddress = TryEvaluateAddressExpression($"L->ci", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                    ulong? currCallInfoAddress = EvaluationHelpers.TryEvaluateAddressExpression($"L->ci", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
                     while (stateAddress.HasValue && currCallInfoAddress.HasValue && currCallInfoAddress.Value != 0)
                     {
@@ -935,240 +862,6 @@ namespace LuaDkmDebuggerComponent
             return module.GetSymbolInterface(interfaceID);
         }
 
-        string EvaluateValueAtLuaValue(DkmProcess process, LuaValueDataBase valueBase, uint radix, out string editableValue, ref DkmEvaluationResultFlags flags, out DkmDataAddress dataAddress, out string type)
-        {
-            editableValue = null;
-            dataAddress = null;
-            type = "unknown";
-
-            if (valueBase == null)
-                return null;
-
-            if (valueBase as LuaValueDataNil != null)
-            {
-                type = "nil";
-
-                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
-                return "nil";
-            }
-
-            if (valueBase as LuaValueDataBool != null)
-            {
-                var value = valueBase as LuaValueDataBool;
-
-                type = "bool";
-
-                if (value.value)
-                {
-                    flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean | DkmEvaluationResultFlags.BooleanTrue;
-                    editableValue = $"{value.value}";
-                    return "true";
-                }
-                else
-                {
-                    flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean;
-                    editableValue = $"{value.value}";
-                    return "false";
-                }
-            }
-
-            if (valueBase as LuaValueDataLightUserData != null)
-            {
-                var value = valueBase as LuaValueDataLightUserData;
-
-                type = "user_data";
-
-                flags |= DkmEvaluationResultFlags.IsBuiltInType;
-                editableValue = $"{value.value}";
-                return $"0x{value.value:x}";
-            }
-
-            if (valueBase as LuaValueDataNumber != null)
-            {
-                var value = valueBase as LuaValueDataNumber;
-
-                if (value.extendedType == LuaExtendedType.IntegerNumber)
-                {
-                    type = "int";
-
-                    flags |= DkmEvaluationResultFlags.IsBuiltInType;
-                    editableValue = $"{value.value}";
-
-                    if (radix == 16)
-                        return $"0x{value.value:x}";
-
-                    return $"{value.value}";
-                }
-                else
-                {
-                    type = "double";
-
-                    flags |= DkmEvaluationResultFlags.IsBuiltInType;
-                    editableValue = $"{value.value}";
-                    return $"{value.value}";
-                }
-            }
-
-            if (valueBase as LuaValueDataString != null)
-            {
-                var value = valueBase as LuaValueDataString;
-
-                type = value.extendedType == LuaExtendedType.ShortString ? "short_string" : "long_string";
-
-                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.RawString | DkmEvaluationResultFlags.ReadOnly;
-                dataAddress = DkmDataAddress.Create(process.GetNativeRuntimeInstance(), value.targetAddress, null);
-                return $"0x{value.targetAddress:x} \"{value.value}\"";
-            }
-
-            if (valueBase as LuaValueDataTable != null)
-            {
-                var value = valueBase as LuaValueDataTable;
-
-                type = "table";
-
-                value.value.LoadValues(process);
-                value.value.LoadMetaTable(process);
-
-                flags |= DkmEvaluationResultFlags.ReadOnly | DkmEvaluationResultFlags.Expandable;
-
-                if (value.value.arrayElements.Count != 0 && value.value.nodeElements.Count != 0)
-                    return $"table [{value.value.arrayElements.Count} element(s) and {value.value.nodeElements.Count} key(s)]";
-
-                if (value.value.arrayElements.Count != 0)
-                    return $"table [{value.value.arrayElements.Count} element(s)]";
-
-                if (value.value.nodeElements.Count != 0)
-                    return $"table [{value.value.nodeElements.Count} key(s)]";
-
-                if (value.value.metaTable == null)
-                {
-                    flags &= ~DkmEvaluationResultFlags.Expandable;
-
-                    return "table [empty]";
-                }
-
-                return "table";
-            }
-
-            if (valueBase as LuaValueDataLuaFunction != null)
-            {
-                var value = valueBase as LuaValueDataLuaFunction;
-
-                type = "lua_function";
-
-                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
-                return $"0x{value.targetAddress}";
-            }
-
-            if (valueBase as LuaValueDataExternalFunction != null)
-            {
-                var value = valueBase as LuaValueDataExternalFunction;
-
-                type = "c_function";
-
-                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
-                return $"0x{value.targetAddress}";
-            }
-
-            if (valueBase as LuaValueDataExternalClosure != null)
-            {
-                var value = valueBase as LuaValueDataExternalClosure;
-
-                type = "c_closure";
-
-                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
-                return $"0x{value.targetAddress}";
-            }
-
-            if (valueBase as LuaValueDataUserData != null)
-            {
-                var value = valueBase as LuaValueDataUserData;
-
-                type = "user_data";
-
-                flags |= DkmEvaluationResultFlags.ReadOnly;
-                return $"0x{value.targetAddress}";
-            }
-
-            if (valueBase as LuaValueDataThread != null)
-            {
-                var value = valueBase as LuaValueDataThread;
-
-                type = "thread";
-
-                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
-                return $"0x{value.targetAddress}";
-            }
-
-            return null;
-        }
-
-        string EvaluateValueAtAddress(DkmProcess process, ulong address, uint radix, out string editableValue, ref DkmEvaluationResultFlags flags, out DkmDataAddress dataAddress, out string type, out LuaValueDataBase luaValueData)
-        {
-            editableValue = null;
-            dataAddress = null;
-            type = "unknown";
-
-            luaValueData = LuaHelpers.ReadValue(process, address);
-
-            if (luaValueData == null)
-                return null;
-
-            return EvaluateValueAtLuaValue(process, luaValueData, radix, out editableValue, ref flags, out dataAddress, out type);
-        }
-
-        DkmEvaluationResult EvaluateDataAtAddress(DkmInspectionContext inspectionContext, DkmStackWalkFrame stackFrame, string name, string fullName, ulong address, DkmEvaluationResultFlags flags, DkmEvaluationResultAccessType access, DkmEvaluationResultStorageType storage)
-        {
-            var process = stackFrame.Process;
-
-            if (address == 0)
-                return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, name, fullName, "Null pointer access", DkmEvaluationResultFlags.Invalid, null);
-
-            string value = EvaluateValueAtAddress(process, address, inspectionContext.Radix, out string editableValue, ref flags, out DkmDataAddress dataAddress, out string type, out LuaValueDataBase luaValueData);
-
-            if (value == null)
-                return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, name, fullName, "Failed to read value", DkmEvaluationResultFlags.Invalid, null);
-
-            DkmEvaluationResultCategory category = DkmEvaluationResultCategory.Data;
-            DkmEvaluationResultTypeModifierFlags typeModifiers = DkmEvaluationResultTypeModifierFlags.None;
-
-            var dataItem = new LuaEvaluationDataItem
-            {
-                address = address,
-                type = type,
-                fullName = fullName,
-                luaValueData = luaValueData
-            };
-
-            return DkmSuccessEvaluationResult.Create(inspectionContext, stackFrame, name, fullName, flags, value, editableValue, type, category, access, storage, typeModifiers, dataAddress, null, null, dataItem);
-        }
-
-        DkmEvaluationResult EvaluateDataAtLuaValue(DkmInspectionContext inspectionContext, DkmStackWalkFrame stackFrame, string name, string fullName, LuaValueDataBase luaValue, DkmEvaluationResultFlags flags, DkmEvaluationResultAccessType access, DkmEvaluationResultStorageType storage)
-        {
-            var process = stackFrame.Process;
-
-            if (luaValue == null)
-                return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, name, fullName, "Null pointer access", DkmEvaluationResultFlags.Invalid, null);
-
-            string value = EvaluateValueAtLuaValue(process, luaValue, inspectionContext.Radix, out string editableValue, ref flags, out DkmDataAddress dataAddress, out string type);
-
-            if (value == null)
-                return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, name, fullName, "Failed to read value", DkmEvaluationResultFlags.Invalid, null);
-
-            DkmEvaluationResultCategory category = DkmEvaluationResultCategory.Data;
-            DkmEvaluationResultTypeModifierFlags typeModifiers = DkmEvaluationResultTypeModifierFlags.None;
-
-            var dataItem = new LuaEvaluationDataItem
-            {
-                address = luaValue.originalAddress,
-                type = type,
-                fullName = fullName,
-                luaValueData = luaValue
-            };
-
-            return DkmSuccessEvaluationResult.Create(inspectionContext, stackFrame, name, fullName, flags, value, editableValue, type, category, access, storage, typeModifiers, dataAddress, null, null, dataItem);
-        }
-
         void IDkmLanguageExpressionEvaluator.EvaluateExpression(DkmInspectionContext inspectionContext, DkmWorkList workList, DkmLanguageExpression expression, DkmStackWalkFrame stackFrame, DkmCompletionRoutine<DkmEvaluateExpressionAsyncResult> completionRoutine)
         {
             log.Debug($"IDkmSymbolQuery.EvaluateExpression begin");
@@ -1228,7 +921,7 @@ namespace LuaDkmDebuggerComponent
             {
                 log.Debug($"IDkmSymbolQuery.EvaluateExpression completed (l-value)");
 
-                completionRoutine(new DkmEvaluateExpressionAsyncResult(EvaluateDataAtLuaValue(inspectionContext, stackFrame, expression.Text, expression.Text, result, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None)));
+                completionRoutine(new DkmEvaluateExpressionAsyncResult(EvaluationHelpers.EvaluateDataAtLuaValue(inspectionContext, stackFrame, expression.Text, expression.Text, result, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None)));
                 return;
             }
 
@@ -1274,75 +967,6 @@ namespace LuaDkmDebuggerComponent
             log.Debug($"IDkmSymbolQuery.EvaluateExpression completed");
         }
 
-        DkmEvaluationResult GetTableChildAtIndex(DkmInspectionContext inspectionContext, DkmStackWalkFrame stackFrame, string fullName, LuaValueDataTable value, int index)
-        {
-            var process = stackFrame.Process;
-
-            if (index < value.value.arrayElements.Count)
-            {
-                var element = value.value.arrayElements[index];
-
-                return EvaluateDataAtLuaValue(inspectionContext, stackFrame, $"[{index + 1}]", $"{fullName}[{index + 1}]", element, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
-            }
-
-            index = index - value.value.arrayElements.Count;
-
-            if (index < value.value.nodeElements.Count)
-            {
-                var node = value.value.nodeElements[index];
-
-                DkmEvaluationResultFlags flags = DkmEvaluationResultFlags.None;
-                string name = EvaluateValueAtLuaValue(process, node.key, 10, out _, ref flags, out _, out _);
-
-                var keyString = node.key as LuaValueDataString;
-
-                if (keyString != null)
-                    name = keyString.value;
-
-                if (name == null || name.Length == 0)
-                    name = "%error-name%";
-
-                // Check if name is an identifier
-                bool isIdentifierName = false;
-
-                if (char.IsLetter(name[0]) || name[0] == '_')
-                {
-                    int pos = 1;
-
-                    while (pos < name.Length && (char.IsLetterOrDigit(name[pos]) || name[pos] == '_'))
-                        pos++;
-
-                    isIdentifierName = pos == name.Length;
-                }
-
-                if (isIdentifierName)
-                    return EvaluateDataAtLuaValue(inspectionContext, stackFrame, name, $"{fullName}.{name}", node.value, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
-
-                return EvaluateDataAtLuaValue(inspectionContext, stackFrame, $"\"{name}\"", $"{fullName}[\"{name}\"]", node.value, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
-            }
-
-            index = index - value.value.nodeElements.Count;
-
-            if (index == 0)
-            {
-                var metaTableValue = new LuaValueDataTable
-                {
-                    baseType = LuaBaseType.Table,
-                    extendedType = LuaExtendedType.Table,
-                    evaluationFlags = DkmEvaluationResultFlags.ReadOnly,
-                    originalAddress = 0, // Not available as TValue
-                    value = value.value.metaTable,
-                    targetAddress = value.value.metaTableDataAddress
-                };
-
-                return EvaluateDataAtLuaValue(inspectionContext, stackFrame, "!metatable", $"{fullName}.!metatable", metaTableValue, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
-            }
-
-            Debug.Assert(false, "Invalid child index");
-
-            return null;
-        }
-
         void IDkmLanguageExpressionEvaluator.GetChildren(DkmEvaluationResult result, DkmWorkList workList, int initialRequestSize, DkmInspectionContext inspectionContext, DkmCompletionRoutine<DkmGetChildrenAsyncResult> completionRoutine)
         {
             log.Debug($"IDkmSymbolQuery.GetChildren begin");
@@ -1377,7 +1001,7 @@ namespace LuaDkmDebuggerComponent
                 DkmEvaluationResult[] initialResults = new DkmEvaluationResult[finalInitialSize];
 
                 for (int i = 0; i < initialResults.Length; i++)
-                    initialResults[i] = GetTableChildAtIndex(inspectionContext, result.StackFrame, result.FullName, value, i);
+                    initialResults[i] = EvaluationHelpers.GetTableChildAtIndex(inspectionContext, result.StackFrame, result.FullName, value, i);
 
                 var enumerator = DkmEvaluationResultEnumContext.Create(actualSize, result.StackFrame, inspectionContext, evalData);
 
@@ -1493,7 +1117,7 @@ namespace LuaDkmDebuggerComponent
 
                         string name = "[registry]";
 
-                        results[i - startIndex] = EvaluateDataAtAddress(enumContext.InspectionContext, enumContext.StackFrame, name, name, address, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+                        results[i - startIndex] = EvaluationHelpers.EvaluateDataAtAddress(enumContext.InspectionContext, enumContext.StackFrame, name, name, address, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
                         continue;
                     }
 
@@ -1506,7 +1130,7 @@ namespace LuaDkmDebuggerComponent
 
                         string name = function.activeLocals[index].name;
 
-                        results[i - startIndex] = EvaluateDataAtAddress(enumContext.InspectionContext, enumContext.StackFrame, name, name, address, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+                        results[i - startIndex] = EvaluationHelpers.EvaluateDataAtAddress(enumContext.InspectionContext, enumContext.StackFrame, name, name, address, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
                         continue;
                     }
 
@@ -1521,7 +1145,7 @@ namespace LuaDkmDebuggerComponent
                         if (upvalueData == null)
                             results[i - startIndex] = DkmFailedEvaluationResult.Create(enumContext.InspectionContext, enumContext.StackFrame, name, name, "[internal error: missing upvalue]", DkmEvaluationResultFlags.Invalid, null);
                         else
-                            results[i - startIndex] = EvaluateDataAtLuaValue(enumContext.InspectionContext, enumContext.StackFrame, name, name, upvalueData.value, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+                            results[i - startIndex] = EvaluationHelpers.EvaluateDataAtLuaValue(enumContext.InspectionContext, enumContext.StackFrame, name, name, upvalueData.value, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
 
                         continue;
                     }
@@ -1554,7 +1178,7 @@ namespace LuaDkmDebuggerComponent
                 var results = new DkmEvaluationResult[count];
 
                 for (int i = startIndex; i < startIndex + count; i++)
-                    results[i - startIndex] = GetTableChildAtIndex(enumContext.InspectionContext, enumContext.StackFrame, evalData.fullName, value, i);
+                    results[i - startIndex] = EvaluationHelpers.GetTableChildAtIndex(enumContext.InspectionContext, enumContext.StackFrame, evalData.fullName, value, i);
 
                 completionRoutine(new DkmEvaluationEnumAsyncResult(results));
 
@@ -2270,17 +1894,6 @@ namespace LuaDkmDebuggerComponent
             log.Debug($"IDkmSymbolQuery.OnModuleInstanceLoad finished");
         }
 
-        DkmInspectionSession CreateInspectionSession(DkmProcess process, DkmThread thread, SupportBreakpointHitMessage data, out DkmStackWalkFrame frame)
-        {
-            const int CV_ALLREG_VFRAME = 0x00007536;
-            var vFrameRegister = DkmUnwoundRegister.Create(CV_ALLREG_VFRAME, new ReadOnlyCollection<byte>(BitConverter.GetBytes(data.vframe)));
-            var registers = thread.GetCurrentRegisters(new[] { vFrameRegister });
-            var instructionAddress = process.CreateNativeInstructionAddress(registers.GetInstructionPointer());
-            frame = DkmStackWalkFrame.Create(thread, instructionAddress, data.frameBase, 0, DkmStackWalkFrameFlags.None, null, registers, null);
-
-            return DkmInspectionSession.Create(process, null);
-        }
-
         DkmCustomMessage IDkmCustomMessageCallbackReceiver.SendHigher(DkmCustomMessage customMessage)
         {
             log.Debug($"IDkmSymbolQuery.SendHigher begin");
@@ -2317,10 +1930,10 @@ namespace LuaDkmDebuggerComponent
                 {
                     log.Debug("Detected Lua thread start");
 
-                    var inspectionSession = CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
+                    var inspectionSession = EvaluationHelpers.CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
 
-                    ulong? stateAddress = TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
-                    long? version = TryEvaluateNumberExpression($"(int)*L->l_G->version", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                    ulong? stateAddress = EvaluationHelpers.TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                    long? version = EvaluationHelpers.TryEvaluateNumberExpression($"(int)*L->l_G->version", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
                     log.Debug("Completed evaluation");
 
@@ -2337,10 +1950,10 @@ namespace LuaDkmDebuggerComponent
                         }
                         else if (LuaHelpers.luaVersion == 501 || LuaHelpers.luaVersion == 502 || LuaHelpers.luaVersion == 503)
                         {
-                            ulong? hookFunctionAddress = TryEvaluateAddressExpression($"&L->hook", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
-                            ulong? hookBaseCountAddress = TryEvaluateAddressExpression($"&L->basehookcount", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
-                            ulong? hookCountAddress = TryEvaluateAddressExpression($"&L->hookcount", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
-                            ulong? hookMaskAddress = TryEvaluateAddressExpression($"&L->hookmask", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                            ulong? hookFunctionAddress = EvaluationHelpers.TryEvaluateAddressExpression($"&L->hook", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                            ulong? hookBaseCountAddress = EvaluationHelpers.TryEvaluateAddressExpression($"&L->basehookcount", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                            ulong? hookCountAddress = EvaluationHelpers.TryEvaluateAddressExpression($"&L->hookcount", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                            ulong? hookMaskAddress = EvaluationHelpers.TryEvaluateAddressExpression($"&L->hookmask", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
                             if (hookFunctionAddress.HasValue && hookBaseCountAddress.HasValue && hookCountAddress.HasValue && hookMaskAddress.HasValue)
                             {
@@ -2384,9 +1997,9 @@ namespace LuaDkmDebuggerComponent
                 {
                     log.Debug("Detected Lua thread destruction");
 
-                    var inspectionSession = CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
+                    var inspectionSession = EvaluationHelpers.CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
 
-                    ulong? stateAddress = TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                    ulong? stateAddress = EvaluationHelpers.TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
                     if (stateAddress.HasValue)
                     {
@@ -2399,11 +2012,11 @@ namespace LuaDkmDebuggerComponent
                 {
                     log.Debug("Detected Lua script file load");
 
-                    var inspectionSession = CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
+                    var inspectionSession = EvaluationHelpers.CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
 
-                    ulong? stateAddress = TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                    ulong? stateAddress = EvaluationHelpers.TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
-                    ulong? scriptNameAddress = TryEvaluateAddressExpression($"filename", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                    ulong? scriptNameAddress = EvaluationHelpers.TryEvaluateAddressExpression($"filename", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
                     if (scriptNameAddress.HasValue)
                     {
@@ -2432,13 +2045,13 @@ namespace LuaDkmDebuggerComponent
                 {
                     log.Debug("Detected Lua script buffer load");
 
-                    var inspectionSession = CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
+                    var inspectionSession = EvaluationHelpers.CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
 
-                    ulong? stateAddress = TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                    ulong? stateAddress = EvaluationHelpers.TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
-                    ulong? scriptBufferAddress = TryEvaluateAddressExpression($"buff", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
-                    long? scriptSize = TryEvaluateNumberExpression($"size", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
-                    ulong? scriptNameAddress = TryEvaluateAddressExpression($"name", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                    ulong? scriptBufferAddress = EvaluationHelpers.TryEvaluateAddressExpression($"buff", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                    long? scriptSize = EvaluationHelpers.TryEvaluateNumberExpression($"size", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                    ulong? scriptNameAddress = EvaluationHelpers.TryEvaluateAddressExpression($"name", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
                     if (scriptBufferAddress.HasValue && scriptSize.HasValue && scriptNameAddress.HasValue)
                     {
