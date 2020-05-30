@@ -1,5 +1,6 @@
 using Microsoft.VisualStudio.Debugger;
 using Microsoft.VisualStudio.Debugger.Breakpoints;
+using Microsoft.VisualStudio.Debugger.CallStack;
 using Microsoft.VisualStudio.Debugger.ComponentInterfaces;
 using Microsoft.VisualStudio.Debugger.CustomRuntimes;
 using Microsoft.VisualStudio.Debugger.Evaluation;
@@ -37,6 +38,7 @@ namespace LuaDkmDebuggerComponent
         public DkmCustomModuleInstance moduleInstance = null;
 
         public HelperLocationsMessage locations;
+        public int luaVersion = 0;
 
         public List<LuaBreakpoint> activeBreakpoints = new List<LuaBreakpoint>();
 
@@ -45,7 +47,7 @@ namespace LuaDkmDebuggerComponent
         public DkmStepper activeStepper = null;
     }
 
-    public class RemoteComponent : IDkmProcessExecutionNotification, IDkmRuntimeInstanceLoadCompleteNotification, IDkmCustomMessageForwardReceiver, IDkmRuntimeBreakpointReceived, IDkmRuntimeMonitorBreakpointHandler, IDkmRuntimeStepper
+    public class RemoteComponent : IDkmProcessExecutionNotification, IDkmRuntimeInstanceLoadCompleteNotification, IDkmCustomMessageForwardReceiver, IDkmRuntimeBreakpointReceived, IDkmRuntimeMonitorBreakpointHandler, IDkmRuntimeStepper, IDkmLanguageConditionEvaluator
     {
         void IDkmProcessExecutionNotification.OnProcessPause(DkmProcess process, DkmProcessExecutionCounters processCounters)
         {
@@ -118,6 +120,10 @@ namespace LuaDkmDebuggerComponent
             else if (customMessage.MessageCode == MessageToRemote.resumeBreakpoints)
             {
                 processData.pauseBreakpoints = false;
+            }
+            else if (customMessage.MessageCode == MessageToRemote.luaVersionInfo)
+            {
+                processData.luaVersion = (customMessage.Parameter1 as int?).GetValueOrDefault(0);
             }
 
             return null;
@@ -464,6 +470,171 @@ namespace LuaDkmDebuggerComponent
 
         void IDkmRuntimeStepper.NotifyStepComplete(DkmRuntimeInstance runtimeInstance, DkmStepper stepper)
         {
+        }
+
+        void IDkmLanguageConditionEvaluator.ParseCondition(DkmEvaluationBreakpointCondition evaluationCondition, out string errorText)
+        {
+            // This place could be used to typecheck of pre-compile the expression
+            errorText = null;
+        }
+
+        void IDkmLanguageConditionEvaluator.EvaluateCondition(DkmEvaluationBreakpointCondition evaluationCondition, DkmStackWalkFrame stackFrame, out bool stop, out string errorText)
+        {
+            DkmProcess process = stackFrame.Process;
+
+            var processData = DebugHelpers.GetOrCreateDataItem<LuaRemoteProcessData>(process);
+
+            if (processData.locations == null)
+            {
+                stop = true;
+                errorText = "Debug helper data for conditional breakpoint is missing";
+                return;
+            }
+
+            DkmInspectionSession inspectionSession = DkmInspectionSession.Create(process, null);
+
+            ulong stateAddress = DebugHelpers.ReadPointerVariable(process, processData.locations.helperBreakHitLuaStateAddress).GetValueOrDefault(0);
+
+            if (stateAddress == 0)
+            {
+                inspectionSession.Close();
+
+                stop = true;
+                errorText = "Failed to evaluate current Lua state address";
+                return;
+            }
+
+            ulong callInfoAddress = 0;
+
+            // Read lua_State
+            ulong temp = stateAddress;
+
+            // CommonHeader
+            DebugHelpers.SkipStructPointer(process, ref temp);
+            DebugHelpers.SkipStructByte(process, ref temp);
+            DebugHelpers.SkipStructByte(process, ref temp);
+
+            if (processData.luaVersion == 501)
+            {
+                DebugHelpers.SkipStructByte(process, ref temp); // status
+                DebugHelpers.SkipStructPointer(process, ref temp); // top
+                DebugHelpers.SkipStructPointer(process, ref temp); // base
+                DebugHelpers.SkipStructPointer(process, ref temp); // l_G
+                callInfoAddress = DebugHelpers.ReadStructPointer(process, ref temp).GetValueOrDefault(0);
+            }
+            else if (processData.luaVersion == 502)
+            {
+                DebugHelpers.SkipStructByte(process, ref temp); // status
+                DebugHelpers.SkipStructPointer(process, ref temp); // top
+                DebugHelpers.SkipStructPointer(process, ref temp); // l_G
+                callInfoAddress = DebugHelpers.ReadStructPointer(process, ref temp).GetValueOrDefault(0);
+
+            }
+            else if (processData.luaVersion == 503)
+            {
+                DebugHelpers.SkipStructShort(process, ref temp); // nci
+                DebugHelpers.SkipStructByte(process, ref temp); // status
+                DebugHelpers.SkipStructPointer(process, ref temp); // top
+                DebugHelpers.SkipStructPointer(process, ref temp); // l_G
+                callInfoAddress = DebugHelpers.ReadStructPointer(process, ref temp).GetValueOrDefault(0);
+            }
+
+            if (callInfoAddress == 0)
+            {
+                inspectionSession.Close();
+
+                stop = true;
+                errorText = "Failed to evaluate current Lua call frame";
+                return;
+            }
+
+            // Load call info data (to get base stack address)
+            LuaFunctionCallInfoData callInfoData = new LuaFunctionCallInfoData();
+
+            callInfoData.ReadFrom(process, callInfoAddress); // TODO: cache?
+            callInfoData.ReadFunction(process);
+
+            if (callInfoData.func.extendedType != LuaExtendedType.LuaFunction)
+            {
+                inspectionSession.Close();
+
+                stop = true;
+                errorText = "Breakpoint location has to be inside a Lua function";
+                return;
+            }
+
+            LuaValueDataLuaFunction currCallLuaFunction = callInfoData.func as LuaValueDataLuaFunction;
+
+            LuaClosureData closureData = currCallLuaFunction.value;
+
+            LuaFunctionData functionData = closureData.ReadFunction(process);
+
+            // Possible in bad break locations
+            if (callInfoData.savedInstructionPointerAddress < functionData.codeDataAddress)
+            {
+                inspectionSession.Close();
+
+                stop = true;
+                errorText = "Invalid saved program counter";
+                return;
+            }
+
+            long currInstructionPointer = ((long)callInfoData.savedInstructionPointerAddress - (long)functionData.codeDataAddress) / 4; // unsigned size instructions
+
+            // If the call was already made, savedpc will be offset by 1 (return location)
+            int prevInstructionPointer = currInstructionPointer == 0 ? 0 : (int)currInstructionPointer - 1;
+
+            functionData.ReadUpvalues(process);
+            functionData.ReadLocals(process, prevInstructionPointer);
+
+            ExpressionEvaluation evaluation = new ExpressionEvaluation(process, functionData, callInfoData.stackBaseAddress, closureData);
+
+            var result = evaluation.Evaluate(evaluationCondition.Source.Text);
+
+            if (result as LuaValueDataError != null)
+            {
+                var resultAsError = result as LuaValueDataError;
+
+                inspectionSession.Close();
+
+                stop = true;
+                errorText = resultAsError.value;
+                return;
+            }
+
+            if (result.baseType == LuaBaseType.Nil)
+            {
+                inspectionSession.Close();
+
+                stop = false;
+                errorText = null;
+                return;
+            }
+
+            if (result is LuaValueDataBool resultBool)
+            {
+                inspectionSession.Close();
+
+                stop = resultBool.value;
+                errorText = null;
+                return;
+            }
+
+            var resultNumber = result as LuaValueDataNumber;
+
+            if (resultNumber == null)
+            {
+                inspectionSession.Close();
+
+                stop = true;
+                errorText = $"Value can't be used as condition: {result.AsSimpleDisplayString(10)}";
+                return;
+            }
+
+            inspectionSession.Close();
+
+            stop = resultNumber.value != 0.0;
+            errorText = null;
         }
     }
 }

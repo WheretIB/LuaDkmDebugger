@@ -56,6 +56,7 @@ namespace LuaDkmDebuggerComponent
         public ulong helperBreakCountAddress = 0;
         public ulong helperBreakDataAddress = 0;
         public ulong helperBreakHitIdAddress = 0;
+        public ulong helperBreakHitLuaStateAddress = 0;
         public ulong helperBreakSourcesAddress = 0;
 
         public ulong helperStepOverAddress = 0;
@@ -1651,6 +1652,7 @@ namespace LuaDkmDebuggerComponent
                         processData.helperBreakCountAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperBreakCount");
                         processData.helperBreakDataAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperBreakData");
                         processData.helperBreakHitIdAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperBreakHitId");
+                        processData.helperBreakHitLuaStateAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperBreakHitLuaStateAddress");
                         processData.helperBreakSourcesAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperBreakSources");
 
                         processData.helperStepOverAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperStepOver");
@@ -1674,6 +1676,7 @@ namespace LuaDkmDebuggerComponent
                             helperBreakCountAddress = processData.helperBreakCountAddress,
                             helperBreakDataAddress = processData.helperBreakDataAddress,
                             helperBreakHitIdAddress = processData.helperBreakHitIdAddress,
+                            helperBreakHitLuaStateAddress = processData.helperBreakHitLuaStateAddress,
                             helperBreakSourcesAddress = processData.helperBreakSourcesAddress,
 
                             helperStepOverAddress = processData.helperStepOverAddress,
@@ -1943,6 +1946,9 @@ namespace LuaDkmDebuggerComponent
                         log.Debug($"New Lua state 0x{stateAddress:x} version {version.GetValueOrDefault(501)}");
 
                         LuaHelpers.luaVersion = (int)version.GetValueOrDefault(501);
+
+                        // Tell remote component about Lua version
+                        DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.luaVersionInfo, LuaHelpers.luaVersion, null).SendLower();
 
                         if (!processData.helperInitialized)
                         {

@@ -423,6 +423,7 @@ struct LuaHelperBreakData
 extern "C" __declspec(dllexport) unsigned luaHelperBreakCount = 0;
 extern "C" __declspec(dllexport) LuaHelperBreakData luaHelperBreakData[256] = {};
 extern "C" __declspec(dllexport) unsigned luaHelperBreakHitId = 0;
+extern "C" __declspec(dllexport) uintptr_t luaHelperBreakHitLuaStateAddress = 0;
 extern "C" __declspec(dllexport) char luaHelperBreakSources[128 * 256] = {};
 
 extern "C" __declspec(dllexport) unsigned luaHelperStepOver = 0;
@@ -468,7 +469,7 @@ void LuaHelperStepHook(int event)
         OnLuaHelperStepComplete();
 }
 
-void LuaHelperBreakpointHook(int line, uintptr_t proto, const char *sourceName)
+void LuaHelperBreakpointHook(void *L, int line, uintptr_t proto, const char *sourceName)
 {
     for(auto curr = luaHelperBreakData, end = luaHelperBreakData + luaHelperBreakCount; curr != end; curr++)
     {
@@ -480,6 +481,7 @@ void LuaHelperBreakpointHook(int line, uintptr_t proto, const char *sourceName)
             if(proto == curr->proto)
             {
                 luaHelperBreakHitId = unsigned(curr - luaHelperBreakData);
+                luaHelperBreakHitLuaStateAddress = uintptr_t(L);
 
                 OnLuaHelperBreakpointHit();
                 break;
@@ -490,6 +492,7 @@ void LuaHelperBreakpointHook(int line, uintptr_t proto, const char *sourceName)
             if(strcmp(curr->sourceName, sourceName) == 0)
             {
                 luaHelperBreakHitId = unsigned(curr - luaHelperBreakData);
+                luaHelperBreakHitLuaStateAddress = uintptr_t(L);
 
                 OnLuaHelperBreakpointHit();
                 break;
@@ -573,7 +576,7 @@ extern "C" __declspec(dllexport) void LuaHelperHook_5_3(void *L, Lua_5_3::lua_De
 
         const char *sourceName = (char*)proto->source + sizeof(Lua_5_3::TString);
 
-        LuaHelperBreakpointHook(ar->currentline, uintptr_t(proto), sourceName);
+        LuaHelperBreakpointHook(L, ar->currentline, uintptr_t(proto), sourceName);
     }
 }
 
@@ -587,7 +590,7 @@ extern "C" __declspec(dllexport) void LuaHelperHook_5_2(void *L, Lua_5_2::lua_De
 
         const char *sourceName = (char*)proto->source + sizeof(Lua_5_2::TString);
 
-        LuaHelperBreakpointHook(ar->currentline, uintptr_t(proto), sourceName);
+        LuaHelperBreakpointHook(L, ar->currentline, uintptr_t(proto), sourceName);
     }
 }
 
@@ -636,7 +639,7 @@ extern "C" __declspec(dllexport) void LuaHelperHook_5_1(Lua_5_1::lua_State *L, L
 
                 const char *sourceName = (char*)proto->source + sizeof(Lua_5_1::TString);
 
-                LuaHelperBreakpointHook(ar->currentline, uintptr_t(proto), sourceName);
+                LuaHelperBreakpointHook(L, ar->currentline, uintptr_t(proto), sourceName);
             }
         }
     }

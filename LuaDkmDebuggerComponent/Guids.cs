@@ -23,6 +23,7 @@ namespace LuaDkmDebuggerComponent
         public static readonly int luaHelperDataLocations = 2;
         public static readonly int pauseBreakpoints = 3;
         public static readonly int resumeBreakpoints = 4;
+        public static readonly int luaVersionInfo = 5;
     }
 
     static class MessageToLocal
