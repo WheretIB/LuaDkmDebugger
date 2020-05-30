@@ -24,9 +24,20 @@
 			<Button guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaEnableBreakpointsCommandId" priority="0x0100" type="Button">
 				<Parent guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaMenuGroup" />
 				<CommandFlag>DontCache</CommandFlag>
+				<CommandFlag>DefaultDisabled</CommandFlag>
 				<Strings>
 					<ButtonText>Attach on Launch</ButtonText>
 					<CommandName>LuaEnableBreakpointsCommandId</CommandName>
+				</Strings>
+			</Button>
+
+			<Button guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaEnableLoggingCommandId" priority="0x0100" type="Button">
+				<Parent guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaMenuGroup" />
+				<CommandFlag>DontCache</CommandFlag>
+				<CommandFlag>DefaultDisabled</CommandFlag>
+				<Strings>
+					<ButtonText>Enable Debug Logs</ButtonText>
+					<CommandName>LuaEnableLoggingCommandId</CommandName>
 				</Strings>
 			</Button>
 		</Buttons>
@@ -39,6 +50,7 @@
 			<IDSymbol name="LuaMainExtensionMenu" value="0x1021" />
 			<IDSymbol name="LuaMenuGroup" value="0x1010" />
 			<IDSymbol name="LuaEnableBreakpointsCommandId" value="0x0120" />
+			<IDSymbol name="LuaEnableLoggingCommandId" value="0x0130" />
 		</GuidSymbol>
 	</Symbols>
 </CommandTable>

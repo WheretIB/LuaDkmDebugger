@@ -38,7 +38,9 @@ namespace LuaDkmDebugger
         /// </summary>
         public const string PackageGuidString = "99662a30-53ec-42a6-be5d-80aed0e1e2ea";
 
-        public const int CommandId = 0x0120;
+        public const int AttachCommandId = 0x0120;
+        public const int LoggingCommandId = 0x0130;
+
         public static readonly Guid CommandSet = new Guid("6EB675D6-C146-4843-990E-32D43B56706C");
 
         private IServiceProvider ServiceProvider => this;
@@ -46,6 +48,8 @@ namespace LuaDkmDebugger
         #region Package Members
 
         public static bool attachOnLaunch = true;
+        public static bool releaseDebugLogs = false;
+
         private WritableSettingsStore configurationSettingsStore = null;
 
         /// <summary>
@@ -70,8 +74,10 @@ namespace LuaDkmDebugger
                 configurationSettingsStore.CreateCollection("LuaDkmDebugger");
 
                 attachOnLaunch = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "AttachOnLaunch", true);
+                releaseDebugLogs = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "ReleaseDebugLogs", false);
 
                 LuaDkmDebuggerComponent.LocalComponent.attachOnLaunch = attachOnLaunch;
+                LuaDkmDebuggerComponent.LocalComponent.releaseDebugLogs = releaseDebugLogs;
             }
             catch (Exception e)
             {
@@ -82,19 +88,35 @@ namespace LuaDkmDebugger
 
             if (commandService != null)
             {
-                CommandID menuCommandID = new CommandID(CommandSet, CommandId);
+                {
+                    CommandID menuCommandID = new CommandID(CommandSet, AttachCommandId);
 
-                OleMenuCommand menuItem = new OleMenuCommand(MenuItemCallback, menuCommandID);
+                    OleMenuCommand menuItem = new OleMenuCommand(AttachMenuItemCallback, menuCommandID);
 
-                menuItem.BeforeQueryStatus += OnBeforeQueryStatus;
+                    menuItem.BeforeQueryStatus += AttachOnBeforeQueryStatus;
 
-                menuItem.Checked = attachOnLaunch;
+                    menuItem.Enabled = true;
+                    menuItem.Checked = attachOnLaunch;
 
-                commandService.AddCommand(menuItem);
+                    commandService.AddCommand(menuItem);
+                }
+
+                {
+                    CommandID menuCommandID = new CommandID(CommandSet, LoggingCommandId);
+
+                    OleMenuCommand menuItem = new OleMenuCommand(LoggingMenuItemCallback, menuCommandID);
+
+                    menuItem.BeforeQueryStatus += LoggingOnBeforeQueryStatus;
+
+                    menuItem.Enabled = true;
+                    menuItem.Checked = releaseDebugLogs;
+
+                    commandService.AddCommand(menuItem);
+                }
             }
         }
 
-        private void MenuItemCallback(object sender, EventArgs args)
+        private void AttachMenuItemCallback(object sender, EventArgs args)
         {
             if (sender is OleMenuCommand command)
             {
@@ -116,11 +138,41 @@ namespace LuaDkmDebugger
             }
         }
 
-        private void OnBeforeQueryStatus(object sender, EventArgs args)
+        private void AttachOnBeforeQueryStatus(object sender, EventArgs args)
         {
             if (sender is OleMenuCommand command)
             {
                 command.Checked = attachOnLaunch;
+            }
+        }
+
+        private void LoggingMenuItemCallback(object sender, EventArgs args)
+        {
+            if (sender is OleMenuCommand command)
+            {
+                releaseDebugLogs = !releaseDebugLogs;
+
+                try
+                {
+                    if (configurationSettingsStore != null)
+                        configurationSettingsStore.SetBoolean("LuaDkmDebugger", "ReleaseDebugLogs", releaseDebugLogs);
+
+                    LuaDkmDebuggerComponent.LocalComponent.releaseDebugLogs = releaseDebugLogs;
+                }
+                catch (Exception e)
+                {
+                    System.Diagnostics.Debug.WriteLine("Failed to setup setting with " + e.Message);
+                }
+
+                command.Checked = releaseDebugLogs;
+            }
+        }
+
+        private void LoggingOnBeforeQueryStatus(object sender, EventArgs args)
+        {
+            if (sender is OleMenuCommand command)
+            {
+                command.Checked = releaseDebugLogs;
             }
         }
 

@@ -52,13 +52,11 @@ namespace LuaDkmDebuggerComponent
 
                 System.Diagnostics.Debug.WriteLine(formatted);
 
-#if DEBUG
                 if (logPath != null)
                 {
                     using (var writer = File.AppendText(logPath))
                         writer.WriteLine(formatted);
                 }
-#endif
             }
             catch (Exception)
             {

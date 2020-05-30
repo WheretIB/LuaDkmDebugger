@@ -122,6 +122,7 @@ namespace LuaDkmDebuggerComponent
     public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery, IDkmModuleInstanceLoadNotification, IDkmCustomMessageCallbackReceiver, IDkmLanguageInstructionDecoder
     {
         public static bool attachOnLaunch = true;
+        public static bool releaseDebugLogs = false;
 
 #if DEBUG
         public static Log log = new Log(Log.LogLevel.Debug);
@@ -1963,7 +1964,16 @@ namespace LuaDkmDebuggerComponent
             {
                 var process = moduleInstance.Process;
 
+#if DEBUG
                 log.logPath = $"{Path.GetDirectoryName(process.Path)}\\lua_dkm_debug_log.txt";
+#else
+                if (releaseDebugLogs)
+                {
+                    log.logLevel = Log.LogLevel.Debug;
+
+                    log.logPath = $"{Path.GetDirectoryName(process.Path)}\\lua_dkm_debug_log.txt";
+                }
+#endif
 
                 var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
 
