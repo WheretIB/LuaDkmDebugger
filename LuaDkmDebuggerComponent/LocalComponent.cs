@@ -1214,7 +1214,7 @@ namespace LuaDkmDebuggerComponent
             {
                 var resultAsError = result as LuaValueDataError;
 
-                log.Error($"IDkmSymbolQuery.EvaluateExpression failure (error result)");
+                log.Warning($"IDkmSymbolQuery.EvaluateExpression failure (error result)");
 
                 completionRoutine(new DkmEvaluateExpressionAsyncResult(DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, expression.Text, expression.Text, resultAsError.value, DkmEvaluationResultFlags.Invalid, null)));
                 return;
@@ -1821,7 +1821,6 @@ namespace LuaDkmDebuggerComponent
 
             log.Error($"IDkmSymbolQuery.FindDocuments failure {sourceFileId.DocumentName}");
 
-            // TODO: can we find a mapping from source line to loaded Lua scripts?
             return module.FindDocuments(sourceFileId);
         }
 

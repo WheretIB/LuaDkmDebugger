@@ -1224,7 +1224,7 @@ namespace LuaDkmDebuggerComponent
         public string functionName;
 
         public int instructionLine;
-        public int instructionPointer; // Current instruction within the Lua Closure, evaluated as 'ci->u.l.savedpc - p->code' in Lua library (TODO: do we need to subtract 1?)
+        public int instructionPointer; // Current instruction within the Lua Closure, evaluated as 'ci->u.l.savedpc - p->code' in Lua library
 
         public string source;
 
