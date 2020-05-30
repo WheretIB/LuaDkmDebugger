@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.6.0] - 2020-05-30
+
+### Added
+
+- Support for breakpoints
+- Support for Step Over, Step In and Step Out
+- Debug logs
+- Function name cache for fast stack filter for Lua 5.2 and 5.3
+- Lua function upvalue support in expression evaluation and Locals window
+
+### Changed
+
+- Fixed access to local functions list of a Lua function
+- Fixed enumeration size and double completion callback call in Locals window
+- Additional stack filter optimizations
+- Hide Lua call stack frames between internal Lua calls for Lua 5.3
+
 ## [0.4.1] - 2020-05-23
 
 ### Added

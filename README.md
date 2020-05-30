@@ -1,7 +1,7 @@
 # C++ Debugger Extensions for Lua
 
 ---
-This Visual Studio extension enables limited support for inspection of Lua state in C++ applications during debug.
+This Visual Studio extension enables debugging of Lua scripts running inside C++ applications with Lua library.
 
 Supported Lua versions:
 * Lua 5.3
@@ -10,17 +10,23 @@ Supported Lua versions:
 
 [Extension on Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=wheretib.lua-dkm-debug)
 
-### Features:
- * Lua 'inline' stack frame insertion into the Call Stack
- * Mark Lua library stack frames as non-user code
- * Jump to Lua source/line from Lua stack frames
- * Function argument and local variable display in the 'Locals' watch section
- * Local variable lookup and expression evaluation in Watch, Immediate and similar elements
+## Features:
+ * Lua call stack frames in the Call Stack window
+ * Lua library call stack frames are marked as non-user code
+ * Jump to Lua source/line from Lua call stack frames
+ * Function arguments, local variables and upvalues are displayed in the 'Locals' window
+ * Lua expression evaluation in Watch, Immediate and similar elements
  * Numeric and user data values can be modified
+ * Breakpoints
+    * Known issue: breakpoints must be set after the debugger is launched
+    * Up to 256 breakpoints are supported
+ * Step Over, Step Into and Step Out
+
+![Example debug session](https://github.com/WheretIB/LuaDkmDebugger/blob/master/resource/front_image_2.png?raw=true)
 
 ![Example debug session](https://github.com/WheretIB/LuaDkmDebugger/blob/master/resource/front_image.png?raw=true)
 
-### Additional configuration
+## Additional configuration
 
 In the default configuration, debugger searches for script files in current working directory and application executable directory.
 
@@ -39,6 +45,22 @@ Add `ScriptPaths` key with an array of additional search paths.
 }
 ```
 
-### Known Issues:
+## Troubleshooting
+
+If you experience issues with the extension, you can enable debug logs in 'Extensions -> Lua Debugger' menu if you wish to provide additional info in your report.
+
+### Breakpoints and Stepping information
+
+As in other Lua debuggers, breakpoints are implemented using Lua library hooks. The hook is set as soon as Lua state is created.
+
+If you use your own Lua hooks in your application, you can call the previous hook function from your hook.
+
+This debugger or other debuggers might override each other hooks, so if breakpoints are not hit, this might be the reason.
+
+If you experience issues with the debugger on launch, you can disable attachment to your process in 'Extensions -> Lua Debugger' menu. Debug logs can be enabled there as well if you wish to report the issue. (note that names of your Lua scripts might be included in the log). If debugger attachment is disabled, all features except for breakpoints and stepping will still work.
+
+## Known Issues:
  * This extension will always add Lua module to the application (can be seen in 'Modules' section of the debugger) even when debugging applications with no Lua code (check notes in RemoteComponent.cs)
  * Lua 5.2 is assumed to be compiled with LUA_NANTRICK in x86 (default configuration)
+ * Breakpoints must be set after the debugger is launched
+ * Step Into from Lua into C++ doesn't work at the moment
