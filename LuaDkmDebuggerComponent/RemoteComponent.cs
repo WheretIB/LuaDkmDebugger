@@ -546,7 +546,7 @@ namespace LuaDkmDebuggerComponent
                 inspectionSession.Close();
 
                 stop = true;
-                errorText = "Failed to evaluate current Lua call frame";
+                errorText = $"Failed to evaluate current Lua call frame (Lua version {processData.luaVersion})";
                 return;
             }
 
