@@ -2053,6 +2053,8 @@ namespace LuaDkmDebuggerComponent
                     {
                         log.Error($"Failed to evaluate Lua state location");
                     }
+
+                    inspectionSession.Close();
                 }
                 else if (data.breakpointId == processData.breakpointLuaThreadDestroy)
                 {
@@ -2068,6 +2070,8 @@ namespace LuaDkmDebuggerComponent
 
                         processData.symbolStore.Remove(stateAddress.Value);
                     }
+
+                    inspectionSession.Close();
                 }
                 else if (data.breakpointId == processData.breakpointLuaFileLoaded || data.breakpointId == processData.breakpointLuaFileLoadedSolCompat)
                 {
@@ -2101,6 +2105,8 @@ namespace LuaDkmDebuggerComponent
                     {
                         log.Error("Failed to evaluate Lua buffer data");
                     }
+
+                    inspectionSession.Close();
                 }
                 else if (data.breakpointId == processData.breakpointLuaBufferLoaded)
                 {
@@ -2146,6 +2152,8 @@ namespace LuaDkmDebuggerComponent
                     {
                         log.Error("Failed to evaluate Lua buffer data");
                     }
+
+                    inspectionSession.Close();
                 }
                 else if (data.breakpointId == processData.breakpointLuaHelperInitialized)
                 {
