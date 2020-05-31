@@ -1652,6 +1652,12 @@ namespace LuaDkmDebuggerComponent
                 }
 #endif
 
+                if (process.LivePart == null)
+                {
+                    log.Debug($"Process is not live, do not attach to Lua");
+                    return;
+                }
+
                 var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
 
                 if (nativeModuleInstance.FullName != null && nativeModuleInstance.FullName.EndsWith(".exe"))
