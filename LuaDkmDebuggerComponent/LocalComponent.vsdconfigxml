@@ -21,6 +21,7 @@
 					<Interface Name="IDkmSymbolCompilerIdQuery"/>
 					<Interface Name="IDkmSymbolDocumentCollectionQuery"/>
 					<Interface Name="IDkmSymbolDocumentSpanQuery"/>
+					<Interface Name="IDkmModuleUserCodeDeterminer"/>
 				</InterfaceGroup>
 
 				<InterfaceGroup>

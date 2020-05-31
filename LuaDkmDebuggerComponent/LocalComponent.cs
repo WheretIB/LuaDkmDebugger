@@ -121,7 +121,7 @@ namespace LuaDkmDebuggerComponent
         public LuaScriptSymbols script;
     }
 
-    public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery, IDkmModuleInstanceLoadNotification, IDkmCustomMessageCallbackReceiver, IDkmLanguageInstructionDecoder
+    public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery, IDkmModuleInstanceLoadNotification, IDkmCustomMessageCallbackReceiver, IDkmLanguageInstructionDecoder, IDkmModuleUserCodeDeterminer
     {
         public static bool attachOnLaunch = true;
         public static bool releaseDebugLogs = false;
@@ -2197,6 +2197,11 @@ namespace LuaDkmDebuggerComponent
             log.Debug($"IDkmSymbolQuery.SendHigher finished");
 
             return null;
+        }
+
+        bool IDkmModuleUserCodeDeterminer.IsUserCode(DkmModuleInstance moduleInstance)
+        {
+            return true;
         }
     }
 }
