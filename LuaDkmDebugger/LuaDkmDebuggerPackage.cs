@@ -40,6 +40,7 @@ namespace LuaDkmDebugger
 
         public const int AttachCommandId = 0x0120;
         public const int LoggingCommandId = 0x0130;
+        public const int LuaShowHiddenFramesCommandId = 0x0140;
 
         public static readonly Guid CommandSet = new Guid("6EB675D6-C146-4843-990E-32D43B56706C");
 
@@ -49,6 +50,7 @@ namespace LuaDkmDebugger
 
         public static bool attachOnLaunch = true;
         public static bool releaseDebugLogs = false;
+        public static bool showHiddenFrames = false;
 
         private WritableSettingsStore configurationSettingsStore = null;
 
@@ -75,9 +77,11 @@ namespace LuaDkmDebugger
 
                 attachOnLaunch = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "AttachOnLaunch", true);
                 releaseDebugLogs = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "ReleaseDebugLogs", false);
+                showHiddenFrames = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "ShowHiddenFrames", false);
 
                 LuaDkmDebuggerComponent.LocalComponent.attachOnLaunch = attachOnLaunch;
                 LuaDkmDebuggerComponent.LocalComponent.releaseDebugLogs = releaseDebugLogs;
+                LuaDkmDebuggerComponent.LocalComponent.showHiddenFrames = showHiddenFrames;
             }
             catch (Exception e)
             {
@@ -110,6 +114,17 @@ namespace LuaDkmDebugger
 
                     menuItem.Enabled = true;
                     menuItem.Checked = releaseDebugLogs;
+
+                    commandService.AddCommand(menuItem);
+                }
+
+                {
+                    CommandID menuCommandID = new CommandID(CommandSet, LuaShowHiddenFramesCommandId);
+
+                    OleMenuCommand menuItem = new OleMenuCommand(ShowHiddenFramesMenuItemCallback, menuCommandID);
+
+                    menuItem.Enabled = true;
+                    menuItem.Checked = showHiddenFrames;
 
                     commandService.AddCommand(menuItem);
                 }
@@ -173,6 +188,28 @@ namespace LuaDkmDebugger
             if (sender is OleMenuCommand command)
             {
                 command.Checked = releaseDebugLogs;
+            }
+        }
+
+        private void ShowHiddenFramesMenuItemCallback(object sender, EventArgs args)
+        {
+            if (sender is OleMenuCommand command)
+            {
+                showHiddenFrames = !showHiddenFrames;
+
+                try
+                {
+                    if (configurationSettingsStore != null)
+                        configurationSettingsStore.SetBoolean("LuaDkmDebugger", "ShowHiddenFrames", showHiddenFrames);
+
+                    LuaDkmDebuggerComponent.LocalComponent.showHiddenFrames = showHiddenFrames;
+                }
+                catch (Exception e)
+                {
+                    System.Diagnostics.Debug.WriteLine("Failed to setup setting with " + e.Message);
+                }
+
+                command.Checked = showHiddenFrames;
             }
         }
 

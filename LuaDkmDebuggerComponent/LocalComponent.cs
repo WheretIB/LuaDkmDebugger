@@ -125,6 +125,7 @@ namespace LuaDkmDebuggerComponent
     {
         public static bool attachOnLaunch = true;
         public static bool releaseDebugLogs = false;
+        public static bool showHiddenFrames = false;
 
 #if DEBUG
         public static Log log = new Log(Log.LogLevel.Debug, true);
@@ -711,13 +712,13 @@ namespace LuaDkmDebuggerComponent
             {
                 var flags = (input.Flags & ~DkmStackWalkFrameFlags.UserStatusNotDetermined) | DkmStackWalkFrameFlags.NonuserCode;
 
-                if (stackContextData.hideTopLuaLibraryFrames || stackContextData.hideInternalLuaLibraryFrames)
+                if ((stackContextData.hideTopLuaLibraryFrames || stackContextData.hideInternalLuaLibraryFrames) && !showHiddenFrames)
                     flags |= DkmStackWalkFrameFlags.Hidden;
 
                 return new DkmStackWalkFrame[1] { DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, flags, input.Description, input.Registers, input.Annotations) };
             }
 
-            if (stackContextData.hideTopLuaLibraryFrames && (input.BasicSymbolInfo.MethodName == "callhook" || input.BasicSymbolInfo.MethodName == "traceexec"))
+            if (stackContextData.hideTopLuaLibraryFrames && (input.BasicSymbolInfo.MethodName == "callhook" || input.BasicSymbolInfo.MethodName == "traceexec") && !showHiddenFrames)
             {
                 var flags = (input.Flags & ~DkmStackWalkFrameFlags.UserStatusNotDetermined) | DkmStackWalkFrameFlags.NonuserCode | DkmStackWalkFrameFlags.Hidden;
 
