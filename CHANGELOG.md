@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.7.4] - 2020-05-31
+
+### Added
+
+- Option to show hidden Lua call stack frames (for troubleshooting)
+
+### Changed
+
+- Fixed hook crash when application Lua library is compiled with a different LUA_IDSIZE
+- Fixed conditional breakpoints in Lua 5.3 build for x64
+
+## [0.7.0] - 2020-05-31
+
+### Added
+
+- Support for conditional breakpoints
+- Added display of source files that haven't been found disk
+
+### Changed
+
+- Some documents can be linked to known scripts using content comparison even when script source name doesn't match any file on disk
+
 ## [0.6.0] - 2020-05-30
 
 ### Added
@@ -70,6 +92,9 @@
 
 ### First Release
 
+[0.7.4]https://github.com/WheretIB/LuaDkmDebugger/commit/6e055d13b1baed5bc078405de7648d1286cb011f
+[0.7.0]https://github.com/WheretIB/LuaDkmDebugger/commit/146ed2cdf862205eb0fe06b4c22df9b9cda308c7
+[0.6.0]https://github.com/WheretIB/LuaDkmDebugger/commit/e944e2abe4d1d18f6b861479854f71ddc0eb32bf
 [0.4.1]https://github.com/WheretIB/LuaDkmDebugger/commit/133da5f5a03d99c0a63307007d8af7515d673e41
 [0.3.0]https://github.com/WheretIB/LuaDkmDebugger/commit/cfe2f159c700790c23d24ef986dad49b62cb92bf
 [0.2.6]https://github.com/WheretIB/LuaDkmDebugger/commit/90c303512f3fd85e518ac3bbb14f9585bdc57fb2

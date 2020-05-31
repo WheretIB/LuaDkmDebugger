@@ -21,6 +21,7 @@ Supported Lua versions:
     * Known issue: breakpoints must be set after the debugger is launched
     * Up to 256 breakpoints are supported
  * Step Over, Step Into and Step Out
+ * Conditional breakpoints
 
 ![Example debug session](https://github.com/WheretIB/LuaDkmDebugger/blob/master/resource/front_image_2.png?raw=true)
 
