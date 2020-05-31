@@ -451,14 +451,14 @@ namespace LuaDkmDebuggerComponent
 
         internal static void SkipStructShort(DkmProcess process, ref ulong address)
         {
-            address = (address + 1ul) & ~1u; // Align
+            address = (address + 1ul) & ~1ul; // Align
 
             address += 2ul;
         }
 
         internal static void SkipStructInt(DkmProcess process, ref ulong address)
         {
-            address = (address + 3ul) & ~3u; // Align
+            address = (address + 3ul) & ~3ul; // Align
 
             address += 4ul;
         }
