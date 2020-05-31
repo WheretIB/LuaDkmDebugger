@@ -63,8 +63,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 
 namespace Lua_5_3
 {
-    const unsigned LUA_IDSIZE = 60;
-
     typedef unsigned char lu_byte;
 
     struct GCObject;
@@ -151,9 +149,22 @@ namespace Lua_5_3
         unsigned char nparams;/* (u) number of parameters */
         char isvararg;        /* (u) */
         char istailcall;	/* (t) */
-        char short_src[LUA_IDSIZE]; /* (S) */
-        /* private part */
-        struct CallInfo *i_ci;  /* active function */
+
+        // Don't care for other fields
+    };
+
+    struct global_State;
+
+    struct lua_State
+    {
+        GCObject *next; lu_byte tt; lu_byte marked;
+        unsigned short nci;  /* number of items in 'ci' list */
+        lu_byte status;
+        StkId top;  /* first free slot in the stack */
+        global_State *l_G;
+        CallInfo *ci;  /* call info for current function */
+
+        // Don't care for other fields
     };
 
     struct TString
@@ -172,8 +183,6 @@ namespace Lua_5_3
 
 namespace Lua_5_2
 {
-    const unsigned LUA_IDSIZE = 60;
-
     typedef unsigned char lu_byte;
 
     struct GCObject;
@@ -260,9 +269,21 @@ namespace Lua_5_2
         unsigned char nparams;/* (u) number of parameters */
         char isvararg;        /* (u) */
         char istailcall;	/* (t) */
-        char short_src[LUA_IDSIZE]; /* (S) */
-        /* private part */
-        struct CallInfo *i_ci;  /* active function */
+
+        // Don't care for other fields
+    };
+
+    struct global_State;
+
+    struct lua_State
+    {
+        GCObject *next; lu_byte tt; lu_byte marked;
+        lu_byte status;
+        StkId top;  /* first free slot in the stack */
+        global_State *l_G;
+        CallInfo *ci;  /* call info for current function */
+
+        // Don't care for other fields
     };
 
     union TString
@@ -283,8 +304,6 @@ namespace Lua_5_2
 
 namespace Lua_5_1
 {
-    const unsigned LUA_IDSIZE = 60;
-
     typedef unsigned char lu_byte;
 
     union GCObject;
@@ -365,9 +384,8 @@ namespace Lua_5_1
         int nups;		/* (u) number of upvalues */
         int linedefined;	/* (S) */
         int lastlinedefined;	/* (S) */
-        char short_src[LUA_IDSIZE]; /* (S) */
-        /* private part */
-        int i_ci;  /* active function */
+
+        // Don't care for other fields
     };
 
     struct global_State;
@@ -501,7 +519,7 @@ void LuaHelperBreakpointHook(void *L, int line, uintptr_t proto, const char *sou
     }
 }
 
-extern "C" __declspec(dllexport) void LuaHelperHook_5_3(void *L, Lua_5_3::lua_Debug *ar)
+extern "C" __declspec(dllexport) void LuaHelperHook_5_3(Lua_5_3::lua_State *L, Lua_5_3::lua_Debug *ar)
 {
 #if defined(DEBUG_MODE)
     const char *sourceName = "uknown location";
@@ -570,9 +588,9 @@ extern "C" __declspec(dllexport) void LuaHelperHook_5_3(void *L, Lua_5_3::lua_De
     LuaHelperStepHook(ar->event);
 #endif
 
-    if(ar->i_ci && (ar->i_ci->func->tt_ & 0x3f) == 6)
+    if(L->ci && (L->ci->func->tt_ & 0x3f) == 6)
     {
-        auto proto = ((Lua_5_3::LClosure*)ar->i_ci->func->value_.gc)->p;
+        auto proto = ((Lua_5_3::LClosure*)L->ci->func->value_.gc)->p;
 
         const char *sourceName = (char*)proto->source + sizeof(Lua_5_3::TString);
 
@@ -580,13 +598,13 @@ extern "C" __declspec(dllexport) void LuaHelperHook_5_3(void *L, Lua_5_3::lua_De
     }
 }
 
-extern "C" __declspec(dllexport) void LuaHelperHook_5_2(void *L, Lua_5_2::lua_Debug *ar)
+extern "C" __declspec(dllexport) void LuaHelperHook_5_2(Lua_5_2::lua_State *L, Lua_5_2::lua_Debug *ar)
 {
     LuaHelperStepHook(ar->event);
 
-    if(ar->i_ci && (ar->i_ci->func->u.i.tt__ & 0x3f) == 6)
+    if(L->ci && (L->ci->func->u.i.tt__ & 0x3f) == 6)
     {
-        auto proto = ((Lua_5_2::LClosure*)ar->i_ci->func->u.i.v__.gc)->p;
+        auto proto = ((Lua_5_2::LClosure*)L->ci->func->u.i.v__.gc)->p;
 
         const char *sourceName = (char*)proto->source + sizeof(Lua_5_2::TString);
 
@@ -625,9 +643,14 @@ extern "C" __declspec(dllexport) void LuaHelperHook_5_1(Lua_5_1::lua_State *L, L
         OnLuaHelperStepComplete();
     }
 
-    if(ar->i_ci >= 0)
+    unsigned callInfoIndex = 0;
+
+    if(ar->event != LUA_HOOKTAILRET)
+        callInfoIndex = unsigned(L->ci - L->base_ci);
+
+    if(callInfoIndex >= 0)
     {
-        auto function = L->base_ci[ar->i_ci].func;
+        auto function = L->base_ci[callInfoIndex].func;
 
         if((function->tt & 0x3f) == 6)
         {
