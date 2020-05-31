@@ -9,12 +9,6 @@
 		<Class Name="LuaDkmDebuggerComponent.RemoteComponent">
 			<Implements>
 				<InterfaceGroup>
-					<NoFilter/>
-					<Interface Name="IDkmProcessExecutionNotification"/>
-					<Interface Name="IDkmRuntimeInstanceLoadCompleteNotification"/>
-				</InterfaceGroup>
-				
-				<InterfaceGroup>
 					<Filter>
 						<SourceId RequiredValue="guidLuaMessageToRemote"/>
 					</Filter>

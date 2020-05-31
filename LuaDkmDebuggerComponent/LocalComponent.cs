@@ -215,12 +215,6 @@ namespace LuaDkmDebuggerComponent
 
                 if (processData.runtimeInstance == null)
                 {
-                    // Request the RemoteComponent to create the runtime and a module
-                    // NOTE: Due to issues with Visual Studio debugger, runtime and module were already created as soon as application launched
-                    var message = DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.createRuntime, null, null);
-
-                    message.SendLower();
-
                     processData.runtimeInstance = process.GetRuntimeInstances().OfType<DkmCustomRuntimeInstance>().FirstOrDefault(el => el.Id.RuntimeType == Guids.luaRuntimeGuid);
 
                     if (processData.runtimeInstance == null)
@@ -1662,6 +1656,9 @@ namespace LuaDkmDebuggerComponent
 
                 if (nativeModuleInstance.FullName != null && nativeModuleInstance.FullName.EndsWith(".exe"))
                 {
+                    // Request the RemoteComponent to create the runtime and a module
+                    DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.createRuntime, null, null).SendLower();
+
                     if (!attachOnLaunch)
                     {
                         log.Warning("Lua attach on launch is disabled, skip search for Lua");
