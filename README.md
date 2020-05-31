@@ -61,7 +61,7 @@ This debugger or other debuggers might override each other hooks, so if breakpoi
 If you experience issues with the debugger on launch, you can disable attachment to your process in 'Extensions -> Lua Debugger' menu. Debug logs can be enabled there as well if you wish to report the issue. (note that names of your Lua scripts might be included in the log). If debugger attachment is disabled, all features except for breakpoints and stepping will still work.
 
 ## Known Issues:
- * This extension will always add Lua module to the application (can be seen in 'Modules' section of the debugger) even when debugging applications with no Lua code (check notes in RemoteComponent.cs)
+ * This extension will always add Lua module to the application (can be seen in 'Modules' section of the debugger) even when debugging applications with no Lua code
  * Lua 5.2 is assumed to be compiled with LUA_NANTRICK in x86 (default configuration)
  * Breakpoints must be set after the debugger is launched
  * Step Into from Lua into C++ doesn't work at the moment
