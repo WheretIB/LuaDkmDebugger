@@ -12,6 +12,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 using System.Web.Script.Serialization;
 
@@ -1411,6 +1412,7 @@ namespace LuaDkmDebuggerComponent
             {
                 foreach (var source in state.Value.knownSources)
                 {
+                    // Resolve script path if it's not resolved yet
                     if (source.Value.resolvedFileName == null)
                     {
                         var scriptSource = processData.symbolStore.FetchScriptSource(source.Key);
@@ -1433,7 +1435,7 @@ namespace LuaDkmDebuggerComponent
                             source = source.Value
                         };
 
-                        log.Debug($"IDkmSymbolQuery.FindDocuments success");
+                        log.Debug($"IDkmSymbolQuery.FindDocuments success (known source)");
 
                         return new DkmResolvedDocument[1] { DkmResolvedDocument.Create(module, sourceFileId.DocumentName, null, DkmDocumentMatchStrength.FullPath, DkmResolvedDocumentWarning.None, false, dataItem) };
                     }
@@ -1444,12 +1446,33 @@ namespace LuaDkmDebuggerComponent
             {
                 foreach (var script in state.Value.knownScripts)
                 {
+                    // Resolve script path if it's not resolved yet
                     if (script.Value.resolvedFileName == null)
                     {
-                        script.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, script.Key, script.Value.scriptContent);
+                        // Check match based on hash
+                        if (sourceFileId.SHA1HashPart != null && script.Value.sha1Hash != null)
+                        {
+                            int value0 = (int)(((uint)script.Value.sha1Hash[3] << 24) | ((uint)script.Value.sha1Hash[2] << 16) | ((uint)script.Value.sha1Hash[1] << 8) | (uint)script.Value.sha1Hash[0]);
+                            int value1 = (int)(((uint)script.Value.sha1Hash[7] << 24) | ((uint)script.Value.sha1Hash[6] << 16) | ((uint)script.Value.sha1Hash[5] << 8) | (uint)script.Value.sha1Hash[4]);
+                            int value2 = (int)(((uint)script.Value.sha1Hash[11] << 24) | ((uint)script.Value.sha1Hash[10] << 16) | ((uint)script.Value.sha1Hash[9] << 8) | (uint)script.Value.sha1Hash[8]);
+                            int value3 = (int)(((uint)script.Value.sha1Hash[15] << 24) | ((uint)script.Value.sha1Hash[14] << 16) | ((uint)script.Value.sha1Hash[13] << 8) | (uint)script.Value.sha1Hash[12]);
+                            int value4 = (int)(((uint)script.Value.sha1Hash[19] << 24) | ((uint)script.Value.sha1Hash[18] << 16) | ((uint)script.Value.sha1Hash[17] << 8) | (uint)script.Value.sha1Hash[16]);
 
-                        if (script.Value.resolvedFileName != null)
-                            log.Debug($"IDkmSymbolQuery.FindDocuments Resolved {script.Value.sourceFileName} to {script.Value.resolvedFileName}");
+                            if (sourceFileId.SHA1HashPart.Value.Value0 == value0 && sourceFileId.SHA1HashPart.Value.Value1 == value1 && sourceFileId.SHA1HashPart.Value.Value2 == value2 && sourceFileId.SHA1HashPart.Value.Value3 == value3 && sourceFileId.SHA1HashPart.Value.Value4 == value4)
+                            {
+                                log.Debug($"IDkmSymbolQuery.FindDocuments Resolved {script.Value.sourceFileName} to {script.Value.resolvedFileName} based on SHA-1 hash");
+
+                                script.Value.resolvedFileName = sourceFileId.DocumentName;
+                            }
+                        }
+
+                        if (script.Value.resolvedFileName == null)
+                        {
+                            script.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, script.Key, script.Value.scriptContent);
+
+                            if (script.Value.resolvedFileName != null)
+                                log.Debug($"IDkmSymbolQuery.FindDocuments Resolved {script.Value.sourceFileName} to {script.Value.resolvedFileName}");
+                        }
                     }
 
                     var fileName = script.Value.resolvedFileName;
@@ -1461,7 +1484,7 @@ namespace LuaDkmDebuggerComponent
                             script = script.Value
                         };
 
-                        log.Debug($"IDkmSymbolQuery.FindDocuments success");
+                        log.Debug($"IDkmSymbolQuery.FindDocuments success (known script)");
 
                         return new DkmResolvedDocument[1] { DkmResolvedDocument.Create(module, sourceFileId.DocumentName, null, DkmDocumentMatchStrength.FullPath, DkmResolvedDocumentWarning.None, false, dataItem) };
                     }
@@ -2061,7 +2084,7 @@ namespace LuaDkmDebuggerComponent
                         {
                             scriptName = "@" + scriptName;
 
-                            processData.symbolStore.FetchOrCreate(stateAddress.Value).AddScriptSource(scriptName, scriptContent);
+                            processData.symbolStore.FetchOrCreate(stateAddress.Value).AddScriptSource(scriptName, scriptContent, null);
 
                             log.Debug($"Adding script {scriptName} to symbol store of Lua state {stateAddress.Value} (without content)");
                         }
@@ -2089,18 +2112,30 @@ namespace LuaDkmDebuggerComponent
 
                     if (scriptBufferAddress.HasValue && scriptSize.HasValue && scriptNameAddress.HasValue)
                     {
-                        string scriptContent = DebugHelpers.ReadStringVariable(process, scriptBufferAddress.Value, (int)scriptSize.Value);
-                        string scriptName = DebugHelpers.ReadStringVariable(process, scriptNameAddress.Value, 1024);
+                        byte[] rawScriptContent = DebugHelpers.ReadRawStringVariable(process, scriptBufferAddress.Value, (int)scriptSize.Value);
 
-                        if (scriptName != null)
+                        if (rawScriptContent != null)
                         {
-                            processData.symbolStore.FetchOrCreate(stateAddress.Value).AddScriptSource(scriptName, scriptContent);
+                            string scriptContent = Encoding.UTF8.GetString(rawScriptContent, 0, rawScriptContent.Length);
 
-                            log.Debug($"Adding script {scriptName} to symbol store of Lua state {stateAddress.Value} (with content)");
+                            string scriptName = DebugHelpers.ReadStringVariable(process, scriptNameAddress.Value, 1024);
+
+                            if (scriptName != null)
+                            {
+                                var sha1Hash = new SHA1Managed().ComputeHash(rawScriptContent);
+
+                                processData.symbolStore.FetchOrCreate(stateAddress.Value).AddScriptSource(scriptName, scriptContent, sha1Hash);
+
+                                log.Debug($"Adding script {scriptName} to symbol store of Lua state {stateAddress.Value} (with content)");
+                            }
+                            else
+                            {
+                                log.Error("Failed to load script name from process");
+                            }
                         }
                         else
                         {
-                            log.Error("Failed to load script name from process");
+                            log.Error("Failed to load script content from process");
                         }
                     }
                     else

@@ -188,6 +188,19 @@ namespace LuaDkmDebuggerComponent
             return ReadUlongVariable(process, address);
         }
 
+        internal static byte[] ReadRawStringVariable(DkmProcess process, ulong address, int limit)
+        {
+            try
+            {
+                return process.ReadMemoryString(address, DkmReadMemoryFlags.AllowPartialRead, 1, limit);
+            }
+            catch (DkmException)
+            {
+            }
+
+            return null;
+        }
+
         internal static string ReadStringVariable(DkmProcess process, ulong address, int limit)
         {
             try

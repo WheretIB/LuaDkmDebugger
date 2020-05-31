@@ -8,6 +8,8 @@ namespace LuaDkmDebuggerComponent
     {
         public string sourceFileName = null;
         public string scriptContent = null;
+        public byte[] sha1Hash = null;
+
         public string resolvedFileName = null;
     }
 
@@ -79,12 +81,12 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
-        public void AddScriptSource(string scriptName, string scriptContent)
+        public void AddScriptSource(string scriptName, string scriptContent, byte[] sha1Hash)
         {
             if (!knownScripts.ContainsKey(scriptName))
-                knownScripts.Add(scriptName, new LuaScriptSymbols { sourceFileName = scriptName, scriptContent = scriptContent });
+                knownScripts.Add(scriptName, new LuaScriptSymbols { sourceFileName = scriptName, scriptContent = scriptContent, sha1Hash = sha1Hash });
             else
-                knownScripts[scriptName] = new LuaScriptSymbols { sourceFileName = scriptName, scriptContent = scriptContent };
+                knownScripts[scriptName] = new LuaScriptSymbols { sourceFileName = scriptName, scriptContent = scriptContent, sha1Hash = sha1Hash };
         }
 
         public LuaScriptSymbols FetchScriptSource(string sourceFileName)
