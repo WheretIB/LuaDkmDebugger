@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.5] - 2020-05-31
+
+### Changed
+
+- Fixed crash when crash dump is debugged
+
 ## [0.7.4] - 2020-05-31
 
 ### Added
@@ -92,6 +98,7 @@
 
 ### First Release
 
+[0.7.5]https://github.com/WheretIB/LuaDkmDebugger/commit/7198955e3ccc178a80758d2bdf58c692eef0c1e8
 [0.7.4]https://github.com/WheretIB/LuaDkmDebugger/commit/6e055d13b1baed5bc078405de7648d1286cb011f
 [0.7.0]https://github.com/WheretIB/LuaDkmDebugger/commit/146ed2cdf862205eb0fe06b4c22df9b9cda308c7
 [0.6.0]https://github.com/WheretIB/LuaDkmDebugger/commit/e944e2abe4d1d18f6b861479854f71ddc0eb32bf
