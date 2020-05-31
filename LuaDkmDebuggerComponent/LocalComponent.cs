@@ -782,38 +782,40 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
-        string TryFindSourcePath(string processPath, LuaLocalProcessData processData, string source)
+        string TryFindSourcePath(string processPath, LuaLocalProcessData processData, string source, string content)
         {
             string filePath;
 
             if (source.StartsWith("@"))
+                source = source.Substring(1);
+
+            string winSourcePath = source.Replace('/', '\\');
+
+            filePath = CheckConfigPaths(processPath, processData, winSourcePath);
+
+            if (filePath == null)
             {
-                string winSourcePath = source.Replace('/', '\\');
-
-                filePath = CheckConfigPaths(processPath, processData, winSourcePath.Substring(1));
-
-                if (filePath == null)
+                // If we have source data, write it to the temp directory and return it
+                if (content?.Length != 0)
                 {
-                    if (processData.workingDirectory != null)
-                        filePath = $"{processData.workingDirectory}\\{winSourcePath.Substring(1)}";
-                    else
-                        filePath = winSourcePath.Substring(1);
-                }
-            }
-            else
-            {
-                string winSourcePath = source.Replace('/', '\\');
+                    string tempPath = $"{Path.GetTempPath()}{winSourcePath.Replace('\\', '+')}";
 
-                filePath = CheckConfigPaths(processPath, processData, winSourcePath);
+                    try
+                    {
+                        File.WriteAllText(tempPath, content);
 
-                if (filePath == null)
-                {
-                    // TODO: how can we display internal scripts in the debugger?
-                    if (processData.workingDirectory != null)
-                        filePath = $"{processData.workingDirectory}\\internal.lua";
-                    else
-                        filePath = "internal.lua";
+                        return tempPath;
+                    }
+                    catch (Exception)
+                    {
+                        log.Error($"Failed to write {source} content to temp path {tempPath}");
+                    }
                 }
+
+                if (processData.workingDirectory != null)
+                    filePath = $"{processData.workingDirectory}\\{winSourcePath}";
+                else
+                    filePath = winSourcePath;
             }
 
             return filePath;
@@ -845,7 +847,21 @@ namespace LuaDkmDebuggerComponent
 
             if (frameData.ReadFrom(instructionSymbol.AdditionalData.ToArray()))
             {
-                string filePath = TryFindSourcePath(process.Path, processData, frameData.source);
+                var scriptSource = processData.symbolStore.FetchScriptSource(frameData.source);
+
+                string filePath = null;
+
+                if (scriptSource?.resolvedFileName != null)
+                {
+                    filePath = scriptSource.resolvedFileName;
+                }
+                else
+                {
+                    filePath = TryFindSourcePath(process.Path, processData, frameData.source, scriptSource?.scriptContent);
+
+                    if (scriptSource != null)
+                        scriptSource.resolvedFileName = filePath;
+                }
 
                 log.Debug($"IDkmSymbolQuery.GetSourcePosition success");
 
@@ -1397,7 +1413,12 @@ namespace LuaDkmDebuggerComponent
                 {
                     if (source.Value.resolvedFileName == null)
                     {
-                        source.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, source.Key);
+                        var scriptSource = processData.symbolStore.FetchScriptSource(source.Key);
+
+                        if (scriptSource?.resolvedFileName != null)
+                            source.Value.resolvedFileName = scriptSource.resolvedFileName;
+                        else
+                            source.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, source.Key, scriptSource?.scriptContent);
 
                         if (source.Value.resolvedFileName != null)
                             log.Debug($"IDkmSymbolQuery.FindDocuments Resolved {source.Value.sourceFileName} to {source.Value.resolvedFileName}");
@@ -1425,7 +1446,7 @@ namespace LuaDkmDebuggerComponent
                 {
                     if (script.Value.resolvedFileName == null)
                     {
-                        script.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, script.Key);
+                        script.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, script.Key, script.Value.scriptContent);
 
                         if (script.Value.resolvedFileName != null)
                             log.Debug($"IDkmSymbolQuery.FindDocuments Resolved {script.Value.sourceFileName} to {script.Value.resolvedFileName}");
@@ -1506,9 +1527,15 @@ namespace LuaDkmDebuggerComponent
             }
 
             var process = moduleInstance.Process;
+            var processData = process.GetDataItem<LuaLocalProcessData>();
+
+            var scriptSymbols = documentData.script;
 
             if (documentData.source != null)
             {
+                if (scriptSymbols == null)
+                    scriptSymbols = processData.symbolStore.FetchScriptSource(documentData.source.sourceFileName);
+
                 foreach (var el in documentData.source.knownFunctions)
                 {
                     if (FindFunctionInstructionForLine(process, el.Value, textSpan.StartLine, textSpan.EndLine, out LuaFunctionData luaFunctionData, out int instructionPointer, out int line))
@@ -1543,7 +1570,8 @@ namespace LuaDkmDebuggerComponent
                     }
                 }
             }
-            else if (documentData.script != null)
+
+            if (scriptSymbols != null)
             {
                 var sourceFileId = DkmSourceFileId.Create(resolvedDocument.DocumentName, null, null, null);
 
@@ -1553,7 +1581,7 @@ namespace LuaDkmDebuggerComponent
 
                 LuaAddressEntityData entityData = new LuaAddressEntityData
                 {
-                    source = documentData.script.sourceFileName,
+                    source = scriptSymbols.sourceFileName,
                     line = textSpan.StartLine,
 
                     functionAddress = 0,
@@ -1562,7 +1590,7 @@ namespace LuaDkmDebuggerComponent
 
                 LuaBreakpointAdditionalData additionalData = new LuaBreakpointAdditionalData
                 {
-                    source = documentData.script.sourceFileName,
+                    source = scriptSymbols.sourceFileName,
                     line = textSpan.StartLine,
                 };
 

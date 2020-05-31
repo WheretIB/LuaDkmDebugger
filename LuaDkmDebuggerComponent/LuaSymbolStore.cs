@@ -55,6 +55,14 @@ namespace LuaDkmDebuggerComponent
             }
         }
 
+        public LuaSourceSymbols FetchSourceSymbols(string sourceFileName)
+        {
+            if (knownSources.ContainsKey(sourceFileName))
+                return knownSources[sourceFileName];
+
+            return null;
+        }
+
         public void AddFunctionName(ulong address, string name)
         {
             if (!functionNames.ContainsKey(address))
@@ -78,6 +86,14 @@ namespace LuaDkmDebuggerComponent
             else
                 knownScripts[scriptName] = new LuaScriptSymbols { sourceFileName = scriptName, scriptContent = scriptContent };
         }
+
+        public LuaScriptSymbols FetchScriptSource(string sourceFileName)
+        {
+            if (knownScripts.ContainsKey(sourceFileName))
+                return knownScripts[sourceFileName];
+
+            return null;
+        }
     }
 
     public class LuaSymbolStore
@@ -95,6 +111,32 @@ namespace LuaDkmDebuggerComponent
         public void Remove(ulong stateAddress)
         {
             knownStates.Remove(stateAddress);
+        }
+
+        public LuaSourceSymbols FetchSourceSymbols(string sourceFileName)
+        {
+            foreach (var state in knownStates)
+            {
+                var sourceSymbols = state.Value.FetchSourceSymbols(sourceFileName);
+
+                if (sourceSymbols != null)
+                    return sourceSymbols;
+            }
+
+            return null;
+        }
+
+        public LuaScriptSymbols FetchScriptSource(string sourceFileName)
+        {
+            foreach (var state in knownStates)
+            {
+                var scriptSource = state.Value.FetchScriptSource(sourceFileName);
+
+                if (scriptSource != null)
+                    return scriptSource;
+            }
+
+            return null;
         }
     }
 }
