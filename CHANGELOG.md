@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.7] - 2020-06-01
+
+### Added
+
+- Lua module code is marked as user code
+- Support for debug helper injection into x64 UWP apps (for breakpoints and stepping)
+
+### Changed
+
+- Cleaned up module instance creation
+- Silent debug helper injection failures will not hang the app on a suspended thread
+
 ## [0.7.5] - 2020-05-31
 
 ### Changed
@@ -98,6 +110,7 @@
 
 ### First Release
 
+[0.7.7]https://github.com/WheretIB/LuaDkmDebugger/commit/b12380e76c09518bc05db0ef509943b0bb6017dd
 [0.7.5]https://github.com/WheretIB/LuaDkmDebugger/commit/7198955e3ccc178a80758d2bdf58c692eef0c1e8
 [0.7.4]https://github.com/WheretIB/LuaDkmDebugger/commit/6e055d13b1baed5bc078405de7648d1286cb011f
 [0.7.0]https://github.com/WheretIB/LuaDkmDebugger/commit/146ed2cdf862205eb0fe06b4c22df9b9cda308c7
