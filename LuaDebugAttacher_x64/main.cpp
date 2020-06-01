@@ -107,6 +107,7 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
+	// To inject dll into sandboxed UWP process, our dll has to have read&Execute permissions in 'All Application Packages' group
 	AdjustAccessControlListForUwp(dllPath);
 
 	auto thread = CreateRemoteThread(process, nullptr, 0, (DWORD(__stdcall*)(LPVOID))loadLibraryAddress, (void*)dllNameAddress, 0, nullptr);
