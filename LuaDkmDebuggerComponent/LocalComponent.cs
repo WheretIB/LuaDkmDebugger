@@ -1898,7 +1898,7 @@ namespace LuaDkmDebuggerComponent
                             return;
                         }
 
-                        var processStartInfo = new ProcessStartInfo(exePathName, $"{process.LivePart.Id} {processData.loadLibraryAddress} {dllNameAddress}")
+                        var processStartInfo = new ProcessStartInfo(exePathName, $"{process.LivePart.Id} {processData.loadLibraryAddress} {dllNameAddress} \"{dllPathName}\"")
                         {
                             CreateNoWindow = true,
                             RedirectStandardError = true,
@@ -1906,6 +1906,8 @@ namespace LuaDkmDebuggerComponent
                             RedirectStandardOutput = true,
                             UseShellExecute = false
                         };
+
+                        log.Debug($"Launching '{exePathName}' with '{processStartInfo.Arguments}'");
 
                         try
                         {
