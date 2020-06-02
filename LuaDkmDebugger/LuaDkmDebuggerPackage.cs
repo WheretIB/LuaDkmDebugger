@@ -7,6 +7,18 @@ using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Shell.Settings;
 using Task = System.Threading.Tasks.Task;
+using EnvDTE100;
+using EnvDTE80;
+using Microsoft.VisualStudio.Language.Intellisense;
+using Microsoft.VisualStudio.Utilities;
+using Microsoft.VisualStudio.Text;
+using System.Threading.Tasks;
+using Microsoft.VisualStudio.Text.Adornments;
+using Microsoft.VisualStudio.Language.StandardClassification;
+using Microsoft.VisualStudio.Core.Imaging;
+using Microsoft.VisualStudio.Imaging;
+using System.ComponentModel.Composition;
+using Microsoft.VisualStudio.Text.Operations;
 
 namespace LuaDkmDebugger
 {
@@ -214,5 +226,127 @@ namespace LuaDkmDebugger
         }
 
         #endregion
+    }
+
+    [Export(typeof(IAsyncQuickInfoSourceProvider))]
+    [Name("Lua Data Tips Provider")]
+    [ContentType("code++.Lua")]
+    [Order]
+    internal sealed class LuaDataTipsProvider : IAsyncQuickInfoSourceProvider
+    {
+        [Import]
+        internal ITextStructureNavigatorSelectorService TextStructureNavigatorSelector { get; set; }
+
+        [Import]
+        internal SVsServiceProvider ServiceProvider = null;
+
+        public IAsyncQuickInfoSource TryCreateQuickInfoSource(ITextBuffer textBuffer)
+        {
+            // This ensures only one instance per textbuffer is created
+            return textBuffer.Properties.GetOrCreateSingletonProperty(() =>
+            {
+                ITextStructureNavigator textStructureNavigator = TextStructureNavigatorSelector.GetTextStructureNavigator(textBuffer);
+
+                DTE2 dte = (DTE2)ServiceProvider.GetService(typeof(SDTE));
+
+                Debugger5 debugger = dte?.Debugger as Debugger5;
+
+                return new LuaDataTipsSourceSource(textBuffer, textStructureNavigator, debugger);
+            });
+        }
+    }
+
+    internal sealed class LuaDataTipsSourceSource : IAsyncQuickInfoSource
+    {
+        private static readonly ImageId icon = KnownMonikers.AbstractCube.ToImageId();
+
+        private readonly ITextBuffer textBuffer;
+
+        private readonly ITextStructureNavigator textStructureNavigator;
+
+        private readonly Debugger5 debugger;
+
+        public LuaDataTipsSourceSource(ITextBuffer textBuffer, ITextStructureNavigator textStructureNavigator, Debugger5 debugger)
+        {
+            this.textBuffer = textBuffer;
+            this.textStructureNavigator = textStructureNavigator;
+            this.debugger = debugger;
+        }
+
+        // This is called on a background thread.
+        public async Task<QuickInfoItem> GetQuickInfoItemAsync(IAsyncQuickInfoSession session, CancellationToken cancellationToken)
+        {
+            var triggerPoint = session.GetTriggerPoint(textBuffer.CurrentSnapshot);
+
+            if (triggerPoint != null)
+            {
+                TextExtent extent = textStructureNavigator.GetExtentOfWord(triggerPoint.Value);
+                var extentSpan = extent.Span;
+
+                ITextSnapshotLine line = triggerPoint.Value.GetContainingLine();
+                ITrackingSpan lineSpan = textBuffer.CurrentSnapshot.CreateTrackingSpan(line.Extent, SpanTrackingMode.EdgeInclusive);
+
+                try
+                {
+                    var expressionText = extentSpan.GetText();
+
+                    if (debugger == null)
+                        return null;
+
+                    var stackFrame = debugger.CurrentStackFrame;
+
+                    if (stackFrame == null)
+                        return null;
+
+                    // Switch to main thread to access properties
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                    var language = stackFrame.Language;
+
+                    if (language != "Lua")
+                        return null;
+
+                    var expression = debugger.GetExpression3($"```{expressionText}", stackFrame, false, true, false, 500);
+
+                    if (expression == null)
+                        return null;
+
+                    if (!expression.IsValidValue)
+                        return null;
+
+                    string value = expression.Value;
+
+                    string type = "";
+                    string name = "";
+
+                    if (value.IndexOf("```") >= 0)
+                    {
+                        type = value.Substring(0, value.IndexOf("```"));
+                        value = value.Substring(value.IndexOf("```") + 3);
+                    }
+
+                    if (value.IndexOf("```") >= 0)
+                    {
+                        name = value.Substring(0, value.IndexOf("```"));
+                        value = value.Substring(value.IndexOf("```") + 3);
+                    }
+
+                    var element = new ContainerElement(ContainerElementStyle.Wrapped, new ClassifiedTextElement(new ClassifiedTextRun(PredefinedClassificationTypeNames.Type, $"{type} "), new ClassifiedTextRun(PredefinedClassificationTypeNames.Identifier, name), new ClassifiedTextRun(PredefinedClassificationTypeNames.String, $" = {value}")));
+
+                    return new QuickInfoItem(lineSpan, element);
+                }
+                catch (Exception)
+                {
+                    return null;
+                }
+            }
+
+            return null;
+        }
+
+        public void Dispose()
+        {
+            // This provider does not perform any cleanup.
+        }
     }
 }

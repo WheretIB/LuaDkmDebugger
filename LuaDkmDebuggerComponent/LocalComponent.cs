@@ -919,7 +919,16 @@ namespace LuaDkmDebuggerComponent
 
             ExpressionEvaluation evaluation = new ExpressionEvaluation(process, functionData, callInfoData.stackBaseAddress, closureData);
 
-            var result = evaluation.Evaluate(expression.Text);
+            bool ideDisplayFormat = false;
+            string expressionText = expression.Text;
+
+            if (expressionText.StartsWith("```"))
+            {
+                ideDisplayFormat = true;
+                expressionText = expressionText.Substring(3);
+            }
+
+            var result = evaluation.Evaluate(expressionText);
 
             if (result as LuaValueDataError != null)
             {
@@ -927,16 +936,16 @@ namespace LuaDkmDebuggerComponent
 
                 log.Warning($"IDkmSymbolQuery.EvaluateExpression failure (error result)");
 
-                completionRoutine(new DkmEvaluateExpressionAsyncResult(DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, expression.Text, expression.Text, resultAsError.value, DkmEvaluationResultFlags.Invalid, null)));
+                completionRoutine(new DkmEvaluateExpressionAsyncResult(DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, expressionText, expressionText, resultAsError.value, DkmEvaluationResultFlags.Invalid, null)));
                 return;
             }
 
             // If result is an 'l-value' re-evaluate as a Lua value at address
-            if (result.originalAddress != 0)
+            if (result.originalAddress != 0 && ideDisplayFormat == false)
             {
                 log.Debug($"IDkmSymbolQuery.EvaluateExpression completed (l-value)");
 
-                completionRoutine(new DkmEvaluateExpressionAsyncResult(EvaluationHelpers.EvaluateDataAtLuaValue(inspectionContext, stackFrame, expression.Text, expression.Text, result, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None)));
+                completionRoutine(new DkmEvaluateExpressionAsyncResult(EvaluationHelpers.EvaluateDataAtLuaValue(inspectionContext, stackFrame, expressionText, expressionText, result, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None)));
                 return;
             }
 
@@ -967,6 +976,17 @@ namespace LuaDkmDebuggerComponent
 
                 if (resultAsTable.value.arrayElements.Count == 0 && resultAsTable.value.nodeElements.Count == 0 && resultAsTable.value.metaTable == null)
                     result.evaluationFlags &= ~DkmEvaluationResultFlags.Expandable;
+
+                if (resultAsTable.value.arrayElements.Count != 0 && resultAsTable.value.nodeElements.Count != 0)
+                    resultStr = $"[{resultAsTable.value.arrayElements.Count} element(s) and {resultAsTable.value.nodeElements.Count} key(s)]";
+                else if (resultAsTable.value.arrayElements.Count != 0)
+                    resultStr = $"[{resultAsTable.value.arrayElements.Count} element(s)]";
+                else if (resultAsTable.value.nodeElements.Count != 0)
+                    resultStr = $"[{resultAsTable.value.nodeElements.Count} key(s)]";
+                else if (resultAsTable.value.metaTable != null)
+                    resultStr = "[metatable]";
+                else
+                    resultStr = "[]";
             }
 
             var dataItem = new LuaEvaluationDataItem
@@ -977,7 +997,15 @@ namespace LuaDkmDebuggerComponent
                 luaValueData = result
             };
 
-            completionRoutine(new DkmEvaluateExpressionAsyncResult(DkmSuccessEvaluationResult.Create(inspectionContext, stackFrame, expression.Text, expression.Text, result.evaluationFlags, resultStr, null, type, category, accessType, storageType, typeModifiers, dataAddress, null, null, dataItem)));
+            // Special result format to parse into components on IDE side (EnvDTE.Expression doesn't get Type and Name from DkmSuccessEvaluationResult)
+            if (ideDisplayFormat)
+            {
+                resultStr = $"{type}```{expressionText}```{resultStr}";
+
+                result.evaluationFlags &= ~DkmEvaluationResultFlags.Expandable;
+            }
+
+            completionRoutine(new DkmEvaluateExpressionAsyncResult(DkmSuccessEvaluationResult.Create(inspectionContext, stackFrame, expressionText, expressionText, result.evaluationFlags, resultStr, null, type, category, accessType, storageType, typeModifiers, dataAddress, null, null, dataItem)));
 
             log.Debug($"IDkmSymbolQuery.EvaluateExpression completed");
         }
