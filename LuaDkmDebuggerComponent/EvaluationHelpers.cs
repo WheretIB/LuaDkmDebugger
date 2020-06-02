@@ -206,7 +206,7 @@ namespace LuaDkmDebuggerComponent
                 type = "lua_function";
 
                 flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
-                return $"0x{value.targetAddress}";
+                return $"0x{value.targetAddress:x}";
             }
 
             if (valueBase as LuaValueDataExternalFunction != null)
@@ -216,7 +216,7 @@ namespace LuaDkmDebuggerComponent
                 type = "c_function";
 
                 flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
-                return $"0x{value.targetAddress}";
+                return $"0x{value.targetAddress:x}";
             }
 
             if (valueBase as LuaValueDataExternalClosure != null)
@@ -226,7 +226,7 @@ namespace LuaDkmDebuggerComponent
                 type = "c_closure";
 
                 flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
-                return $"0x{value.targetAddress}";
+                return $"0x{value.targetAddress:x}";
             }
 
             if (valueBase as LuaValueDataUserData != null)
@@ -236,7 +236,7 @@ namespace LuaDkmDebuggerComponent
                 type = "user_data";
 
                 flags |= DkmEvaluationResultFlags.ReadOnly;
-                return $"0x{value.targetAddress}";
+                return $"0x{value.targetAddress:x}";
             }
 
             if (valueBase as LuaValueDataThread != null)
@@ -246,7 +246,7 @@ namespace LuaDkmDebuggerComponent
                 type = "thread";
 
                 flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
-                return $"0x{value.targetAddress}";
+                return $"0x{value.targetAddress:x}";
             }
 
             return null;
