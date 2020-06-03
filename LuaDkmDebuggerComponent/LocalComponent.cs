@@ -952,6 +952,13 @@ namespace LuaDkmDebuggerComponent
                     completionRoutine(new DkmEvaluateExpressionAsyncResult(EvaluationHelpers.EvaluateCppPointerAtAddress(inspectionContext, stackFrame, expressionText, value.targetAddress)));
                 }
 
+                if (result as LuaValueDataExternalClosure != null)
+                {
+                    var value = result as LuaValueDataExternalClosure;
+
+                    completionRoutine(new DkmEvaluateExpressionAsyncResult(EvaluationHelpers.EvaluateCppPointerAtAddress(inspectionContext, stackFrame, expressionText, value.value.functionAddress)));
+                }
+
                 completionRoutine(new DkmEvaluateExpressionAsyncResult(EvaluationHelpers.EvaluateDataAtLuaValue(inspectionContext, stackFrame, expressionText, expressionText, result, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None)));
                 return;
             }
@@ -1077,6 +1084,25 @@ namespace LuaDkmDebuggerComponent
                 completionRoutine(new DkmGetChildrenAsyncResult(initialResults, enumerator));
 
                 log.Debug($"IDkmSymbolQuery.GetChildren success (c_function)");
+                return;
+            }
+
+            if (evalData.luaValueData as LuaValueDataExternalClosure != null)
+            {
+                var value = evalData.luaValueData as LuaValueDataExternalClosure;
+
+                int finalInitialSize = initialRequestSize < 1 ? initialRequestSize : 1;
+
+                DkmEvaluationResult[] initialResults = new DkmEvaluationResult[finalInitialSize];
+
+                if (initialResults.Length != 0)
+                    initialResults[0] = EvaluationHelpers.EvaluateCppPointerAtAddress(inspectionContext, result.StackFrame, "[function]", value.value.functionAddress);
+
+                var enumerator = DkmEvaluationResultEnumContext.Create(1, result.StackFrame, inspectionContext, evalData);
+
+                completionRoutine(new DkmGetChildrenAsyncResult(initialResults, enumerator));
+
+                log.Debug($"IDkmSymbolQuery.GetChildren success (c_closure)");
                 return;
             }
 
@@ -1270,6 +1296,24 @@ namespace LuaDkmDebuggerComponent
                 completionRoutine(new DkmEvaluationEnumAsyncResult(results));
 
                 log.Debug($"IDkmSymbolQuery.GetItems success (c_function)");
+                return;
+            }
+
+            if (evalData.luaValueData as LuaValueDataExternalClosure != null)
+            {
+                var value = evalData.luaValueData as LuaValueDataExternalClosure;
+
+                var results = new DkmEvaluationResult[count];
+
+                for (int i = startIndex; i < startIndex + count; i++)
+                {
+                    if (i == 0)
+                        results[i - startIndex] = EvaluationHelpers.EvaluateCppPointerAtAddress(enumContext.InspectionContext, enumContext.StackFrame, "[function]", value.value.functionAddress);
+                }
+
+                completionRoutine(new DkmEvaluationEnumAsyncResult(results));
+
+                log.Debug($"IDkmSymbolQuery.GetItems success (c_closure)");
                 return;
             }
 

@@ -255,7 +255,7 @@ namespace LuaDkmDebuggerComponent
 
                 type = "c_closure";
 
-                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
+                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly | DkmEvaluationResultFlags.Expandable;
                 return $"0x{value.targetAddress:x}";
             }
 
