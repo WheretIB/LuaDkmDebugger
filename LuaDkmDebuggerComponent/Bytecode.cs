@@ -1325,6 +1325,15 @@ namespace LuaDkmDebuggerComponent
 
                 pointerAtValueStart = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
             }
+            else if (LuaHelpers.luaVersion == 501 || LuaHelpers.luaVersion == 502)
+            {
+                DebugHelpers.SkipStructPointer(process, ref address); // env
+                DebugHelpers.SkipStructPointer(process, ref address); // len
+
+                address = (address + 7ul) & ~7ul; // Align to 8
+
+                pointerAtValueStart = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+            }
         }
 
         public LuaTableData LoadMetaTable(DkmProcess process)
