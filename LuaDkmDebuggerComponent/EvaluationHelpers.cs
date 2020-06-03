@@ -348,9 +348,9 @@ namespace LuaDkmDebuggerComponent
             return DkmSuccessEvaluationResult.Create(inspectionContext, stackFrame, name, fullName, flags, value, editableValue, type, category, access, storage, typeModifiers, dataAddress, null, null, dataItem);
         }
 
-        internal static DkmEvaluationResult EvaluateCppPointerAtAddress(DkmInspectionContext inspectionContext, DkmStackWalkFrame stackFrame, string name, ulong address)
+        internal static DkmEvaluationResult EvaluateCppExpression(DkmInspectionContext inspectionContext, DkmStackWalkFrame stackFrame, string name, string expression)
         {
-            DkmEvaluationResult result = ExecuteRawExpression($"(void*){address},na", inspectionContext.InspectionSession, inspectionContext.Thread, stackFrame, inspectionContext.Thread.Process.GetNativeRuntimeInstance(), DkmEvaluationFlags.TreatAsExpression);
+            DkmEvaluationResult result = ExecuteRawExpression(expression, inspectionContext.InspectionSession, inspectionContext.Thread, stackFrame, inspectionContext.Thread.Process.GetNativeRuntimeInstance(), DkmEvaluationFlags.TreatAsExpression);
 
             if (result is DkmSuccessEvaluationResult success)
             {
@@ -369,7 +369,17 @@ namespace LuaDkmDebuggerComponent
                 return renamedResult;
             }
 
-            return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, name, $"(void*){address},na", "Aborted", DkmEvaluationResultFlags.Invalid, "(void*)", null);
+            return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, name, expression, "Aborted", DkmEvaluationResultFlags.Invalid, "(void*)", null);
+        }
+
+        internal static DkmEvaluationResult EvaluateCppValueAtAddress(DkmInspectionContext inspectionContext, DkmStackWalkFrame stackFrame, string name, string type, ulong address, bool noAddress)
+        {
+            string expression = $"({type}){address}";
+
+            if (noAddress)
+                expression += ",na";
+
+            return EvaluateCppExpression(inspectionContext, stackFrame, name, expression);
         }
 
         internal static DkmEvaluationResult GetTableChildAtIndex(DkmInspectionContext inspectionContext, DkmStackWalkFrame stackFrame, string fullName, LuaTableData value, int index)

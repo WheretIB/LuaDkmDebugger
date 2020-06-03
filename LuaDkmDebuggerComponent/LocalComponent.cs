@@ -116,6 +116,13 @@ namespace LuaDkmDebuggerComponent
         public LuaFunctionData function;
     }
 
+    internal class LuaNativeTypeEnumData : DkmDataItem
+    {
+        public string expression;
+        public string type;
+        public ulong address;
+    }
+
     internal class LuaEvaluationDataItem : DkmDataItem
     {
         public ulong address;
@@ -134,6 +141,11 @@ namespace LuaDkmDebuggerComponent
     {
         public Dictionary<ulong, LuaFunctionCallInfoData> callInfoDataMap = new Dictionary<ulong, LuaFunctionCallInfoData>();
         public Dictionary<ulong, LuaFunctionData> functionDataMap = new Dictionary<ulong, LuaFunctionData>();
+    }
+
+    internal class LuaStackWalkFrameParentData : DkmDataItem
+    {
+        public DkmStackWalkFrame originalFrame;
     }
 
     public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery, IDkmModuleInstanceLoadNotification, IDkmCustomMessageCallbackReceiver, IDkmLanguageInstructionDecoder, IDkmModuleUserCodeDeterminer
@@ -404,7 +416,9 @@ namespace LuaDkmDebuggerComponent
 
                         var description = $"{sourceName} {functionName}({argumentList}) Line {currLine}";
 
-                        return DkmStackWalkFrame.Create(stackContext.Thread, instructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, description, input.Registers, input.Annotations);
+                        var parentFrameData = DkmStackWalkFrameData.Create(stackContext.InspectionSession, new LuaStackWalkFrameParentData { originalFrame = input });
+
+                        return DkmStackWalkFrame.Create(stackContext.Thread, instructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, description, input.Registers, input.Annotations, null, null, parentFrameData);
                     }
 
                     return null;
@@ -991,14 +1005,14 @@ namespace LuaDkmDebuggerComponent
                 {
                     var value = result as LuaValueDataExternalFunction;
 
-                    completionRoutine(new DkmEvaluateExpressionAsyncResult(EvaluationHelpers.EvaluateCppPointerAtAddress(inspectionContext, stackFrame, expressionText, value.targetAddress)));
+                    completionRoutine(new DkmEvaluateExpressionAsyncResult(EvaluationHelpers.EvaluateCppValueAtAddress(inspectionContext, stackFrame, expressionText, "void*", value.targetAddress, true)));
                 }
 
                 if (result as LuaValueDataExternalClosure != null)
                 {
                     var value = result as LuaValueDataExternalClosure;
 
-                    completionRoutine(new DkmEvaluateExpressionAsyncResult(EvaluationHelpers.EvaluateCppPointerAtAddress(inspectionContext, stackFrame, expressionText, value.value.functionAddress)));
+                    completionRoutine(new DkmEvaluateExpressionAsyncResult(EvaluationHelpers.EvaluateCppValueAtAddress(inspectionContext, stackFrame, expressionText, "void*", value.value.functionAddress, true)));
                 }
 
                 completionRoutine(new DkmEvaluateExpressionAsyncResult(EvaluationHelpers.EvaluateDataAtLuaValue(inspectionContext, stackFrame, expressionText, expressionText, result, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None)));
@@ -1066,11 +1080,47 @@ namespace LuaDkmDebuggerComponent
             log.Debug($"IDkmSymbolQuery.EvaluateExpression completed");
         }
 
+        DkmEvaluationResult GetNativeTypePseudoMember(DkmInspectionContext inspectionContext, DkmStackWalkFrame stackFrame, string type, ulong address)
+        {
+            // Create pseudo expandable node that will evaluate C++ value on expansion (since it's expensive)
+            var dataItem = new LuaNativeTypeEnumData
+            {
+                expression = $"({type}*)0x{address:x}",
+                type = type,
+                address = address
+            };
+
+            return DkmSuccessEvaluationResult.Create(inspectionContext, stackFrame, "[native]", $"({type}*)0x{address:x}", DkmEvaluationResultFlags.ReadOnly | DkmEvaluationResultFlags.Expandable, $"0x{address:x} {type}", null, "", DkmEvaluationResultCategory.Data, DkmEvaluationResultAccessType.Internal, DkmEvaluationResultStorageType.None, DkmEvaluationResultTypeModifierFlags.None, null, null, null, dataItem);
+        }
+
         void IDkmLanguageExpressionEvaluator.GetChildren(DkmEvaluationResult result, DkmWorkList workList, int initialRequestSize, DkmInspectionContext inspectionContext, DkmCompletionRoutine<DkmGetChildrenAsyncResult> completionRoutine)
         {
             log.Debug($"IDkmSymbolQuery.GetChildren begin");
 
             var process = result.StackFrame.Process;
+
+            var nativeTypeEnumData = result.GetDataItem<LuaNativeTypeEnumData>();
+
+            if (nativeTypeEnumData != null)
+            {
+                var parentFrameData = result.StackFrame.Data.GetDataItem<LuaStackWalkFrameParentData>();
+
+                int actualSize = 1;
+
+                int finalInitialSize = initialRequestSize < actualSize ? initialRequestSize : actualSize;
+
+                DkmEvaluationResult[] initialResults = new DkmEvaluationResult[finalInitialSize];
+
+                if (initialResults.Length != 0)
+                    initialResults[0] = EvaluationHelpers.ExecuteRawExpression(nativeTypeEnumData.expression, inspectionContext.InspectionSession, inspectionContext.Thread, parentFrameData.originalFrame, inspectionContext.Thread.Process.GetNativeRuntimeInstance(), DkmEvaluationFlags.None);
+
+                var enumerator = DkmEvaluationResultEnumContext.Create(1, result.StackFrame, inspectionContext, nativeTypeEnumData);
+
+                completionRoutine(new DkmGetChildrenAsyncResult(initialResults, enumerator));
+
+                log.Debug($"IDkmSymbolQuery.GetChildren success (C++ native type)");
+                return;
+            }
 
             var evalData = result.GetDataItem<LuaEvaluationDataItem>();
 
@@ -1119,7 +1169,7 @@ namespace LuaDkmDebuggerComponent
                 DkmEvaluationResult[] initialResults = new DkmEvaluationResult[finalInitialSize];
 
                 if (initialResults.Length != 0)
-                    initialResults[0] = EvaluationHelpers.EvaluateCppPointerAtAddress(inspectionContext, result.StackFrame, "[function]", value.targetAddress);
+                    initialResults[0] = EvaluationHelpers.EvaluateCppValueAtAddress(inspectionContext, result.StackFrame, "[function]", "void*", value.targetAddress, true);
 
                 var enumerator = DkmEvaluationResultEnumContext.Create(1, result.StackFrame, inspectionContext, evalData);
 
@@ -1138,7 +1188,7 @@ namespace LuaDkmDebuggerComponent
                 DkmEvaluationResult[] initialResults = new DkmEvaluationResult[finalInitialSize];
 
                 if (initialResults.Length != 0)
-                    initialResults[0] = EvaluationHelpers.EvaluateCppPointerAtAddress(inspectionContext, result.StackFrame, "[function]", value.value.functionAddress);
+                    initialResults[0] = EvaluationHelpers.EvaluateCppValueAtAddress(inspectionContext, result.StackFrame, "[function]", "void*", value.value.functionAddress, true);
 
                 var enumerator = DkmEvaluationResultEnumContext.Create(1, result.StackFrame, inspectionContext, evalData);
 
@@ -1162,14 +1212,36 @@ namespace LuaDkmDebuggerComponent
                     return;
                 }
 
-                int actualSize = value.value.metaTable.arrayElements.Count + value.value.metaTable.nodeElements.Count;
+                var parentFrameData = result.StackFrame.Data.GetDataItem<LuaStackWalkFrameParentData>();
+
+                string nativeTypeName = null;
+
+                if (parentFrameData != null)
+                    nativeTypeName = value.value.GetNativeType(process);
+
+                int actualSize = value.value.metaTable.arrayElements.Count + value.value.metaTable.nodeElements.Count + (nativeTypeName != null ? 1 : 0);
 
                 int finalInitialSize = initialRequestSize < actualSize ? initialRequestSize : actualSize;
 
                 DkmEvaluationResult[] initialResults = new DkmEvaluationResult[finalInitialSize];
 
                 for (int i = 0; i < initialResults.Length; i++)
-                    initialResults[i] = EvaluationHelpers.GetTableChildAtIndex(inspectionContext, result.StackFrame, result.FullName, value.value.metaTable, i);
+                {
+                    int index = i;
+
+                    if (nativeTypeName != null)
+                    {
+                        if (index == 0)
+                        {
+                            initialResults[i] = GetNativeTypePseudoMember(inspectionContext, result.StackFrame, nativeTypeName, value.value.pointerAtValueStart);
+                            continue;
+                        }
+
+                        index -= 1;
+                    }
+
+                    initialResults[i] = EvaluationHelpers.GetTableChildAtIndex(inspectionContext, result.StackFrame, result.FullName, value.value.metaTable, index);
+                }
 
                 var enumerator = DkmEvaluationResultEnumContext.Create(actualSize, result.StackFrame, inspectionContext, evalData);
 
@@ -1314,6 +1386,25 @@ namespace LuaDkmDebuggerComponent
                 return;
             }
 
+            var nativeTypeEnumData = enumContext.GetDataItem<LuaNativeTypeEnumData>();
+
+            if (nativeTypeEnumData != null)
+            {
+                Debug.Assert(startIndex == 0);
+                Debug.Assert(count == 1);
+
+                var parentFrameData = enumContext.StackFrame.Data.GetDataItem<LuaStackWalkFrameParentData>();
+
+                var results = new DkmEvaluationResult[1];
+
+                results[0] = EvaluationHelpers.ExecuteRawExpression(nativeTypeEnumData.expression, enumContext.InspectionSession, enumContext.InspectionContext.Thread, parentFrameData.originalFrame, enumContext.InspectionContext.Thread.Process.GetNativeRuntimeInstance(), DkmEvaluationFlags.None);
+
+                completionRoutine(new DkmEvaluationEnumAsyncResult(results));
+
+                log.Debug($"IDkmSymbolQuery.GetItems success (C++ native type)");
+                return;
+            }
+
             var evalData = enumContext.GetDataItem<LuaEvaluationDataItem>();
 
             // Shouldn't happen
@@ -1352,7 +1443,7 @@ namespace LuaDkmDebuggerComponent
                 for (int i = startIndex; i < startIndex + count; i++)
                 {
                     if (i == 0)
-                        results[i - startIndex] = EvaluationHelpers.EvaluateCppPointerAtAddress(enumContext.InspectionContext, enumContext.StackFrame, "[function]", value.targetAddress);
+                        results[i - startIndex] = EvaluationHelpers.EvaluateCppValueAtAddress(enumContext.InspectionContext, enumContext.StackFrame, "[function]", "void*", value.targetAddress, true);
                 }
 
                 completionRoutine(new DkmEvaluationEnumAsyncResult(results));
@@ -1370,7 +1461,7 @@ namespace LuaDkmDebuggerComponent
                 for (int i = startIndex; i < startIndex + count; i++)
                 {
                     if (i == 0)
-                        results[i - startIndex] = EvaluationHelpers.EvaluateCppPointerAtAddress(enumContext.InspectionContext, enumContext.StackFrame, "[function]", value.value.functionAddress);
+                        results[i - startIndex] = EvaluationHelpers.EvaluateCppValueAtAddress(enumContext.InspectionContext, enumContext.StackFrame, "[function]", "void*", value.value.functionAddress, true);
                 }
 
                 completionRoutine(new DkmEvaluationEnumAsyncResult(results));
@@ -1385,10 +1476,32 @@ namespace LuaDkmDebuggerComponent
 
                 value.value.LoadMetaTable(process);
 
+                var parentFrameData = enumContext.StackFrame.Data.GetDataItem<LuaStackWalkFrameParentData>();
+
+                string nativeTypeName = null;
+
+                if (parentFrameData != null)
+                    nativeTypeName = value.value.GetNativeType(process);
+
                 var results = new DkmEvaluationResult[count];
 
                 for (int i = startIndex; i < startIndex + count; i++)
-                    results[i - startIndex] = EvaluationHelpers.GetTableChildAtIndex(enumContext.InspectionContext, enumContext.StackFrame, evalData.fullName, value.value.metaTable, i);
+                {
+                    int index = i;
+
+                    if (nativeTypeName != null)
+                    {
+                        if (index == 0)
+                        {
+                            results[i - startIndex] = GetNativeTypePseudoMember(enumContext.InspectionContext, enumContext.StackFrame, nativeTypeName, value.value.pointerAtValueStart);
+                            continue;
+                        }
+
+                        index -= 1;
+                    }
+
+                    results[i - startIndex] = EvaluationHelpers.GetTableChildAtIndex(enumContext.InspectionContext, enumContext.StackFrame, evalData.fullName, value.value.metaTable, index);
+                }
 
                 completionRoutine(new DkmEvaluationEnumAsyncResult(results));
 

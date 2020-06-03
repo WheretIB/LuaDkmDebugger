@@ -1144,6 +1144,22 @@ namespace LuaDkmDebuggerComponent
             metaTable.ReadFrom(process, metaTableDataAddress);
             metaTable.LoadValues(process);
         }
+
+        public LuaValueDataBase FetchMember(DkmProcess process, string name)
+        {
+            foreach (var element in nodeElements)
+            {
+                var keyAsString = element.key as LuaValueDataString;
+
+                if (keyAsString == null)
+                    continue;
+
+                if (keyAsString.value == name)
+                    return element.LoadValue(process);
+            }
+
+            return null;
+        }
     }
 
     public class LuaClosureData
@@ -1289,6 +1305,7 @@ namespace LuaDkmDebuggerComponent
         public ulong metaTableDataAddress;
 
         public LuaTableData metaTable;
+        public ulong pointerAtValueStart;
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
@@ -1300,21 +1317,51 @@ namespace LuaDkmDebuggerComponent
                 userValueTypeTag_5_3 = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
 
             metaTableDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+
+            if (LuaHelpers.luaVersion == 503)
+            {
+                DebugHelpers.SkipStructPointer(process, ref address); // len
+                address += 8; // Value user_ (not to be confused with TValue and GetValueSize)
+
+                pointerAtValueStart = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+            }
         }
 
-        public void LoadMetaTable(DkmProcess process)
+        public LuaTableData LoadMetaTable(DkmProcess process)
         {
             // Check if already loaded
             if (metaTable != null)
-                return;
+                return metaTable;
 
             if (metaTableDataAddress == 0)
-                return;
+                return null;
 
             metaTable = new LuaTableData();
 
             metaTable.ReadFrom(process, metaTableDataAddress);
             metaTable.LoadValues(process);
+
+            return metaTable;
+        }
+
+        public string GetNativeType(DkmProcess process)
+        {
+            LoadMetaTable(process);
+
+            var nativeTypeContext = metaTable.FetchMember(process, "__type");
+
+            if (nativeTypeContext is LuaValueDataTable nativeTypeContextTable)
+            {
+                nativeTypeContextTable.value.LoadValues(process);
+
+                if (nativeTypeContextTable.value.FetchMember(process, "name") is LuaValueDataString nativeTypeContextName)
+                {
+                    if (pointerAtValueStart != 0)
+                        return nativeTypeContextName.value;
+                }
+            }
+
+            return null;
         }
     }
 
