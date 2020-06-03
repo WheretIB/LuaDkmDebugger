@@ -328,7 +328,7 @@ namespace LuaDkmDebuggerComponent
 
         public LuaValueDataBase EvaluatePostExpressions(LuaValueDataBase value)
         {
-            if (TryTakeToken("."))
+            if (TryTakeToken(".") || TryTakeToken(":"))
             {
                 string name = TryParseIdentifier();
 
