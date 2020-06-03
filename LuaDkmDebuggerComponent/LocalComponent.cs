@@ -130,6 +130,12 @@ namespace LuaDkmDebuggerComponent
         public LuaScriptSymbols script;
     }
 
+    internal class LuaEvaluationSessionData : DkmDataItem
+    {
+        public Dictionary<ulong, LuaFunctionCallInfoData> callInfoDataMap = new Dictionary<ulong, LuaFunctionCallInfoData>();
+        public Dictionary<ulong, LuaFunctionData> functionDataMap = new Dictionary<ulong, LuaFunctionData>();
+    }
+
     public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery, IDkmModuleInstanceLoadNotification, IDkmCustomMessageCallbackReceiver, IDkmLanguageInstructionDecoder, IDkmModuleUserCodeDeterminer
     {
         public static bool attachOnLaunch = true;
@@ -890,9 +896,49 @@ namespace LuaDkmDebuggerComponent
             return module.GetSymbolInterface(interfaceID);
         }
 
+        void GetEvaluationSessionData(DkmProcess process, DkmInspectionSession inspectionSession, LuaFrameData frameData, out LuaFunctionCallInfoData callInfoData, out LuaFunctionData functionData, out LuaClosureData closureData)
+        {
+            var evaluationSession = DebugHelpers.GetOrCreateDataItem<LuaEvaluationSessionData>(inspectionSession);
+
+            if (evaluationSession.callInfoDataMap.ContainsKey(frameData.callInfo))
+            {
+                callInfoData = evaluationSession.callInfoDataMap[frameData.callInfo];
+            }
+            else
+            {
+                callInfoData = new LuaFunctionCallInfoData();
+
+                callInfoData.ReadFrom(process, frameData.callInfo);
+                callInfoData.ReadFunction(process);
+
+                evaluationSession.callInfoDataMap.Add(frameData.callInfo, callInfoData);
+            }
+
+            if (evaluationSession.functionDataMap.ContainsKey(frameData.functionAddress))
+            {
+                functionData = evaluationSession.functionDataMap[frameData.functionAddress];
+            }
+            else
+            {
+                functionData = new LuaFunctionData();
+
+                functionData.ReadFrom(process, frameData.functionAddress);
+
+                functionData.ReadUpvalues(process);
+                functionData.ReadLocals(process, frameData.instructionPointer); // We can cache evaluation for target instruction pointer in a session
+
+                evaluationSession.functionDataMap.Add(frameData.functionAddress, functionData);
+            }
+
+            if (callInfoData.func != null && callInfoData.func.extendedType == LuaExtendedType.LuaFunction)
+                closureData = (callInfoData.func as LuaValueDataLuaFunction).value;
+            else
+                closureData = null;
+        }
+
         void IDkmLanguageExpressionEvaluator.EvaluateExpression(DkmInspectionContext inspectionContext, DkmWorkList workList, DkmLanguageExpression expression, DkmStackWalkFrame stackFrame, DkmCompletionRoutine<DkmEvaluateExpressionAsyncResult> completionRoutine)
         {
-            log.Debug($"IDkmSymbolQuery.EvaluateExpression begin");
+            log.Debug($"IDkmSymbolQuery.EvaluateExpression begin (session {inspectionContext.InspectionSession.UniqueId})");
 
             var process = stackFrame.Process;
 
@@ -911,24 +957,7 @@ namespace LuaDkmDebuggerComponent
                 return;
             }
 
-            // Load call info data
-            LuaFunctionCallInfoData callInfoData = new LuaFunctionCallInfoData();
-
-            callInfoData.ReadFrom(process, frameData.callInfo); // TODO: cache?
-            callInfoData.ReadFunction(process);
-
-            // Load function data
-            LuaFunctionData functionData = new LuaFunctionData();
-
-            functionData.ReadFrom(process, frameData.functionAddress); // TODO: cache?
-
-            functionData.ReadUpvalues(process);
-            functionData.ReadLocals(process, frameData.instructionPointer);
-
-            LuaClosureData closureData = null;
-
-            if (callInfoData.func != null && callInfoData.func.extendedType == LuaExtendedType.LuaFunction)
-                closureData = (callInfoData.func as LuaValueDataLuaFunction).value;
+            GetEvaluationSessionData(process, inspectionContext.InspectionSession, frameData, out LuaFunctionCallInfoData callInfoData, out LuaFunctionData functionData, out LuaClosureData closureData);
 
             ExpressionEvaluation evaluation = new ExpressionEvaluation(process, functionData, callInfoData.stackBaseAddress, closureData);
 
@@ -1182,16 +1211,7 @@ namespace LuaDkmDebuggerComponent
                 return;
             }
 
-            // Load call info data
-            LuaFunctionCallInfoData callInfoData = new LuaFunctionCallInfoData();
-
-            callInfoData.ReadFrom(process, frameData.callInfo); // TODO: cache?
-            callInfoData.ReadFunction(process);
-
-            // Load function data
-            LuaFunctionData functionData = new LuaFunctionData();
-
-            functionData.ReadFrom(process, frameData.functionAddress); // TODO: cache?
+            GetEvaluationSessionData(process, inspectionContext.InspectionSession, frameData, out LuaFunctionCallInfoData callInfoData, out LuaFunctionData functionData, out _);
 
             var frameLocalsEnumData = new LuaFrameLocalsEnumData
             {
@@ -1200,11 +1220,9 @@ namespace LuaDkmDebuggerComponent
                 function = functionData
             };
 
-            functionData.ReadUpvalues(process);
-            functionData.ReadLocals(process, frameData.instructionPointer);
-
             int count = 1 + functionData.activeLocals.Count; // 1 pseudo variable for '[registry]' table
 
+            // Add upvalue list for Lua functions
             if (callInfoData.func != null && callInfoData.func.extendedType == LuaExtendedType.LuaFunction)
                 count += functionData.upvalues.Count;
 
