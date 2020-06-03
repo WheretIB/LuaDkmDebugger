@@ -971,14 +971,39 @@ namespace LuaDkmDebuggerComponent
 
     public class LuaNodeData
     {
-        public LuaValueDataBase value;
+        public ulong valueDataAddress;
+        protected LuaValueDataBase value;
         public LuaValueDataBase key;
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
+            valueDataAddress = address;
+
             // Same in Lua 5.1, 5.2 and 5.3
             value = LuaHelpers.ReadValue(process, address);
             key = LuaHelpers.ReadValue(process, address + LuaHelpers.GetValueSize(process));
+        }
+
+        public void ReadFromKeyOnly(DkmProcess process, ulong address)
+        {
+            valueDataAddress = address;
+
+            // Same in Lua 5.1, 5.2 and 5.3
+            key = LuaHelpers.ReadValue(process, address + LuaHelpers.GetValueSize(process));
+        }
+
+        public LuaValueDataBase LoadValue(DkmProcess process)
+        {
+            if (value != null)
+                return value;
+
+            if (valueDataAddress == 0)
+                return null;
+
+            // Same in Lua 5.1, 5.2 and 5.3
+            value = LuaHelpers.ReadValue(process, valueDataAddress);
+
+            return value;
         }
     }
 
@@ -995,6 +1020,7 @@ namespace LuaDkmDebuggerComponent
 
         public List<LuaValueDataBase> arrayElements;
         public List<LuaNodeData> nodeElements;
+        public List<LuaNodeData> nodeKeys;
         public LuaTableData metaTable;
 
         public void ReadFrom(DkmProcess process, ulong address)
@@ -1070,6 +1096,36 @@ namespace LuaDkmDebuggerComponent
 
                     if (node.key as LuaValueDataNil == null)
                         nodeElements.Add(node);
+                }
+            }
+        }
+
+        public void LoadKeys(DkmProcess process)
+        {
+            if (nodeKeys != null)
+                return;
+
+            // Full data is already loaded, use it
+            if (nodeElements != null)
+            {
+                nodeKeys = nodeElements;
+                return;
+            }
+
+            nodeKeys = new List<LuaNodeData>();
+
+            if (nodeDataAddress != 0)
+            {
+                for (int i = 0; i < (1 << nodeArraySizeLog2); i++)
+                {
+                    ulong address = nodeDataAddress + (ulong)i * LuaHelpers.GetNodeSize(process);
+
+                    LuaNodeData node = new LuaNodeData();
+
+                    node.ReadFromKeyOnly(process, address);
+
+                    if (node.key as LuaValueDataNil == null)
+                        nodeKeys.Add(node);
                 }
             }
         }

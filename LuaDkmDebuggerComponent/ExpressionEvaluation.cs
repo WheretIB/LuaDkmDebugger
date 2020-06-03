@@ -138,9 +138,9 @@ namespace LuaDkmDebuggerComponent
             if (process == null)
                 return Report("Can't load table - process memory is not available");
 
-            table.LoadValues(process);
+            table.LoadKeys(process);
 
-            foreach (var element in table.nodeElements)
+            foreach (var element in table.nodeKeys)
             {
                 var keyAsString = element.key as LuaValueDataString;
 
@@ -148,7 +148,7 @@ namespace LuaDkmDebuggerComponent
                     continue;
 
                 if (keyAsString.value == name)
-                    return element.value;
+                    return element.LoadValue(process);
             }
 
             return Report($"Failed to find key '{name}' in table");
@@ -394,7 +394,7 @@ namespace LuaDkmDebuggerComponent
                         if (!TryTakeToken("]"))
                             return Report("Failed to find ']' after '['");
 
-                        return EvaluatePostExpressions(element.value);
+                        return EvaluatePostExpressions(element.LoadValue(process));
                     }
                 }
 
