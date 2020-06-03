@@ -2248,7 +2248,7 @@ namespace LuaDkmDebuggerComponent
 
                     ulong? scriptNameAddress = EvaluationHelpers.TryEvaluateAddressExpression($"filename", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
-                    if (scriptNameAddress.HasValue)
+                    if (stateAddress.HasValue && scriptNameAddress.HasValue)
                     {
                         string scriptContent = "";
                         string scriptName = DebugHelpers.ReadStringVariable(process, scriptNameAddress.Value, 1024);
@@ -2285,7 +2285,7 @@ namespace LuaDkmDebuggerComponent
                     long? scriptSize = EvaluationHelpers.TryEvaluateNumberExpression($"size", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
                     ulong? scriptNameAddress = EvaluationHelpers.TryEvaluateAddressExpression($"name", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
-                    if (scriptBufferAddress.HasValue && scriptSize.HasValue && scriptNameAddress.HasValue)
+                    if (stateAddress.HasValue && scriptBufferAddress.HasValue && scriptSize.HasValue && scriptNameAddress.HasValue)
                     {
                         byte[] rawScriptContent = DebugHelpers.ReadRawStringVariable(process, scriptBufferAddress.Value, (int)scriptSize.Value);
 
