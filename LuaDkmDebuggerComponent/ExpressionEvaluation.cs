@@ -133,19 +133,14 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
-        public LuaValueDataBase LookupTableMember(LuaValueDataBase value, string name)
+        public LuaValueDataBase LookupTableMember(LuaTableData table, string name)
         {
-            var table = value as LuaValueDataTable;
-
-            if (table == null)
-                return Report("Value is not a table");
-
             if (process == null)
                 return Report("Can't load table - process memory is not available");
 
-            table.value.LoadValues(process);
+            table.LoadValues(process);
 
-            foreach (var element in table.value.nodeElements)
+            foreach (var element in table.nodeElements)
             {
                 var keyAsString = element.key as LuaValueDataString;
 
@@ -157,6 +152,16 @@ namespace LuaDkmDebuggerComponent
             }
 
             return Report($"Failed to find key '{name}' in table");
+        }
+
+        public LuaValueDataBase LookupTableValueMember(LuaValueDataBase value, string name)
+        {
+            var table = value as LuaValueDataTable;
+
+            if (table == null)
+                return Report("Value is not a table");
+
+            return LookupTableMember(table.value, name);
         }
 
         public LuaValueDataBase LookupVariable(string name)
@@ -203,18 +208,33 @@ namespace LuaDkmDebuggerComponent
                         envIndex = i;
                 }
 
-                // Check _ENV.name
-                if (envIndex != -1)
+                if (LuaHelpers.luaVersion == 501)
                 {
-                    LuaUpvalueData upvalueData = luaClosure.ReadUpvalue(process, envIndex);
+                    var envTable = luaClosure.ReadEnvTable_5_1(process);
 
-                    if (upvalueData == null || upvalueData.value == null)
-                        return Report($"Failed to read variable '_ENV'");
+                    if (envTable == null)
+                        return Report($"Failed to read environment value");
 
-                    var value = LookupTableMember(upvalueData.value, name);
+                    var value = LookupTableMember(envTable, name);
 
                     if (value as LuaValueDataError == null)
                         return value;
+                }
+                else
+                {
+                    // Check _ENV.name
+                    if (envIndex != -1)
+                    {
+                        LuaUpvalueData upvalueData = luaClosure.ReadUpvalue(process, envIndex);
+
+                        if (upvalueData == null || upvalueData.value == null)
+                            return Report($"Failed to read environment value");
+
+                        var value = LookupTableValueMember(upvalueData.value, name);
+
+                        if (value as LuaValueDataError == null)
+                            return value;
+                    }
                 }
             }
 
@@ -315,7 +335,7 @@ namespace LuaDkmDebuggerComponent
                 if (name == null)
                     return Report("Failed to find member name");
 
-                value = LookupTableMember(value, name);
+                value = LookupTableValueMember(value, name);
 
                 if (value as LuaValueDataError != null)
                     return value;

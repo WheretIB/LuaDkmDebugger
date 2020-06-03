@@ -1099,10 +1099,12 @@ namespace LuaDkmDebuggerComponent
         public ulong gcListAddress;
 
         // LClosure
+        public ulong envTableDataAddress_5_1;
         public ulong functionAddress;
 
         public ulong firstUpvaluePointerAddress;
 
+        public LuaTableData envTable_5_1;
         public LuaFunctionData function;
 
         public void ReadFrom(DkmProcess process, ulong address)
@@ -1118,7 +1120,7 @@ namespace LuaDkmDebuggerComponent
             gcListAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
 
             if (LuaHelpers.luaVersion == 501)
-                DebugHelpers.SkipStructPointer(process, ref address); // env
+                envTableDataAddress_5_1 = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
 
             functionAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
 
@@ -1155,6 +1157,21 @@ namespace LuaDkmDebuggerComponent
 
             return result;
         }
+
+        public LuaTableData ReadEnvTable_5_1(DkmProcess process)
+        {
+            if (envTable_5_1 != null)
+                return envTable_5_1;
+
+            if (envTableDataAddress_5_1 == 0)
+                return null;
+
+            envTable_5_1 = new LuaTableData();
+
+            envTable_5_1.ReadFrom(process, envTableDataAddress_5_1);
+
+            return envTable_5_1;
+        }
     }
 
     public class LuaExternalClosureData
@@ -1170,6 +1187,7 @@ namespace LuaDkmDebuggerComponent
         public ulong gcListAddress;
 
         // CClosure
+        public ulong envTableDataAddress_5_1;
         public ulong functionAddress;
 
         public void ReadFrom(DkmProcess process, ulong address)
@@ -1185,7 +1203,7 @@ namespace LuaDkmDebuggerComponent
             gcListAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
 
             if (LuaHelpers.luaVersion == 501)
-                DebugHelpers.SkipStructPointer(process, ref address); // env
+                envTableDataAddress_5_1 = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
 
             functionAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
         }
