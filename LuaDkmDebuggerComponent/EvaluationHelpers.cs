@@ -9,6 +9,36 @@ namespace LuaDkmDebuggerComponent
 {
     internal class EvaluationHelpers
     {
+        internal static DkmEvaluationResult ExecuteRawExpression(string expression, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame input, DkmRuntimeInstance runtimeInstance, DkmEvaluationFlags flags)
+        {
+            var compilerId = new DkmCompilerId(DkmVendorId.Microsoft, DkmLanguageId.Cpp);
+            var language = DkmLanguage.Create("C++", compilerId);
+            var languageExpression = DkmLanguageExpression.Create(language, DkmEvaluationFlags.None, expression, null);
+
+            var inspectionContext = DkmInspectionContext.Create(inspectionSession, runtimeInstance, thread, 200, flags, DkmFuncEvalFlags.None, 10, language, null);
+
+            var workList = DkmWorkList.Create(null);
+
+            try
+            {
+                DkmEvaluationResult result = null;
+
+                inspectionContext.EvaluateExpression(workList, languageExpression, input, res =>
+                {
+                    if (res.ErrorCode == 0)
+                        result = res.ResultObject;
+                });
+
+                workList.Execute();
+
+                return result;
+            }
+            catch (OperationCanceledException)
+            {
+                return null;
+            }
+        }
+
         internal static string ExecuteExpression(string expression, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame input, DkmEvaluationFlags flags, bool allowZero, out ulong address)
         {
             if (Log.instance != null)
@@ -215,7 +245,7 @@ namespace LuaDkmDebuggerComponent
 
                 type = "c_function";
 
-                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
+                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly | DkmEvaluationResultFlags.Expandable;
                 return $"0x{value.targetAddress:x}";
             }
 
@@ -316,6 +346,30 @@ namespace LuaDkmDebuggerComponent
             };
 
             return DkmSuccessEvaluationResult.Create(inspectionContext, stackFrame, name, fullName, flags, value, editableValue, type, category, access, storage, typeModifiers, dataAddress, null, null, dataItem);
+        }
+
+        internal static DkmEvaluationResult EvaluateCppPointerAtAddress(DkmInspectionContext inspectionContext, DkmStackWalkFrame stackFrame, string name, ulong address)
+        {
+            DkmEvaluationResult result = ExecuteRawExpression($"(void*){address},na", inspectionContext.InspectionSession, inspectionContext.Thread, stackFrame, inspectionContext.Thread.Process.GetNativeRuntimeInstance(), DkmEvaluationFlags.TreatAsExpression);
+
+            if (result is DkmSuccessEvaluationResult success)
+            {
+                var renamedResult = DkmSuccessEvaluationResult.Create(success.InspectionContext, success.StackFrame, name, success.FullName, success.Flags, success.Value, success.EditableValue, success.Type, success.Category, success.Access, success.StorageType, success.TypeModifierFlags, success.Address, success.CustomUIVisualizers, success.ExternalModules, success.RefreshButtonText, null);
+
+                result.Close();
+
+                return renamedResult;
+            }
+            else if (result is DkmFailedEvaluationResult faliure)
+            {
+                var renamedResult = DkmFailedEvaluationResult.Create(faliure.InspectionContext, faliure.StackFrame, name, faliure.FullName, faliure.ErrorMessage, faliure.Flags, faliure.Type, faliure.Category, null);
+
+                result.Close();
+
+                return renamedResult;
+            }
+
+            return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, name, $"(void*){address},na", "Aborted", DkmEvaluationResultFlags.Invalid, "(void*)", null);
         }
 
         internal static DkmEvaluationResult GetTableChildAtIndex(DkmInspectionContext inspectionContext, DkmStackWalkFrame stackFrame, string fullName, LuaValueDataTable value, int index)
