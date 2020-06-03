@@ -78,6 +78,7 @@ namespace LuaDkmDebuggerComponent
 
         // Two-stage Lua exception handling
         public bool captureNextThrow = false;
+        public Guid breakpointLuaBreakError;
         public Guid breakpointLuaRuntimeError;
         public ulong breakpointLuaThrowAddress = 0;
         public Guid breakpointLuaThrow;
@@ -726,7 +727,7 @@ namespace LuaDkmDebuggerComponent
                 return new DkmStackWalkFrame[1] { DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, flags, input.Description, input.Registers, input.Annotations) };
             }
 
-            if (stackContextData.hideTopLuaLibraryFrames && (input.BasicSymbolInfo.MethodName == "callhook" || input.BasicSymbolInfo.MethodName == "traceexec") && !showHiddenFrames)
+            if (stackContextData.hideTopLuaLibraryFrames && (input.BasicSymbolInfo.MethodName == "callhook" || input.BasicSymbolInfo.MethodName == "traceexec" || input.BasicSymbolInfo.MethodName == "lua_error") && !showHiddenFrames)
             {
                 var flags = (input.Flags & ~DkmStackWalkFrameFlags.UserStatusNotDetermined) | DkmStackWalkFrameFlags.NonuserCode | DkmStackWalkFrameFlags.Hidden;
 
@@ -2048,6 +2049,7 @@ namespace LuaDkmDebuggerComponent
                         processData.breakpointLuaBufferLoaded = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadbuffer", "Lua script load from file", out _).GetValueOrDefault(Guid.Empty);
 
                     // Track runtime errors using two breakpoints, first will notify us that the following throw call is a runtime error instead of some other user error (we also capture break address to filter Lua frames in Call Stack filter)
+                    processData.breakpointLuaBreakError = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaB_error", "Lua break error", out _).GetValueOrDefault(Guid.Empty);
                     processData.breakpointLuaRuntimeError = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaG_runerror", "Lua run error", out _).GetValueOrDefault(Guid.Empty);
 
                     processData.breakpointLuaThrow = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaD_throw", "Lua script error", out processData.breakpointLuaThrowAddress).GetValueOrDefault(Guid.Empty);
@@ -2401,7 +2403,7 @@ namespace LuaDkmDebuggerComponent
                         }
                     }
                 }
-                else if (data.breakpointId == processData.breakpointLuaRuntimeError)
+                else if (data.breakpointId == processData.breakpointLuaRuntimeError || data.breakpointId == processData.breakpointLuaBreakError)
                 {
                     log.Debug("Detected Lua runtimer error");
 
