@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
-using System.Windows.Markup;
 
 namespace LuaDkmDebuggerComponent
 {
@@ -111,14 +110,19 @@ namespace LuaDkmDebuggerComponent
             if (typeTag == null)
                 return null;
 
-            switch (GetExtendedType(typeTag.Value))
+            return ReadValueOfType(process, typeTag.Value, address);
+        }
+
+        internal static LuaValueDataBase ReadValueOfType(DkmProcess process, int typeTag, ulong address)
+        {
+            switch (GetExtendedType(typeTag))
             {
                 case LuaExtendedType.Nil:
                     {
                         return new LuaValueDataNil()
                         {
-                            baseType = GetBaseType(typeTag.Value),
-                            extendedType = GetExtendedType(typeTag.Value),
+                            baseType = GetBaseType(typeTag),
+                            extendedType = GetExtendedType(typeTag),
                             evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
                             originalAddress = address
                         };
@@ -131,8 +135,8 @@ namespace LuaDkmDebuggerComponent
                         {
                             return new LuaValueDataBool()
                             {
-                                baseType = GetBaseType(typeTag.Value),
-                                extendedType = GetExtendedType(typeTag.Value),
+                                baseType = GetBaseType(typeTag),
+                                extendedType = GetExtendedType(typeTag),
                                 evaluationFlags = value.Value != 0 ? DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean | DkmEvaluationResultFlags.BooleanTrue : DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean,
                                 originalAddress = address,
                                 value = value.Value != 0
@@ -142,8 +146,8 @@ namespace LuaDkmDebuggerComponent
 
                     return new LuaValueDataError()
                     {
-                        baseType = GetBaseType(typeTag.Value),
-                        extendedType = GetExtendedType(typeTag.Value),
+                        baseType = GetBaseType(typeTag),
+                        extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.None,
                         originalAddress = address
                     };
@@ -155,8 +159,8 @@ namespace LuaDkmDebuggerComponent
                         {
                             return new LuaValueDataLightUserData()
                             {
-                                baseType = GetBaseType(typeTag.Value),
-                                extendedType = GetExtendedType(typeTag.Value),
+                                baseType = GetBaseType(typeTag),
+                                extendedType = GetExtendedType(typeTag),
                                 evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType,
                                 originalAddress = address,
                                 value = value.Value
@@ -166,8 +170,8 @@ namespace LuaDkmDebuggerComponent
 
                     return new LuaValueDataError()
                     {
-                        baseType = GetBaseType(typeTag.Value),
-                        extendedType = GetExtendedType(typeTag.Value),
+                        baseType = GetBaseType(typeTag),
+                        extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.None,
                         originalAddress = address
                     };
@@ -179,8 +183,8 @@ namespace LuaDkmDebuggerComponent
                         {
                             return new LuaValueDataNumber()
                             {
-                                baseType = GetBaseType(typeTag.Value),
-                                extendedType = GetExtendedType(typeTag.Value),
+                                baseType = GetBaseType(typeTag),
+                                extendedType = GetExtendedType(typeTag),
                                 evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType,
                                 originalAddress = address,
                                 value = value.Value
@@ -190,8 +194,8 @@ namespace LuaDkmDebuggerComponent
 
                     return new LuaValueDataError()
                     {
-                        baseType = GetBaseType(typeTag.Value),
-                        extendedType = GetExtendedType(typeTag.Value),
+                        baseType = GetBaseType(typeTag),
+                        extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.None,
                         originalAddress = address
                     };
@@ -203,8 +207,8 @@ namespace LuaDkmDebuggerComponent
                         {
                             return new LuaValueDataNumber()
                             {
-                                baseType = GetBaseType(typeTag.Value),
-                                extendedType = GetExtendedType(typeTag.Value),
+                                baseType = GetBaseType(typeTag),
+                                extendedType = GetExtendedType(typeTag),
                                 evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType,
                                 originalAddress = address,
                                 value = value.Value
@@ -214,8 +218,8 @@ namespace LuaDkmDebuggerComponent
 
                     return new LuaValueDataError()
                     {
-                        baseType = GetBaseType(typeTag.Value),
-                        extendedType = GetExtendedType(typeTag.Value),
+                        baseType = GetBaseType(typeTag),
+                        extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.None,
                         originalAddress = address
                     };
@@ -233,8 +237,8 @@ namespace LuaDkmDebuggerComponent
                             {
                                 return new LuaValueDataString()
                                 {
-                                    baseType = GetBaseType(typeTag.Value),
-                                    extendedType = GetExtendedType(typeTag.Value),
+                                    baseType = GetBaseType(typeTag),
+                                    extendedType = GetExtendedType(typeTag),
                                     evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.RawString | DkmEvaluationResultFlags.ReadOnly,
                                     originalAddress = address,
                                     value = target,
@@ -246,8 +250,8 @@ namespace LuaDkmDebuggerComponent
 
                     return new LuaValueDataError()
                     {
-                        baseType = GetBaseType(typeTag.Value),
-                        extendedType = GetExtendedType(typeTag.Value),
+                        baseType = GetBaseType(typeTag),
+                        extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.None,
                         originalAddress = address
                     };
@@ -265,8 +269,8 @@ namespace LuaDkmDebuggerComponent
                             {
                                 return new LuaValueDataString()
                                 {
-                                    baseType = GetBaseType(typeTag.Value),
-                                    extendedType = GetExtendedType(typeTag.Value),
+                                    baseType = GetBaseType(typeTag),
+                                    extendedType = GetExtendedType(typeTag),
                                     evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.RawString | DkmEvaluationResultFlags.ReadOnly,
                                     originalAddress = address,
                                     value = target,
@@ -278,8 +282,8 @@ namespace LuaDkmDebuggerComponent
 
                     return new LuaValueDataError()
                     {
-                        baseType = GetBaseType(typeTag.Value),
-                        extendedType = GetExtendedType(typeTag.Value),
+                        baseType = GetBaseType(typeTag),
+                        extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.None,
                         originalAddress = address
                     };
@@ -295,8 +299,8 @@ namespace LuaDkmDebuggerComponent
 
                             return new LuaValueDataTable()
                             {
-                                baseType = GetBaseType(typeTag.Value),
-                                extendedType = GetExtendedType(typeTag.Value),
+                                baseType = GetBaseType(typeTag),
+                                extendedType = GetExtendedType(typeTag),
                                 evaluationFlags = DkmEvaluationResultFlags.ReadOnly | DkmEvaluationResultFlags.Expandable,
                                 originalAddress = address,
                                 value = target,
@@ -307,8 +311,8 @@ namespace LuaDkmDebuggerComponent
 
                     return new LuaValueDataError()
                     {
-                        baseType = GetBaseType(typeTag.Value),
-                        extendedType = GetExtendedType(typeTag.Value),
+                        baseType = GetBaseType(typeTag),
+                        extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.None,
                         originalAddress = address
                     };
@@ -325,8 +329,8 @@ namespace LuaDkmDebuggerComponent
 
                             return new LuaValueDataLuaFunction()
                             {
-                                baseType = GetBaseType(typeTag.Value),
-                                extendedType = GetExtendedType(typeTag.Value),
+                                baseType = GetBaseType(typeTag),
+                                extendedType = GetExtendedType(typeTag),
                                 evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
                                 originalAddress = address,
                                 value = target,
@@ -337,8 +341,8 @@ namespace LuaDkmDebuggerComponent
 
                     return new LuaValueDataError()
                     {
-                        baseType = GetBaseType(typeTag.Value),
-                        extendedType = GetExtendedType(typeTag.Value),
+                        baseType = GetBaseType(typeTag),
+                        extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.None,
                         originalAddress = address
                     };
@@ -350,8 +354,8 @@ namespace LuaDkmDebuggerComponent
                         {
                             return new LuaValueDataExternalFunction()
                             {
-                                baseType = GetBaseType(typeTag.Value),
-                                extendedType = GetExtendedType(typeTag.Value),
+                                baseType = GetBaseType(typeTag),
+                                extendedType = GetExtendedType(typeTag),
                                 evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
                                 originalAddress = address,
                                 targetAddress = value.Value
@@ -361,8 +365,8 @@ namespace LuaDkmDebuggerComponent
 
                     return new LuaValueDataError()
                     {
-                        baseType = GetBaseType(typeTag.Value),
-                        extendedType = GetExtendedType(typeTag.Value),
+                        baseType = GetBaseType(typeTag),
+                        extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.None,
                         originalAddress = address
                     };
@@ -378,8 +382,8 @@ namespace LuaDkmDebuggerComponent
 
                             return new LuaValueDataExternalClosure()
                             {
-                                baseType = GetBaseType(typeTag.Value),
-                                extendedType = GetExtendedType(typeTag.Value),
+                                baseType = GetBaseType(typeTag),
+                                extendedType = GetExtendedType(typeTag),
                                 evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
                                 originalAddress = address,
                                 value = target,
@@ -390,8 +394,8 @@ namespace LuaDkmDebuggerComponent
 
                     return new LuaValueDataError()
                     {
-                        baseType = GetBaseType(typeTag.Value),
-                        extendedType = GetExtendedType(typeTag.Value),
+                        baseType = GetBaseType(typeTag),
+                        extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.None,
                         originalAddress = address
                     };
@@ -407,8 +411,8 @@ namespace LuaDkmDebuggerComponent
 
                             return new LuaValueDataUserData()
                             {
-                                baseType = GetBaseType(typeTag.Value),
-                                extendedType = GetExtendedType(typeTag.Value),
+                                baseType = GetBaseType(typeTag),
+                                extendedType = GetExtendedType(typeTag),
                                 evaluationFlags = DkmEvaluationResultFlags.ReadOnly,
                                 originalAddress = address,
                                 value = target,
@@ -419,8 +423,8 @@ namespace LuaDkmDebuggerComponent
 
                     return new LuaValueDataError()
                     {
-                        baseType = GetBaseType(typeTag.Value),
-                        extendedType = GetExtendedType(typeTag.Value),
+                        baseType = GetBaseType(typeTag),
+                        extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.None,
                         originalAddress = address
                     };
@@ -432,8 +436,8 @@ namespace LuaDkmDebuggerComponent
                         {
                             return new LuaValueDataThread()
                             {
-                                baseType = GetBaseType(typeTag.Value),
-                                extendedType = GetExtendedType(typeTag.Value),
+                                baseType = GetBaseType(typeTag),
+                                extendedType = GetExtendedType(typeTag),
                                 evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
                                 originalAddress = address,
                                 targetAddress = value.Value
@@ -443,8 +447,8 @@ namespace LuaDkmDebuggerComponent
 
                     return new LuaValueDataError()
                     {
-                        baseType = GetBaseType(typeTag.Value),
-                        extendedType = GetExtendedType(typeTag.Value),
+                        baseType = GetBaseType(typeTag),
+                        extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.None,
                         originalAddress = address
                     };
