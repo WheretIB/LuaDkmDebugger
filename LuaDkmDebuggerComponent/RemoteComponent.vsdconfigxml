@@ -29,6 +29,7 @@
 					<Interface Name="IDkmRuntimeMonitorBreakpointHandler"/>
 					<Interface Name="IDkmRuntimeStepper"/>
 					<Interface Name="IDkmLanguageConditionEvaluator"/>
+					<Interface Name="IDkmExceptionFormatter"/>
 				</InterfaceGroup>
 			</Implements>
 		</Class>

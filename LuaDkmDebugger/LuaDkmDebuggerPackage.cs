@@ -50,7 +50,8 @@ namespace LuaDkmDebugger
         /// </summary>
         public const string PackageGuidString = "99662a30-53ec-42a6-be5d-80aed0e1e2ea";
 
-        public const int AttachCommandId = 0x0120;
+        public const int LuaAttachOnLaunchCommandId = 0x0120;
+        public const int LuaBreakOnErrorCommandId = 0x0150;
         public const int LoggingCommandId = 0x0130;
         public const int LuaShowHiddenFramesCommandId = 0x0140;
 
@@ -61,6 +62,7 @@ namespace LuaDkmDebugger
         #region Package Members
 
         public static bool attachOnLaunch = true;
+        public static bool breakOnError = true;
         public static bool releaseDebugLogs = false;
         public static bool showHiddenFrames = false;
 
@@ -88,10 +90,12 @@ namespace LuaDkmDebugger
                 configurationSettingsStore.CreateCollection("LuaDkmDebugger");
 
                 attachOnLaunch = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "AttachOnLaunch", true);
+                breakOnError = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "BreakOnError", true);
                 releaseDebugLogs = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "ReleaseDebugLogs", false);
                 showHiddenFrames = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "ShowHiddenFrames", false);
 
                 LuaDkmDebuggerComponent.LocalComponent.attachOnLaunch = attachOnLaunch;
+                LuaDkmDebuggerComponent.LocalComponent.breakOnError = breakOnError;
                 LuaDkmDebuggerComponent.LocalComponent.releaseDebugLogs = releaseDebugLogs;
                 LuaDkmDebuggerComponent.LocalComponent.showHiddenFrames = showHiddenFrames;
             }
@@ -105,14 +109,40 @@ namespace LuaDkmDebugger
             if (commandService != null)
             {
                 {
-                    CommandID menuCommandID = new CommandID(CommandSet, AttachCommandId);
+                    CommandID menuCommandID = new CommandID(CommandSet, LuaAttachOnLaunchCommandId);
 
-                    OleMenuCommand menuItem = new OleMenuCommand(AttachMenuItemCallback, menuCommandID);
+                    OleMenuCommand menuItem = new OleMenuCommand((object sender, EventArgs args) =>
+                    {
+                        HandleToggleMenuItem(sender, args, "AttachOnLaunch", ref LuaDkmDebuggerComponent.LocalComponent.attachOnLaunch, ref attachOnLaunch);
+                    }, menuCommandID);
 
-                    menuItem.BeforeQueryStatus += AttachOnBeforeQueryStatus;
+                    menuItem.BeforeQueryStatus += (object sender, EventArgs args) =>
+                    {
+                        if (sender is OleMenuCommand command)
+                            command.Checked = attachOnLaunch;
+                    };
 
                     menuItem.Enabled = true;
                     menuItem.Checked = attachOnLaunch;
+
+                    commandService.AddCommand(menuItem);
+                }
+                {
+                    CommandID menuCommandID = new CommandID(CommandSet, LuaBreakOnErrorCommandId);
+
+                    OleMenuCommand menuItem = new OleMenuCommand((object sender, EventArgs args) =>
+                    {
+                        HandleToggleMenuItem(sender, args, "BreakOnError", ref LuaDkmDebuggerComponent.LocalComponent.breakOnError, ref breakOnError);
+                    }, menuCommandID);
+
+                    menuItem.BeforeQueryStatus += (object sender, EventArgs args) =>
+                    {
+                        if (sender is OleMenuCommand command)
+                            command.Checked = breakOnError;
+                    };
+
+                    menuItem.Enabled = true;
+                    menuItem.Checked = breakOnError;
 
                     commandService.AddCommand(menuItem);
                 }
@@ -120,9 +150,16 @@ namespace LuaDkmDebugger
                 {
                     CommandID menuCommandID = new CommandID(CommandSet, LoggingCommandId);
 
-                    OleMenuCommand menuItem = new OleMenuCommand(LoggingMenuItemCallback, menuCommandID);
+                    OleMenuCommand menuItem = new OleMenuCommand((object sender, EventArgs args) =>
+                    {
+                        HandleToggleMenuItem(sender, args, "ReleaseDebugLogs", ref LuaDkmDebuggerComponent.LocalComponent.releaseDebugLogs, ref releaseDebugLogs);
+                    }, menuCommandID);
 
-                    menuItem.BeforeQueryStatus += LoggingOnBeforeQueryStatus;
+                    menuItem.BeforeQueryStatus += (object sender, EventArgs args) =>
+                    {
+                        if (sender is OleMenuCommand command)
+                            command.Checked = releaseDebugLogs;
+                    };
 
                     menuItem.Enabled = true;
                     menuItem.Checked = releaseDebugLogs;
@@ -133,7 +170,16 @@ namespace LuaDkmDebugger
                 {
                     CommandID menuCommandID = new CommandID(CommandSet, LuaShowHiddenFramesCommandId);
 
-                    OleMenuCommand menuItem = new OleMenuCommand(ShowHiddenFramesMenuItemCallback, menuCommandID);
+                    OleMenuCommand menuItem = new OleMenuCommand((object sender, EventArgs args) =>
+                    {
+                        HandleToggleMenuItem(sender, args, "ShowHiddenFrames", ref LuaDkmDebuggerComponent.LocalComponent.showHiddenFrames, ref showHiddenFrames);
+                    }, menuCommandID);
+
+                    menuItem.BeforeQueryStatus += (object sender, EventArgs args) =>
+                    {
+                        if (sender is OleMenuCommand command)
+                            command.Checked = showHiddenFrames;
+                    };
 
                     menuItem.Enabled = true;
                     menuItem.Checked = showHiddenFrames;
@@ -143,85 +189,25 @@ namespace LuaDkmDebugger
             }
         }
 
-        private void AttachMenuItemCallback(object sender, EventArgs args)
+        private void HandleToggleMenuItem(object sender, EventArgs args, string name, ref bool componentFlag, ref bool packageFlag)
         {
             if (sender is OleMenuCommand command)
             {
-                attachOnLaunch = !attachOnLaunch;
+                packageFlag = !packageFlag;
 
                 try
                 {
                     if (configurationSettingsStore != null)
-                        configurationSettingsStore.SetBoolean("LuaDkmDebugger", "AttachOnLaunch", attachOnLaunch);
+                        configurationSettingsStore.SetBoolean("LuaDkmDebugger", name, packageFlag);
 
-                    LuaDkmDebuggerComponent.LocalComponent.attachOnLaunch = attachOnLaunch;
+                    componentFlag = packageFlag;
                 }
                 catch (Exception e)
                 {
-                    System.Diagnostics.Debug.WriteLine("Failed to setup setting with " + e.Message);
+                    System.Diagnostics.Debug.WriteLine($"Failed to setup '{name}' setting with " + e.Message);
                 }
 
-                command.Checked = attachOnLaunch;
-            }
-        }
-
-        private void AttachOnBeforeQueryStatus(object sender, EventArgs args)
-        {
-            if (sender is OleMenuCommand command)
-            {
-                command.Checked = attachOnLaunch;
-            }
-        }
-
-        private void LoggingMenuItemCallback(object sender, EventArgs args)
-        {
-            if (sender is OleMenuCommand command)
-            {
-                releaseDebugLogs = !releaseDebugLogs;
-
-                try
-                {
-                    if (configurationSettingsStore != null)
-                        configurationSettingsStore.SetBoolean("LuaDkmDebugger", "ReleaseDebugLogs", releaseDebugLogs);
-
-                    LuaDkmDebuggerComponent.LocalComponent.releaseDebugLogs = releaseDebugLogs;
-                }
-                catch (Exception e)
-                {
-                    System.Diagnostics.Debug.WriteLine("Failed to setup setting with " + e.Message);
-                }
-
-                command.Checked = releaseDebugLogs;
-            }
-        }
-
-        private void LoggingOnBeforeQueryStatus(object sender, EventArgs args)
-        {
-            if (sender is OleMenuCommand command)
-            {
-                command.Checked = releaseDebugLogs;
-            }
-        }
-
-        private void ShowHiddenFramesMenuItemCallback(object sender, EventArgs args)
-        {
-            if (sender is OleMenuCommand command)
-            {
-                showHiddenFrames = !showHiddenFrames;
-
-                try
-                {
-                    if (configurationSettingsStore != null)
-                        configurationSettingsStore.SetBoolean("LuaDkmDebugger", "ShowHiddenFrames", showHiddenFrames);
-
-                    LuaDkmDebuggerComponent.LocalComponent.showHiddenFrames = showHiddenFrames;
-                }
-                catch (Exception e)
-                {
-                    System.Diagnostics.Debug.WriteLine("Failed to setup setting with " + e.Message);
-                }
-
-                command.Checked = showHiddenFrames;
+                command.Checked = packageFlag;
             }
         }
 

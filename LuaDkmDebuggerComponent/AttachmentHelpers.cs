@@ -241,7 +241,7 @@ namespace LuaDkmDebuggerComponent
             return 0;
         }
 
-        internal static Guid? CreateTargetFunctionBreakpointAtDebugStart(DkmProcess process, DkmNativeModuleInstance moduleWithLoadedLua, string name, string desc)
+        internal static Guid? CreateTargetFunctionBreakpointAtDebugStart(DkmProcess process, DkmNativeModuleInstance moduleWithLoadedLua, string name, string desc, out ulong breakAddress)
         {
             var address = TryGetFunctionAddressAtDebugStart(moduleWithLoadedLua, name, out string error);
 
@@ -255,6 +255,7 @@ namespace LuaDkmDebuggerComponent
 
                 breakpoint.Enable();
 
+                breakAddress = address.Value;
                 return breakpoint.UniqueId;
             }
             else
@@ -262,10 +263,11 @@ namespace LuaDkmDebuggerComponent
                 LocalComponent.log.Warning($"Failed to create breakpoint in '{name}' with {error}");
             }
 
+            breakAddress = 0;
             return null;
         }
 
-        internal static Guid? CreateTargetFunctionBreakpointAtDebugEnd(DkmProcess process, DkmNativeModuleInstance moduleWithLoadedLua, string name, string desc)
+        internal static Guid? CreateTargetFunctionBreakpointAtDebugEnd(DkmProcess process, DkmNativeModuleInstance moduleWithLoadedLua, string name, string desc, out ulong breakAddress)
         {
             var address = TryGetFunctionAddressAtDebugEnd(moduleWithLoadedLua, name, out string error);
 
@@ -279,6 +281,7 @@ namespace LuaDkmDebuggerComponent
 
                 breakpoint.Enable();
 
+                breakAddress = address.Value;
                 return breakpoint.UniqueId;
             }
             else
@@ -286,6 +289,7 @@ namespace LuaDkmDebuggerComponent
                 LocalComponent.log.Warning($"Failed to create breakpoint in '{name}' with {error}");
             }
 
+            breakAddress = 0;
             return null;
         }
     }

@@ -13,6 +13,7 @@ namespace LuaDkmDebuggerComponent
         public static readonly Guid luaSymbolProviderGuid = new Guid("00BB9B25-E5EA-4B0F-AD3D-C017B16F4FA1");
 
         public static readonly Guid luaSupportBreakpointGuid = new Guid("F8B5C32C-126E-49EC-979E-3AE10F8321FA");
+        public static readonly Guid luaExceptionGuid = new Guid("AD1C7DA0-C25B-491D-8D9C-C86058F77034");
     }
 
     static class MessageToRemote
@@ -24,6 +25,7 @@ namespace LuaDkmDebuggerComponent
         public static readonly int pauseBreakpoints = 3;
         public static readonly int resumeBreakpoints = 4;
         public static readonly int luaVersionInfo = 5;
+        public static readonly int throwException = 6;
     }
 
     static class MessageToLocal

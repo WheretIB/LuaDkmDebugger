@@ -76,6 +76,12 @@ namespace LuaDkmDebuggerComponent
         public Guid breakpointLuaFileLoadedSolCompat;
         public Guid breakpointLuaBufferLoaded;
 
+        // Two-stage Lua exception handling
+        public bool captureNextThrow = false;
+        public Guid breakpointLuaRuntimeError;
+        public ulong breakpointLuaThrowAddress = 0;
+        public Guid breakpointLuaThrow;
+
         public Guid breakpointLuaHelperInitialized;
 
         public Guid breakpointLuaHelperBreakpointHit;
@@ -126,6 +132,7 @@ namespace LuaDkmDebuggerComponent
     public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery, IDkmModuleInstanceLoadNotification, IDkmCustomMessageCallbackReceiver, IDkmLanguageInstructionDecoder, IDkmModuleUserCodeDeterminer
     {
         public static bool attachOnLaunch = true;
+        public static bool breakOnError = true;
         public static bool releaseDebugLogs = false;
         public static bool showHiddenFrames = false;
 
@@ -202,6 +209,15 @@ namespace LuaDkmDebuggerComponent
             if (input.BasicSymbolInfo == null)
                 return new DkmStackWalkFrame[1] { input };
 
+            var process = stackContext.InspectionSession.Process;
+
+            var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
+
+            if (input.InstructionAddress.CPUInstructionPart.InstructionPointer == processData.breakpointLuaThrowAddress)
+            {
+                stackContextData.hideTopLuaLibraryFrames = true;
+            }
+
             if (input.BasicSymbolInfo.MethodName == "luaV_execute")
             {
                 log.Verbose($"Filtering 'luaV_execute' stack frame");
@@ -210,10 +226,6 @@ namespace LuaDkmDebuggerComponent
 
                 stackContextData.hideTopLuaLibraryFrames = false;
                 stackContextData.hideInternalLuaLibraryFrames = false;
-
-                var process = stackContext.InspectionSession.Process;
-
-                var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
 
                 if (processData.runtimeInstance == null)
                 {
@@ -1963,29 +1975,34 @@ namespace LuaDkmDebuggerComponent
                     processData.helperInjectRequested = true;
 
                     // Track Lua state initialization (breakpoint at the end of the function)
-                    processData.breakpointLuaInitialization = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "lua_newstate", "initialization mark").GetValueOrDefault(Guid.Empty);
+                    processData.breakpointLuaInitialization = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "lua_newstate", "initialization mark", out _).GetValueOrDefault(Guid.Empty);
 
                     // Track Lua state creation (breakpoint at the end of the function)
-                    processData.breakpointLuaThreadCreate = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugEnd(process, processData.moduleWithLoadedLua, "lua_newstate", "Lua thread creation").GetValueOrDefault(Guid.Empty);
+                    processData.breakpointLuaThreadCreate = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugEnd(process, processData.moduleWithLoadedLua, "lua_newstate", "Lua thread creation", out _).GetValueOrDefault(Guid.Empty);
 
                     // Track Lua state destruction (breakpoint at the start of the function)
-                    processData.breakpointLuaThreadDestroy = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "lua_close", "Lua thread destruction").GetValueOrDefault(Guid.Empty);
+                    processData.breakpointLuaThreadDestroy = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "lua_close", "Lua thread destruction", out _).GetValueOrDefault(Guid.Empty);
 
                     // Track Lua scripts loaded from files
-                    processData.breakpointLuaFileLoaded = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadfilex", "Lua script load from file").GetValueOrDefault(Guid.Empty);
+                    processData.breakpointLuaFileLoaded = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadfilex", "Lua script load from file", out _).GetValueOrDefault(Guid.Empty);
 
                     if (processData.breakpointLuaFileLoaded == Guid.Empty)
                     {
-                        processData.breakpointLuaFileLoaded = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadfile", "Lua script load from file").GetValueOrDefault(Guid.Empty);
+                        processData.breakpointLuaFileLoaded = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadfile", "Lua script load from file", out _).GetValueOrDefault(Guid.Empty);
 
-                        processData.breakpointLuaFileLoadedSolCompat = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "kp_compat53L_loadfilex", "Lua script load from file").GetValueOrDefault(Guid.Empty);
+                        processData.breakpointLuaFileLoadedSolCompat = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "kp_compat53L_loadfilex", "Lua script load from file", out _).GetValueOrDefault(Guid.Empty);
                     }
 
                     // Track Lua scripts loaded from buffers
-                    processData.breakpointLuaBufferLoaded = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadbufferx", "Lua script load from buffer").GetValueOrDefault(Guid.Empty);
+                    processData.breakpointLuaBufferLoaded = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadbufferx", "Lua script load from buffer", out _).GetValueOrDefault(Guid.Empty);
 
                     if (processData.breakpointLuaBufferLoaded == Guid.Empty)
-                        processData.breakpointLuaBufferLoaded = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadbuffer", "Lua script load from file").GetValueOrDefault(Guid.Empty);
+                        processData.breakpointLuaBufferLoaded = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadbuffer", "Lua script load from file", out _).GetValueOrDefault(Guid.Empty);
+
+                    // Track runtime errors using two breakpoints, first will notify us that the following throw call is a runtime error instead of some other user error (we also capture break address to filter Lua frames in Call Stack filter)
+                    processData.breakpointLuaRuntimeError = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaG_runerror", "Lua run error", out _).GetValueOrDefault(Guid.Empty);
+
+                    processData.breakpointLuaThrow = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaD_throw", "Lua script error", out processData.breakpointLuaThrowAddress).GetValueOrDefault(Guid.Empty);
 
                     string assemblyFolder = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 
@@ -2333,6 +2350,54 @@ namespace LuaDkmDebuggerComponent
                         else
                         {
                             log.Error("Failed to get process working directory'");
+                        }
+                    }
+                }
+                else if (data.breakpointId == processData.breakpointLuaRuntimeError)
+                {
+                    log.Debug("Detected Lua runtimer error");
+
+                    if (!breakOnError)
+                    {
+                        log.Debug("Break on error is disabled, ignoring");
+
+                        return null;
+                    }
+
+                    log.Debug("Enabling a trap at next luaD_throw");
+
+                    processData.captureNextThrow = true;
+                }
+                else if (data.breakpointId == processData.breakpointLuaThrow)
+                {
+                    log.Debug("Detected Lua exception throw");
+
+                    if (!processData.captureNextThrow)
+                    {
+                        log.Debug("Capture is not enabled");
+
+                        return null;
+                    }
+
+                    processData.captureNextThrow = false;
+
+                    var inspectionSession = EvaluationHelpers.CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
+
+                    ulong? messageAddress = EvaluationHelpers.TryEvaluateAddressExpression($"L->top - 1", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+
+                    if (messageAddress.HasValue)
+                    {
+                        var value = LuaHelpers.ReadValue(process, messageAddress.Value);
+
+                        if (value != null)
+                        {
+                            var description = value.AsSimpleDisplayString(10);
+
+                            return DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.throwException, Encoding.UTF8.GetBytes(description), null);
+                        }
+                        else
+                        {
+                            log.Error("Failed to get Lua error message");
                         }
                     }
                 }

@@ -4,10 +4,12 @@ using Microsoft.VisualStudio.Debugger.CallStack;
 using Microsoft.VisualStudio.Debugger.ComponentInterfaces;
 using Microsoft.VisualStudio.Debugger.CustomRuntimes;
 using Microsoft.VisualStudio.Debugger.Evaluation;
+using Microsoft.VisualStudio.Debugger.Exceptions;
 using Microsoft.VisualStudio.Debugger.Stepping;
 using Microsoft.VisualStudio.Debugger.Symbols;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
@@ -47,7 +49,7 @@ namespace LuaDkmDebuggerComponent
         public Dictionary<ulong, LuaFunctionData> functionDataCache = new Dictionary<ulong, LuaFunctionData>();
     }
 
-    public class RemoteComponent : IDkmCustomMessageForwardReceiver, IDkmRuntimeBreakpointReceived, IDkmRuntimeMonitorBreakpointHandler, IDkmRuntimeStepper, IDkmLanguageConditionEvaluator
+    public class RemoteComponent : IDkmCustomMessageForwardReceiver, IDkmRuntimeBreakpointReceived, IDkmRuntimeMonitorBreakpointHandler, IDkmRuntimeStepper, IDkmLanguageConditionEvaluator, IDkmExceptionFormatter
     {
         DkmCustomMessage IDkmCustomMessageForwardReceiver.SendLower(DkmCustomMessage customMessage)
         {
@@ -257,7 +259,17 @@ namespace LuaDkmDebuggerComponent
 
                 var message = DkmCustomMessage.Create(process.Connection, process, MessageToLocal.guid, MessageToLocal.luaSupportBreakpointHit, data.Encode(), null);
 
-                message.SendHigher();
+                var response = message.SendHigher();
+
+                if (response?.MessageCode == MessageToRemote.throwException)
+                {
+                    if (runtimeBreakpoint is DkmRuntimeInstructionBreakpoint runtimeInstructionBreakpoint)
+                    {
+                        var exceptionInformation = DkmCustomExceptionInformation.Create(processData.runtimeInstance, Guids.luaExceptionGuid, thread, runtimeInstructionBreakpoint.InstructionAddress, "LuaError", 0, DkmExceptionProcessingStage.Thrown | DkmExceptionProcessingStage.UserVisible | DkmExceptionProcessingStage.Unhandled, null, new ReadOnlyCollection<byte>(response.Parameter1 as byte[]));
+
+                        exceptionInformation.OnDebugMonitorException();
+                    }
+                }
             }
         }
 
@@ -630,6 +642,23 @@ namespace LuaDkmDebuggerComponent
 
             stop = resultNumber.value != 0.0;
             errorText = null;
+        }
+
+        string IDkmExceptionFormatter.GetDescription(DkmExceptionInformation exception)
+        {
+            return exception.Name;
+        }
+
+        string IDkmExceptionFormatter.GetAdditionalInformation(DkmExceptionInformation exception)
+        {
+            var customExceptionInformation = exception as DkmCustomExceptionInformation;
+
+            if (customExceptionInformation?.AdditionalInformation == null)
+                return null;
+
+            string message = Encoding.UTF8.GetString(customExceptionInformation.AdditionalInformation.ToArray());
+
+            return message;
         }
     }
 }
