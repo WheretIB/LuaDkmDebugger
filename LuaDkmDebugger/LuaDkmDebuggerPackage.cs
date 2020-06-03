@@ -311,7 +311,7 @@ namespace LuaDkmDebugger
                     if (language != "Lua")
                         return null;
 
-                    var expression = debugger.GetExpression3($"```{expressionText}", stackFrame, false, true, false, 500);
+                    var expression = debugger.GetExpression3($"```{expressionText}", stackFrame, false, false, false, 500);
 
                     if (expression == null)
                         return null;
