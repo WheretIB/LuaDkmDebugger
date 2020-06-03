@@ -267,15 +267,13 @@ namespace LuaDkmDebugger
             if (triggerPoint != null)
             {
                 TextExtent extent = textStructureNavigator.GetExtentOfWord(triggerPoint.Value);
-                var extentSpan = extent.Span;
+                SnapshotSpan extentSpan = extent.Span;
 
                 ITextSnapshotLine line = triggerPoint.Value.GetContainingLine();
                 ITrackingSpan lineSpan = textBuffer.CurrentSnapshot.CreateTrackingSpan(line.Extent, SpanTrackingMode.EdgeInclusive);
 
                 try
                 {
-                    var expressionText = extentSpan.GetText();
-
                     if (debugger == null)
                         return null;
 
@@ -283,6 +281,27 @@ namespace LuaDkmDebugger
 
                     if (stackFrame == null)
                         return null;
+
+                    // Try to extent the span to the potential chain of member accesses on the left
+                    int lineStartPosition = lineSpan.GetStartPoint(textBuffer.CurrentSnapshot).Position;
+                    string lineText = lineSpan.GetText(textBuffer.CurrentSnapshot);
+
+                    int localPosition = extentSpan.Start.Position - lineStartPosition;
+
+                    while (localPosition > 1 && (lineText[localPosition - 1] == '.' || lineText[localPosition - 1] == ':'))
+                    {
+                        TextExtent leftExtent = textStructureNavigator.GetExtentOfWord(new SnapshotPoint(textBuffer.CurrentSnapshot, lineStartPosition + localPosition - 2));
+                        SnapshotSpan leftExtentSpan = leftExtent.Span;
+
+                        if (leftExtentSpan.Start.Position >= lineStartPosition)
+                        {
+                            extentSpan = new SnapshotSpan(leftExtentSpan.Start, extentSpan.End.Position - leftExtentSpan.Start.Position);
+
+                            localPosition = leftExtentSpan.Start.Position - lineStartPosition;
+                        }
+                    }
+
+                    var expressionText = extentSpan.GetText();
 
                     // Switch to main thread to access properties
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
