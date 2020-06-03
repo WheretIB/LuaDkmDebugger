@@ -209,7 +209,7 @@ namespace LuaDkmDebuggerComponent
             if (extendedType == LuaExtendedType.IntegerNumber)
             {
                 if (radix == 16)
-                    return $"{(int)value:x}";
+                    return $"0x{(int)value:x8}";
 
                 return $"{(int)value}";
             }

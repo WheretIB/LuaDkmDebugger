@@ -144,7 +144,7 @@ namespace LuaDkmDebuggerComponent
                     editableValue = $"{value.value}";
 
                     if (radix == 16)
-                        return $"0x{value.value:x}";
+                        return $"0x{(int)value.value:x8}";
 
                     return $"{value.value}";
                 }
