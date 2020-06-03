@@ -1166,6 +1166,7 @@ namespace LuaDkmDebuggerComponent
 
         public LuaTableData envTable_5_1;
         public LuaFunctionData function;
+        public LuaUpvalueData[] upvalues;
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
@@ -1206,6 +1207,12 @@ namespace LuaDkmDebuggerComponent
         {
             Debug.Assert(index < upvalueSize);
 
+            if (upvalues == null)
+                upvalues = new LuaUpvalueData[upvalueSize];
+
+            if (upvalues[index] != null)
+                return upvalues[index];
+
             ulong upvalueAddress = DebugHelpers.ReadPointerVariable(process, firstUpvaluePointerAddress + (ulong)(index * DebugHelpers.GetPointerSize(process))).GetValueOrDefault(0);
 
             if (upvalueAddress == 0)
@@ -1214,6 +1221,8 @@ namespace LuaDkmDebuggerComponent
             LuaUpvalueData result = new LuaUpvalueData();
 
             result.ReadFrom(process, upvalueAddress);
+
+            upvalues[index] = result;
 
             return result;
         }
