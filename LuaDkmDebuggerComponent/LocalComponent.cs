@@ -1070,7 +1070,7 @@ namespace LuaDkmDebuggerComponent
                 DkmEvaluationResult[] initialResults = new DkmEvaluationResult[finalInitialSize];
 
                 for (int i = 0; i < initialResults.Length; i++)
-                    initialResults[i] = EvaluationHelpers.GetTableChildAtIndex(inspectionContext, result.StackFrame, result.FullName, value, i);
+                    initialResults[i] = EvaluationHelpers.GetTableChildAtIndex(inspectionContext, result.StackFrame, result.FullName, value.value, i);
 
                 var enumerator = DkmEvaluationResultEnumContext.Create(actualSize, result.StackFrame, inspectionContext, evalData);
 
@@ -1115,6 +1115,37 @@ namespace LuaDkmDebuggerComponent
                 completionRoutine(new DkmGetChildrenAsyncResult(initialResults, enumerator));
 
                 log.Debug($"IDkmSymbolQuery.GetChildren success (c_closure)");
+                return;
+            }
+
+            if (evalData.luaValueData as LuaValueDataUserData != null)
+            {
+                var value = evalData.luaValueData as LuaValueDataUserData;
+
+                value.value.LoadMetaTable(process);
+
+                if (value.value.metaTable == null)
+                {
+                    log.Error($"IDkmSymbolQuery.GetChildren failure (no user data metatable)");
+
+                    completionRoutine(new DkmGetChildrenAsyncResult(new DkmEvaluationResult[0], DkmEvaluationResultEnumContext.Create(0, result.StackFrame, inspectionContext, null)));
+                    return;
+                }
+
+                int actualSize = value.value.metaTable.arrayElements.Count + value.value.metaTable.nodeElements.Count;
+
+                int finalInitialSize = initialRequestSize < actualSize ? initialRequestSize : actualSize;
+
+                DkmEvaluationResult[] initialResults = new DkmEvaluationResult[finalInitialSize];
+
+                for (int i = 0; i < initialResults.Length; i++)
+                    initialResults[i] = EvaluationHelpers.GetTableChildAtIndex(inspectionContext, result.StackFrame, result.FullName, value.value.metaTable, i);
+
+                var enumerator = DkmEvaluationResultEnumContext.Create(actualSize, result.StackFrame, inspectionContext, evalData);
+
+                completionRoutine(new DkmGetChildrenAsyncResult(initialResults, enumerator));
+
+                log.Debug($"IDkmSymbolQuery.GetChildren success (table)");
                 return;
             }
 
@@ -1285,7 +1316,7 @@ namespace LuaDkmDebuggerComponent
                 var results = new DkmEvaluationResult[count];
 
                 for (int i = startIndex; i < startIndex + count; i++)
-                    results[i - startIndex] = EvaluationHelpers.GetTableChildAtIndex(enumContext.InspectionContext, enumContext.StackFrame, evalData.fullName, value, i);
+                    results[i - startIndex] = EvaluationHelpers.GetTableChildAtIndex(enumContext.InspectionContext, enumContext.StackFrame, evalData.fullName, value.value, i);
 
                 completionRoutine(new DkmEvaluationEnumAsyncResult(results));
 
@@ -1326,6 +1357,23 @@ namespace LuaDkmDebuggerComponent
                 completionRoutine(new DkmEvaluationEnumAsyncResult(results));
 
                 log.Debug($"IDkmSymbolQuery.GetItems success (c_closure)");
+                return;
+            }
+
+            if (evalData.luaValueData as LuaValueDataUserData != null)
+            {
+                var value = evalData.luaValueData as LuaValueDataUserData;
+
+                value.value.LoadMetaTable(process);
+
+                var results = new DkmEvaluationResult[count];
+
+                for (int i = startIndex; i < startIndex + count; i++)
+                    results[i - startIndex] = EvaluationHelpers.GetTableChildAtIndex(enumContext.InspectionContext, enumContext.StackFrame, evalData.fullName, value.value.metaTable, i);
+
+                completionRoutine(new DkmEvaluationEnumAsyncResult(results));
+
+                log.Debug($"IDkmSymbolQuery.GetItems success (table)");
                 return;
             }
 

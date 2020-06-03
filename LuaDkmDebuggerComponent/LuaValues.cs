@@ -390,6 +390,7 @@ namespace LuaDkmDebuggerComponent
             return $"0x{targetAddress:x}";
         }
 
+        public LuaUserDataData value;
         public ulong targetAddress;
     }
 

@@ -401,12 +401,17 @@ namespace LuaDkmDebuggerComponent
 
                         if (value.HasValue)
                         {
+                            LuaUserDataData target = new LuaUserDataData();
+
+                            target.ReadFrom(process, value.Value);
+
                             return new LuaValueDataUserData()
                             {
                                 baseType = GetBaseType(typeTag.Value),
                                 extendedType = GetExtendedType(typeTag.Value),
                                 evaluationFlags = DkmEvaluationResultFlags.ReadOnly,
                                 originalAddress = address,
+                                value = target,
                                 targetAddress = value.Value
                             };
                         }
@@ -1183,6 +1188,46 @@ namespace LuaDkmDebuggerComponent
                 DebugHelpers.SkipStructPointer(process, ref address); // env
 
             functionAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+        }
+    }
+
+    public class LuaUserDataData
+    {
+        // CommonHeader
+        public ulong nextAddress;
+        public byte typeTag;
+        public byte marked;
+
+        public byte userValueTypeTag_5_3;
+        public ulong metaTableDataAddress;
+
+        public LuaTableData metaTable;
+
+        public void ReadFrom(DkmProcess process, ulong address)
+        {
+            nextAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+            typeTag = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+            marked = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+
+            if (LuaHelpers.luaVersion == 503)
+                userValueTypeTag_5_3 = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+
+            metaTableDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+        }
+
+        public void LoadMetaTable(DkmProcess process)
+        {
+            // Check if already loaded
+            if (metaTable != null)
+                return;
+
+            if (metaTableDataAddress == 0)
+                return;
+
+            metaTable = new LuaTableData();
+
+            metaTable.ReadFrom(process, metaTableDataAddress);
+            metaTable.LoadValues(process);
         }
     }
 

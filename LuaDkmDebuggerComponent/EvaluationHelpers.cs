@@ -265,7 +265,7 @@ namespace LuaDkmDebuggerComponent
 
                 type = "user_data";
 
-                flags |= DkmEvaluationResultFlags.ReadOnly;
+                flags |= DkmEvaluationResultFlags.ReadOnly | DkmEvaluationResultFlags.Expandable;
                 return $"0x{value.targetAddress:x}";
             }
 
@@ -372,22 +372,25 @@ namespace LuaDkmDebuggerComponent
             return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, name, $"(void*){address},na", "Aborted", DkmEvaluationResultFlags.Invalid, "(void*)", null);
         }
 
-        internal static DkmEvaluationResult GetTableChildAtIndex(DkmInspectionContext inspectionContext, DkmStackWalkFrame stackFrame, string fullName, LuaValueDataTable value, int index)
+        internal static DkmEvaluationResult GetTableChildAtIndex(DkmInspectionContext inspectionContext, DkmStackWalkFrame stackFrame, string fullName, LuaTableData value, int index)
         {
+            if (value == null)
+                return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, $"[{index + 1}]", $"{fullName}[{index + 1}]", "Table data is missing", DkmEvaluationResultFlags.Invalid, null);
+
             var process = stackFrame.Process;
 
-            if (index < value.value.arrayElements.Count)
+            if (index < value.arrayElements.Count)
             {
-                var element = value.value.arrayElements[index];
+                var element = value.arrayElements[index];
 
                 return EvaluateDataAtLuaValue(inspectionContext, stackFrame, $"[{index + 1}]", $"{fullName}[{index + 1}]", element, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
             }
 
-            index = index - value.value.arrayElements.Count;
+            index = index - value.arrayElements.Count;
 
-            if (index < value.value.nodeElements.Count)
+            if (index < value.nodeElements.Count)
             {
-                var node = value.value.nodeElements[index];
+                var node = value.nodeElements[index];
 
                 DkmEvaluationResultFlags flags = DkmEvaluationResultFlags.None;
                 string name = EvaluateValueAtLuaValue(process, node.key, 10, out _, ref flags, out _, out _);
@@ -419,7 +422,7 @@ namespace LuaDkmDebuggerComponent
                 return EvaluateDataAtLuaValue(inspectionContext, stackFrame, $"\"{name}\"", $"{fullName}[\"{name}\"]", node.value, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
             }
 
-            index = index - value.value.nodeElements.Count;
+            index = index - value.nodeElements.Count;
 
             if (index == 0)
             {
@@ -429,8 +432,8 @@ namespace LuaDkmDebuggerComponent
                     extendedType = LuaExtendedType.Table,
                     evaluationFlags = DkmEvaluationResultFlags.ReadOnly,
                     originalAddress = 0, // Not available as TValue
-                    value = value.value.metaTable,
-                    targetAddress = value.value.metaTableDataAddress
+                    value = value.metaTable,
+                    targetAddress = value.metaTableDataAddress
                 };
 
                 return EvaluateDataAtLuaValue(inspectionContext, stackFrame, "!metatable", $"{fullName}.!metatable", metaTableValue, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
