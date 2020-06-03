@@ -335,7 +335,15 @@ namespace LuaDkmDebuggerComponent
                 if (name == null)
                     return Report("Failed to find member name");
 
-                value = LookupTableValueMember(value, name);
+                if (value is LuaValueDataTable table)
+                {
+                    value = LookupTableMember(table.value, name);
+                }
+                else if (value is LuaValueDataUserData userData)
+                {
+                    if (userData.value.metaTable != null)
+                        value = LookupTableMember(userData.value.metaTable, name);
+                }
 
                 if (value as LuaValueDataError != null)
                     return value;
