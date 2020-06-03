@@ -9,8 +9,8 @@
 - External C function/closure pointer display with 'Go To Source' provided by Visual Studio
 - Hexadecimal value support in expression evaluation
 - Assertion failure, error call and runtime errors are displayed as unhandled exceptions (Break on Error option)
-- Used data meta-table value display
-- ':' member access is not handled in expression evaluation
+- User data meta-table value display
+- ':' member access is now handled in expression evaluation
 - When Lua library is used together with sol library, C++ object in user data is available (may work for custom user data if meta-table contains '__type.name' string with C++ type name)
 
 ### Changed
