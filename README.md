@@ -22,10 +22,16 @@ Supported Lua versions:
     * Up to 256 breakpoints are supported
  * Step Over, Step Into and Step Out
  * Conditional breakpoints
+ * Quick Info tooltip display with variable value evaluation on mouse over in the code window
+ * External C function/closure pointer display with 'Go To Source' provided by Visual Studio
+ * Assertion failure, 'error' call and runtime errors are displayed as unhandled exceptions ('Break on Error' option)
+ * When Lua library is used together with sol library, C++ object in user data is available
 
 ![Example debug session](https://github.com/WheretIB/LuaDkmDebugger/blob/master/resource/front_image_2.png?raw=true)
 
 ![Example debug session](https://github.com/WheretIB/LuaDkmDebugger/blob/master/resource/front_image.png?raw=true)
+
+ ![Assertion Failure and User Data display](https://github.com/WheretIB/LuaDkmDebugger/blob/master/resource/front_image_3.png?raw=true)
 
 ## Additional configuration
 

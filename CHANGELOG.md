@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.8.0] - 2020-06-03
+
+### Added
+
+- Quick Info tooltip display with variable value evaluation on mouse over in the code window
+- Global environment variable lookup in expression evaluation
+- External C function/closure pointer display with 'Go To Source' provided by Visual Studio
+- Hexadecimal value support in expression evaluation
+- Assertion failure, error call and runtime errors are displayed as unhandled exceptions (Break on Error option)
+- Used data meta-table value display
+- ':' member access is not handled in expression evaluation
+- When Lua library is used together with sol library, C++ object in user data is available (may work for custom user data if meta-table contains '__type.name' string with C++ type name)
+
+### Changed
+
+- Fixed hexadecimal value formatting & crash
+- Expression evaluation optimization (caching call info, function data, upvalues and table values are not fetched until accessed)
+
 ## [0.7.7] - 2020-06-01
 
 ### Added
@@ -22,22 +40,14 @@
 
 ### Added
 
+- Support for conditional breakpoints
+- Added display of source files that haven't been found disk
 - Option to show hidden Lua call stack frames (for troubleshooting)
 
 ### Changed
 
 - Fixed hook crash when application Lua library is compiled with a different LUA_IDSIZE
 - Fixed conditional breakpoints in Lua 5.3 build for x64
-
-## [0.7.0] - 2020-05-31
-
-### Added
-
-- Support for conditional breakpoints
-- Added display of source files that haven't been found disk
-
-### Changed
-
 - Some documents can be linked to known scripts using content comparison even when script source name doesn't match any file on disk
 
 ## [0.6.0] - 2020-05-30
@@ -110,14 +120,28 @@
 
 ### First Release
 
-[0.7.7]https://github.com/WheretIB/LuaDkmDebugger/commit/b12380e76c09518bc05db0ef509943b0bb6017dd
-[0.7.5]https://github.com/WheretIB/LuaDkmDebugger/commit/7198955e3ccc178a80758d2bdf58c692eef0c1e8
-[0.7.4]https://github.com/WheretIB/LuaDkmDebugger/commit/6e055d13b1baed5bc078405de7648d1286cb011f
-[0.7.0]https://github.com/WheretIB/LuaDkmDebugger/commit/146ed2cdf862205eb0fe06b4c22df9b9cda308c7
-[0.6.0]https://github.com/WheretIB/LuaDkmDebugger/commit/e944e2abe4d1d18f6b861479854f71ddc0eb32bf
-[0.4.1]https://github.com/WheretIB/LuaDkmDebugger/commit/133da5f5a03d99c0a63307007d8af7515d673e41
-[0.3.0]https://github.com/WheretIB/LuaDkmDebugger/commit/cfe2f159c700790c23d24ef986dad49b62cb92bf
-[0.2.6]https://github.com/WheretIB/LuaDkmDebugger/commit/90c303512f3fd85e518ac3bbb14f9585bdc57fb2
-[0.2.5]https://github.com/WheretIB/LuaDkmDebugger/commit/93b8abe68f9a572b59637df7dca97738f8cbe259
-[0.2.4]https://github.com/WheretIB/LuaDkmDebugger/commit/48c028f1757c05925f3da0dbff511c10e6c0f3ed
-[0.2.3]https://github.com/WheretIB/LuaDkmDebugger/commit/48433c036535efb9f4c58f548db56d368df9e52f
+## Code changes
+
+[unreleased]https://github.com/olivierlacan/keep-a-changelog/compare/v0.8.0...HEAD
+
+[0.8.0]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.7.7...v0.8.0
+
+[0.7.7]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.7.5...v0.7.7
+
+[0.7.5]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.7.4...v0.7.5
+
+[0.7.4]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.6.0...v0.7.4
+
+[0.6.0]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.4.1...v0.6.0
+
+[0.4.1]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.3.0...v0.4.1
+
+[0.3.0]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.2.6...v0.3.0
+
+[0.2.6]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.2.5...v0.2.6
+
+[0.2.5]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.2.4...v0.2.5
+
+[0.2.4]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.2.3...v0.2.4
+
+[0.2.3]https://github.com/WheretIB/LuaDkmDebugger/releases/tag/v0.2.3
