@@ -70,6 +70,22 @@ namespace Tests
 
                 Assert.AreEqual("100000", result.AsSimpleDisplayString(10));
             }
+
+            {
+                var result = evaluation.Evaluate("0xffe");
+
+                Assert.IsNotNull(result);
+
+                Assert.AreEqual("4094", result.AsSimpleDisplayString(10));
+            }
+
+            {
+                var result = evaluation.Evaluate("0XBAAB");
+
+                Assert.IsNotNull(result);
+
+                Assert.AreEqual("47787", result.AsSimpleDisplayString(10));
+            }
         }
 
         [TestMethod]

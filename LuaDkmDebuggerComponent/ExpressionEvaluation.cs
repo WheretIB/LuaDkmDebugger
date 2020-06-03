@@ -254,6 +254,24 @@ namespace LuaDkmDebuggerComponent
                 // Try to find number length
                 int curr = pos;
 
+                curr++;
+
+                // Hexadecimal number
+                if (curr < expression.Length && (expression[curr] == 'x' || expression[curr] == 'X'))
+                {
+                    curr++;
+
+                    while (curr < expression.Length && (char.IsDigit(expression[curr]) || ((int)char.ToLower(expression[curr]) - (int)'a' < 6)))
+                        curr++;
+
+                    if (!int.TryParse(expression.Substring(pos + 2, curr - (pos + 2)), System.Globalization.NumberStyles.AllowHexSpecifier, System.Globalization.CultureInfo.InvariantCulture, out int intResult))
+                        return null;
+
+                    pos = curr;
+
+                    return intResult;
+                }
+
                 while (curr < expression.Length && char.IsDigit(expression[curr]))
                     curr++;
 
