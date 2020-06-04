@@ -1966,7 +1966,8 @@ namespace LuaDkmDebuggerComponent
 
                 var moduleName = nativeModuleInstance.FullName;
 
-                if (moduleName != null && (moduleName.EndsWith(".exe") || moduleName.IndexOf("lua", StringComparison.InvariantCultureIgnoreCase) != -1) && processData.moduleWithLoadedLua == null)
+                if (moduleName != null && (moduleName.EndsWith(".exe") || Path.GetFileName(moduleName).IndexOf("lua", StringComparison.InvariantCultureIgnoreCase) != -1) &&
+                    processData.moduleWithLoadedLua == null)
                 {
                     // Request the RemoteComponent to create the runtime and a module
                     DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.createRuntime, null, null).SendLower();
