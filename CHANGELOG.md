@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.1] - 2020-06-05
+
+### Added
+
+- Allow debugging when Lua is built as a DLL from [@fsfod](https://github.com/fsfod).
+
 ## [0.8.0] - 2020-06-03
 
 ### Added
