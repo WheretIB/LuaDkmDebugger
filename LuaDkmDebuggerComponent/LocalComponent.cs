@@ -44,7 +44,6 @@ namespace LuaDkmDebuggerComponent
 
         public bool helperInjectRequested = false;
         public bool helperInjected = false;
-        public bool helperDetected = false;
         public bool helperInitializationWaitActive = false;
         public bool helperInitializationWaitUsed = false;
         public bool helperInitialized = false;
@@ -2008,8 +2007,6 @@ namespace LuaDkmDebuggerComponent
                 {
                     log.Debug("Found Lua debugger helper library");
 
-                    processData.helperDetected = true;
-
                     var variableAddress = nativeModuleInstance.FindExportName("luaHelperIsInitialized", IgnoreDataExports: false);
 
                     if (variableAddress != null)
@@ -2307,7 +2304,7 @@ namespace LuaDkmDebuggerComponent
                 {
                     log.Debug("Detected Lua initialization");
 
-                    if (processData.helperInjected && processData.helperDetected && !processData.helperInitialized && !processData.helperFailed && !processData.helperInitializationWaitUsed)
+                    if (processData.helperInjected && !processData.helperInitialized && !processData.helperFailed && !processData.helperInitializationWaitUsed)
                     {
                         log.Debug("Helper was injected but hasn't been initialized, suspening thread");
 
@@ -2321,10 +2318,6 @@ namespace LuaDkmDebuggerComponent
                     else if (!processData.helperInjected)
                     {
                         log.Warning("Helper hasn't been injected");
-                    }
-                    else if (!processData.helperDetected)
-                    {
-                        log.Warning("Helper hasn't been detected");
                     }
                     else if (processData.helperInitialized)
                     {
