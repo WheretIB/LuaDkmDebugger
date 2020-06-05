@@ -3,7 +3,9 @@ using Microsoft.VisualStudio.Debugger;
 using Microsoft.VisualStudio.Debugger.Breakpoints;
 using Microsoft.VisualStudio.Debugger.Native;
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
 
 namespace LuaDkmDebuggerComponent
 {
@@ -14,6 +16,187 @@ namespace LuaDkmDebuggerComponent
 
         [DllImport("kernel32.dll", SetLastError = true)]
         internal static extern IntPtr CreateRemoteThread(IntPtr hProcess, IntPtr lpThreadAttributes, UIntPtr dwStackSize, IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, IntPtr lpThreadId);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        internal static extern IntPtr LocalFree(IntPtr hMem);
+    }
+
+    internal class Advapi32
+    {
+        public enum SE_OBJECT_TYPE
+        {
+            SE_UNKNOWN_OBJECT_TYPE = 0,
+            SE_FILE_OBJECT,
+            SE_SERVICE,
+            SE_PRINTER,
+            SE_REGISTRY_KEY,
+            SE_LMSHARE,
+            SE_KERNEL_OBJECT,
+            SE_WINDOW_OBJECT,
+            SE_DS_OBJECT,
+            SE_DS_OBJECT_ALL,
+            SE_PROVIDER_DEFINED_OBJECT,
+            SE_WMIGUID_OBJECT,
+            SE_REGISTRY_WOW64_32KEY
+        }
+
+        internal enum MULTIPLE_TRUSTEE_OPERATION
+        {
+            NO_MULTIPLE_TRUSTEE,
+            TRUSTEE_IS_IMPERSONATE
+        }
+
+        internal enum TRUSTEE_FORM
+        {
+            TRUSTEE_IS_SID = 0,
+            TRUSTEE_IS_NAME,
+            TRUSTEE_BAD_FORM,
+            TRUSTEE_IS_OBJECTS_AND_SID,
+            TRUSTEE_IS_OBJECTS_AND_NAME
+        }
+
+        internal enum TRUSTEE_TYPE
+        {
+            TRUSTEE_IS_UNKNOWN = 0,
+            TRUSTEE_IS_USER,
+            TRUSTEE_IS_GROUP,
+            TRUSTEE_IS_DOMAIN,
+            TRUSTEE_IS_ALIAS,
+            TRUSTEE_IS_WELL_KNOWN_GROUP,
+            TRUSTEE_IS_DELETED,
+            TRUSTEE_IS_INVALID,
+            TRUSTEE_IS_COMPUTER
+        }
+
+        internal enum ACCESS_MODE : uint
+        {
+            NOT_USED_ACCESS = 0,
+            GRANT_ACCESS,
+            SET_ACCESS,
+            REVOKE_ACCESS,
+            SET_AUDIT_SUCCESS,
+            SET_AUDIT_FAILURE
+        }
+
+        internal enum ACCESS_MASK : uint
+        {
+            GENERIC_ALL = 0x10000000, //268435456,
+            GENERIC_READ = 0x80000000, //2147483648L,
+            GENERIC_WRITE = 0x40000000, //1073741824,
+            GENERIC_EXECUTE = 0x20000000, //536870912,
+            STANDARD_RIGHTS_READ = 0x00020000, //131072
+            STANDARD_RIGHTS_WRITE = 0x00020000,
+            SHARE_ACCESS_READ = 0x1200A9, // 1179817
+            SHARE_ACCESS_WRITE = 0x1301BF, // 1245631
+            SHARE_ACCESS_FULL = 0x1f01ff // 2032127
+        }
+
+        internal enum ACCESS_INHERITANCE : uint
+        {
+            NO_INHERITANCE = 0,
+            OBJECT_INHERIT_ACE = 0x1,
+            CONTAINER_INHERIT_ACE = 0x2,
+            NO_PROPAGATE_INHERIT_ACE = 0x4,
+            INHERIT_ONLY_ACE = 0x8,
+            INHERITED_ACE = 0x10,
+            SUB_OBJECTS_ONLY_INHERIT = ACCESS_INHERITANCE.OBJECT_INHERIT_ACE | ACCESS_INHERITANCE.INHERIT_ONLY_ACE,
+            SUB_CONTAINERS_ONLY_INHERIT = ACCESS_INHERITANCE.CONTAINER_INHERIT_ACE | ACCESS_INHERITANCE.INHERIT_ONLY_ACE,
+            SUB_CONTAINERS_AND_OBJECTS_INHERIT = ACCESS_INHERITANCE.CONTAINER_INHERIT_ACE | ACCESS_INHERITANCE.OBJECT_INHERIT_ACE,
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        internal struct TRUSTEE
+        {
+            public IntPtr MultipleTrustee;
+            public MULTIPLE_TRUSTEE_OPERATION MultipleTrusteeOperation;
+            public TRUSTEE_FORM TrusteeForm;
+            public TRUSTEE_TYPE TrusteeType;
+            public IntPtr Name;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        internal struct EXPLICIT_ACCESS
+        {
+            public ACCESS_MASK AccessPermissions;
+            public ACCESS_MODE AccessMode;
+            public ACCESS_INHERITANCE Inheritance;
+            public TRUSTEE trustee;
+        }
+
+        [DllImport("advapi32.dll", EntryPoint = "GetNamedSecurityInfoW", ExactSpelling = true, CharSet = CharSet.Unicode)]
+        internal static extern int GetNamedSecurityInfo(string objectName, SE_OBJECT_TYPE objectType, System.Security.AccessControl.SecurityInfos securityInfo, out IntPtr sidOwner, out IntPtr sidGroup, out IntPtr dacl, out IntPtr sacl, out IntPtr securityDescriptor);
+
+        [DllImport("advapi32.dll", EntryPoint = "SetNamedSecurityInfoW", ExactSpelling = true, CharSet = CharSet.Unicode)]
+        internal static extern int SetNamedSecurityInfo(string objectName, SE_OBJECT_TYPE objectType, System.Security.AccessControl.SecurityInfos securityInfo, IntPtr sidOwner, IntPtr sidGroup, IntPtr dacl, IntPtr sacl);
+
+        [DllImport("advapi32.dll", EntryPoint = "ConvertStringSidToSidW", ExactSpelling = true, CharSet = CharSet.Unicode)]
+        internal static extern int ConvertStringSidToSid(string stringSid, out IntPtr sid);
+
+        [DllImport("advapi32.dll", EntryPoint = "SetEntriesInAclW", ExactSpelling = true, CharSet = CharSet.Unicode, SetLastError = true)]
+        internal static extern int SetEntriesInAcl(int cCountOfExplicitEntries, ref EXPLICIT_ACCESS pListOfExplicitEntries, IntPtr oldAcl, out IntPtr newAcl);
+
+        public static int AdjustAccessControlListForUwp(string dllPath)
+        {
+            // Get current Access Control List
+            int errorCode = GetNamedSecurityInfo(dllPath, SE_OBJECT_TYPE.SE_FILE_OBJECT, SecurityInfos.DiscretionaryAcl, out _, out _, out IntPtr currentAcl, out _, out IntPtr securityDescriptor);
+
+            if (errorCode != 0)
+            {
+                Debug.WriteLine("Call to 'GetNamedSecurityInfoA' failed");
+
+                return 11;
+            }
+
+            // sid for all application packages
+            if (ConvertStringSidToSid("S-1-15-2-1", out IntPtr sid) == 0)
+            {
+                Debug.WriteLine("Call to 'ConvertStringSidToSidA' failed");
+
+                return 12;
+            }
+
+            EXPLICIT_ACCESS access = new EXPLICIT_ACCESS
+            {
+                AccessPermissions = ACCESS_MASK.GENERIC_READ | ACCESS_MASK.GENERIC_EXECUTE,
+                AccessMode = ACCESS_MODE.SET_ACCESS,
+                Inheritance = ACCESS_INHERITANCE.SUB_CONTAINERS_AND_OBJECTS_INHERIT,
+
+                trustee = new TRUSTEE
+                {
+                    TrusteeForm = TRUSTEE_FORM.TRUSTEE_IS_SID,
+                    TrusteeType = TRUSTEE_TYPE.TRUSTEE_IS_WELL_KNOWN_GROUP,
+                    Name = sid
+                }
+            };
+
+            // Set new access entry in the Access Control List
+            errorCode = SetEntriesInAcl(1, ref access, currentAcl, out IntPtr updatedAcl);
+
+            if (errorCode != 0)
+            {
+                Debug.WriteLine("Call to 'SetEntriesInAclA' failed");
+
+                return 13;
+            }
+
+            // Set new Access Control List
+            errorCode = SetNamedSecurityInfo(dllPath, SE_OBJECT_TYPE.SE_FILE_OBJECT, SecurityInfos.DiscretionaryAcl, IntPtr.Zero, IntPtr.Zero, updatedAcl, IntPtr.Zero);
+
+            if (errorCode != 0)
+            {
+                Debug.WriteLine("Call to 'SetNamedSecurityInfoA' failed");
+
+                return 14;
+            }
+
+            if (securityDescriptor != IntPtr.Zero)
+                Kernel32.LocalFree(securityDescriptor);
+
+            if (updatedAcl != IntPtr.Zero)
+                Kernel32.LocalFree(updatedAcl);
+
+            return 0;
+        }
     }
 
     internal class AttachmentHelpers

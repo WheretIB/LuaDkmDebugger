@@ -2255,6 +2255,12 @@ namespace LuaDkmDebuggerComponent
                     }
                     else
                     {
+                        // Configure dll permissions to inject into UWP sandboxed applications
+                        int errorCode = Advapi32.AdjustAccessControlListForUwp(dllPathName);
+
+                        if (errorCode != 0)
+                            log.Warning($"Failed to adjust debug helper access control list (error code {errorCode}), if injection fails, thread may hang");
+
                         var processHandle = Kernel32.OpenProcess(0x001F0FFF, false, process.LivePart.Id);
 
                         if (processHandle == IntPtr.Zero)
