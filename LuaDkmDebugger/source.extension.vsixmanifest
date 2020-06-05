@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
     <Metadata>
-        <Identity Id="LuaDkmDebugger.e3e2ef04-27c9-46a6-ad45-79bd29067eb6" Version="0.8.1" Language="en-US" Publisher="WheretIB" />
+        <Identity Id="LuaDkmDebugger.e3e2ef04-27c9-46a6-ad45-79bd29067eb6" Version="0.8.2" Language="en-US" Publisher="WheretIB" />
         <DisplayName>C++ debugger extensions for Lua</DisplayName>
         <Description xml:space="preserve">This extension adds integrated debugging for Lua scripts executing inside C++ applications with Lua library.</Description>
         <License>license.txt</License>

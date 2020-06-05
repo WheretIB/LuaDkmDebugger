@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.8.2] - 2020-06-06
+
+### Added
+
+- Support for debug helper injection into x86 UWP apps (for breakpoints and stepping)
+
+### Changed
+
+- Fixed debug helper initialization after Lua state is created
+
 ## [0.8.1] - 2020-06-05
 
 ### Added
