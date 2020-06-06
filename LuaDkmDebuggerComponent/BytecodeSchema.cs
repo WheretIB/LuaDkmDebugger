@@ -47,6 +47,26 @@ namespace LuaDkmDebuggerComponent
                 return Read(inspectionSession, thread, frame, type, new[] { member }, ref available, ref success, ref failure);
             }
 
+            public static ulong? ReadOptional(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame, string type, string member, ref int optional, out long size)
+            {
+                long? result = EvaluationHelpers.TryEvaluateNumberExpression($"(int)&(({type}*)0)->{member}", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+
+                if (!result.HasValue)
+                {
+                    if (Log.instance != null)
+                        Log.instance.Debug($"Failed to get offsetof '{member}' in '{type}' (optional)");
+
+                    size = 0;
+                    return null;
+                }
+
+                optional++;
+
+                size = EvaluationHelpers.TryEvaluateNumberExpression($"sizeof((({type}*)0)->{member})", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).GetValueOrDefault(0);
+
+                return (ulong)result.Value;
+            }
+
             public static ulong? ReadOptional(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame, string type, string member, ref int optional)
             {
                 long? result = EvaluationHelpers.TryEvaluateNumberExpression($"(int)&(({type}*)0)->{member}", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
@@ -216,6 +236,7 @@ namespace LuaDkmDebuggerComponent
             public static ulong? stackBaseAddress;
             public static ulong? savedInstructionPointerAddress;
             public static ulong? tailCallCount_5_1;
+            public static long callStatus_size = 0;
             public static ulong? callStatus_5_23;
 
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
@@ -229,7 +250,7 @@ namespace LuaDkmDebuggerComponent
                 stackBaseAddress = Helper.Read(inspectionSession, thread, frame, "CallInfo", new[] { "u.l.base", "base" }, ref available, ref success, ref failure);
                 savedInstructionPointerAddress = Helper.Read(inspectionSession, thread, frame, "CallInfo", new[] { "u.l.savedpc", "savedpc" }, ref available, ref success, ref failure);
                 tailCallCount_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "CallInfo", "tailcalls", ref optional);
-                callStatus_5_23 = Helper.ReadOptional(inspectionSession, thread, frame, "CallInfo", "callstatus", ref optional);
+                callStatus_5_23 = Helper.ReadOptional(inspectionSession, thread, frame, "CallInfo", "callstatus", ref optional, out callStatus_size);
 
                 if (Log.instance != null)
                     Log.instance.Debug($"LuaFunctionCallInfoData schema loaded with {success} successes and {failure} failures and {optional} optional");

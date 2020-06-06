@@ -473,9 +473,23 @@ namespace LuaDkmDebuggerComponent
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
-            // Same in Lua 5.1, 5.2 and 5.3
-            nameAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-            address += (ulong)DebugHelpers.GetPointerSize(process);
+            if (Schema.LuaLocalVariableData.available)
+            {
+                nameAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaLocalVariableData.nameAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+                lifetimeStartInstruction = DebugHelpers.ReadIntVariable(process, address + Schema.LuaLocalVariableData.lifetimeStartInstruction.GetValueOrDefault(0)).GetValueOrDefault(0);
+                lifetimeEndInstruction = DebugHelpers.ReadIntVariable(process, address + Schema.LuaLocalVariableData.lifetimeEndInstruction.GetValueOrDefault(0)).GetValueOrDefault(0);
+            }
+            else
+            {
+                // Same in Lua 5.1, 5.2 and 5.3
+                nameAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+                address += (ulong)DebugHelpers.GetPointerSize(process);
+
+                lifetimeStartInstruction = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+                address += sizeof(int);
+                lifetimeEndInstruction = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+                address += sizeof(int);
+            }
 
             if (nameAddress != 0)
             {
@@ -490,11 +504,6 @@ namespace LuaDkmDebuggerComponent
             {
                 name = "nil";
             }
-
-            lifetimeStartInstruction = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
-            lifetimeEndInstruction = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
-            address += sizeof(int);
         }
     }
 
@@ -515,7 +524,11 @@ namespace LuaDkmDebuggerComponent
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
-            if (LuaHelpers.luaVersion == 501)
+            if (Schema.LuaUpvalueDescriptionData.available)
+            {
+                nameAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaUpvalueDescriptionData.nameAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+            }
+            else if (LuaHelpers.luaVersion == 501)
             {
                 nameAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
             }
@@ -552,7 +565,11 @@ namespace LuaDkmDebuggerComponent
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
-            if (LuaHelpers.luaVersion == 501 || LuaHelpers.luaVersion == 502)
+            if (Schema.LuaUpvalueData.available)
+            {
+                valueAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaUpvalueData.valueAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+            }
+            else if (LuaHelpers.luaVersion == 501 || LuaHelpers.luaVersion == 502)
             {
                 // Same in Lua 5.1 and 5.2
 
@@ -615,7 +632,32 @@ namespace LuaDkmDebuggerComponent
 
             ulong pointerSize = (ulong)DebugHelpers.GetPointerSize(process);
 
-            if (LuaHelpers.luaVersion == 501)
+            if (Schema.LuaFunctionData.available)
+            {
+                constantDataAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionData.constantDataAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+                codeDataAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionData.codeDataAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+                localFunctionDataAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionData.localFunctionDataAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+                lineInfoDataAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionData.lineInfoDataAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+                localVariableDataAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionData.localVariableDataAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+                upvalueDataAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionData.upvalueDataAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+                sourceAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionData.sourceAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+
+                upvalueSize = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.upvalueSize.GetValueOrDefault(0)).GetValueOrDefault(0);
+                constantSize = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.constantSize.GetValueOrDefault(0)).GetValueOrDefault(0);
+                codeSize = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.codeSize.GetValueOrDefault(0)).GetValueOrDefault(0);
+                lineInfoSize = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.lineInfoSize.GetValueOrDefault(0)).GetValueOrDefault(0);
+                localFunctionSize = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.localFunctionSize.GetValueOrDefault(0)).GetValueOrDefault(0);
+                localVariableSize = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.localVariableSize.GetValueOrDefault(0)).GetValueOrDefault(0);
+                definitionStartLine = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.definitionStartLine.GetValueOrDefault(0)).GetValueOrDefault(0);
+                definitionEndLine = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.definitionEndLine.GetValueOrDefault(0)).GetValueOrDefault(0);
+
+                gclistAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionData.gclistAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+
+                argumentCount = DebugHelpers.ReadByteVariable(process, address + Schema.LuaFunctionData.argumentCount.GetValueOrDefault(0)).GetValueOrDefault(0);
+                isVarargs = DebugHelpers.ReadByteVariable(process, address + Schema.LuaFunctionData.isVarargs.GetValueOrDefault(0)).GetValueOrDefault(0);
+                maxStackSize = DebugHelpers.ReadByteVariable(process, address + Schema.LuaFunctionData.maxStackSize.GetValueOrDefault(0)).GetValueOrDefault(0);
+            }
+            else if (LuaHelpers.luaVersion == 501)
             {
                 // Skip CommonHeader
                 DebugHelpers.SkipStructPointer(process, ref address);
@@ -884,7 +926,27 @@ namespace LuaDkmDebuggerComponent
         {
             ulong pointerSize = (ulong)DebugHelpers.GetPointerSize(process);
 
-            if (LuaHelpers.luaVersion == 501)
+            if (Schema.LuaFunctionCallInfoData.available)
+            {
+                stackBaseAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionCallInfoData.stackBaseAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+                funcAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionCallInfoData.funcAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+                savedInstructionPointerAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionCallInfoData.savedInstructionPointerAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+
+                if (Schema.LuaFunctionCallInfoData.previousAddress_5_23.HasValue)
+                    previousAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionCallInfoData.previousAddress_5_23.GetValueOrDefault(0)).GetValueOrDefault(0);
+
+                if (Schema.LuaFunctionCallInfoData.callStatus_5_23.HasValue)
+                {
+                    if (Schema.LuaFunctionCallInfoData.callStatus_size == 1)
+                        callStatus = DebugHelpers.ReadByteVariable(process, address + Schema.LuaFunctionCallInfoData.callStatus_5_23.GetValueOrDefault(0)).GetValueOrDefault(0);
+                    else if (Schema.LuaFunctionCallInfoData.callStatus_size == 2)
+                        callStatus = DebugHelpers.ReadShortVariable(process, address + Schema.LuaFunctionCallInfoData.callStatus_5_23.GetValueOrDefault(0)).GetValueOrDefault(0);
+                }
+
+                if (Schema.LuaFunctionCallInfoData.tailCallCount_5_1.HasValue)
+                    tailCallCount_5_1 = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionCallInfoData.tailCallCount_5_1.GetValueOrDefault(0)).GetValueOrDefault(0);
+            }
+            else if (LuaHelpers.luaVersion == 501)
             {
                 stackBaseAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
                 funcAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
@@ -976,9 +1038,17 @@ namespace LuaDkmDebuggerComponent
         {
             valueDataAddress = address;
 
-            // Same in Lua 5.1, 5.2 and 5.3
-            value = LuaHelpers.ReadValue(process, address);
-            key = LuaHelpers.ReadValue(process, address + LuaHelpers.GetValueSize(process));
+            if (Schema.LuaNodeData.available)
+            {
+                value = LuaHelpers.ReadValue(process, address + Schema.LuaNodeData.valueDataAddress.GetValueOrDefault(0));
+                key = LuaHelpers.ReadValue(process, address + Schema.LuaNodeData.keyDataAddress.GetValueOrDefault(0));
+            }
+            else
+            {
+                // Same in Lua 5.1, 5.2 and 5.3
+                value = LuaHelpers.ReadValue(process, address);
+                key = LuaHelpers.ReadValue(process, address + LuaHelpers.GetValueSize(process));
+            }
         }
 
         public void ReadFromKeyOnly(DkmProcess process, ulong address)
@@ -1022,7 +1092,20 @@ namespace LuaDkmDebuggerComponent
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
-            if (LuaHelpers.luaVersion == 501)
+            if (Schema.LuaTableData.available)
+            {
+                flags = DebugHelpers.ReadByteVariable(process, address + Schema.LuaTableData.flags.GetValueOrDefault(0)).GetValueOrDefault(0);
+                nodeArraySizeLog2 = DebugHelpers.ReadByteVariable(process, address + Schema.LuaTableData.nodeArraySizeLog2.GetValueOrDefault(0)).GetValueOrDefault(0);
+
+                metaTableDataAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaTableData.metaTableDataAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+                arrayDataAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaTableData.arrayDataAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+                nodeDataAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaTableData.nodeDataAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+                lastFreeNodeDataAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaTableData.lastFreeNodeDataAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+                gclistAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaTableData.gclistAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+
+                arraySize = DebugHelpers.ReadIntVariable(process, address + Schema.LuaTableData.arraySize.GetValueOrDefault(0)).GetValueOrDefault(0);
+            }
+            else if(LuaHelpers.luaVersion == 501)
             {
                 // Skip CommonHeader
                 DebugHelpers.SkipStructPointer(process, ref address); // next
@@ -1183,22 +1266,39 @@ namespace LuaDkmDebuggerComponent
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
-            nextAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
-            typeTag = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
-            marked = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+            if (Schema.LuaClosureData.available)
+            {
+                upvalueSize = DebugHelpers.ReadByteVariable(process, address + Schema.LuaClosureData.upvalueSize.GetValueOrDefault(0)).GetValueOrDefault(0);
 
-            if (LuaHelpers.luaVersion == 501)
-                isC_5_1 = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+                functionAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaClosureData.functionAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
 
-            upvalueSize = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
-            gcListAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+                if (Schema.LuaClosureData.isC_5_1.HasValue)
+                    isC_5_1 = DebugHelpers.ReadByteVariable(process, address + Schema.LuaClosureData.isC_5_1.GetValueOrDefault(0)).GetValueOrDefault(0);
 
-            if (LuaHelpers.luaVersion == 501)
-                envTableDataAddress_5_1 = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+                if (Schema.LuaClosureData.envTableDataAddress_5_1.HasValue)
+                    envTableDataAddress_5_1 = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaClosureData.envTableDataAddress_5_1.GetValueOrDefault(0)).GetValueOrDefault(0);
 
-            functionAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+                firstUpvaluePointerAddress = address + Schema.LuaClosureData.firstUpvaluePointerAddress.GetValueOrDefault(0);
+            }
+            else
+            {
+                nextAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+                typeTag = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+                marked = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
 
-            firstUpvaluePointerAddress = address;
+                if (LuaHelpers.luaVersion == 501)
+                    isC_5_1 = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+
+                upvalueSize = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+                gcListAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+
+                if (LuaHelpers.luaVersion == 501)
+                    envTableDataAddress_5_1 = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+
+                functionAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+
+                firstUpvaluePointerAddress = address;
+            }
         }
 
         public LuaFunctionData ReadFunction(DkmProcess process)
@@ -1274,20 +1374,27 @@ namespace LuaDkmDebuggerComponent
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
-            nextAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
-            typeTag = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
-            marked = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+            if (Schema.LuaExternalClosureData.available)
+            {
+                functionAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaExternalClosureData.functionAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+            }
+            else
+            {
+                nextAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+                typeTag = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+                marked = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
 
-            if (LuaHelpers.luaVersion == 501)
-                isC_5_1 = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+                if (LuaHelpers.luaVersion == 501)
+                    isC_5_1 = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
 
-            upvalueSize = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
-            gcListAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+                upvalueSize = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+                gcListAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
 
-            if (LuaHelpers.luaVersion == 501)
-                envTableDataAddress_5_1 = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+                if (LuaHelpers.luaVersion == 501)
+                    envTableDataAddress_5_1 = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
 
-            functionAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+                functionAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+            }
         }
     }
 
@@ -1306,30 +1413,39 @@ namespace LuaDkmDebuggerComponent
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
-            nextAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
-            typeTag = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
-            marked = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
-
-            if (LuaHelpers.luaVersion == 503)
-                userValueTypeTag_5_3 = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
-
-            metaTableDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
-
-            if (LuaHelpers.luaVersion == 503)
+            if (Schema.LuaUserDataData.available)
             {
-                DebugHelpers.SkipStructPointer(process, ref address); // len
-                address += 8; // Value user_ (not to be confused with TValue and GetValueSize)
+                metaTableDataAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaUserDataData.metaTableDataAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
 
-                pointerAtValueStart = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+                pointerAtValueStart = DebugHelpers.ReadPointerVariable(process, address + (ulong)Schema.LuaUserDataData.structSize).GetValueOrDefault();
             }
-            else if (LuaHelpers.luaVersion == 501 || LuaHelpers.luaVersion == 502)
+            else
             {
-                DebugHelpers.SkipStructPointer(process, ref address); // env
-                DebugHelpers.SkipStructPointer(process, ref address); // len
+                nextAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+                typeTag = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+                marked = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
 
-                address = (address + 7ul) & ~7ul; // Align to 8
+                if (LuaHelpers.luaVersion == 503)
+                    userValueTypeTag_5_3 = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
 
-                pointerAtValueStart = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+                metaTableDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+
+                if (LuaHelpers.luaVersion == 503)
+                {
+                    DebugHelpers.SkipStructPointer(process, ref address); // len
+                    address += 8; // Value user_ (not to be confused with TValue and GetValueSize)
+
+                    pointerAtValueStart = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+                }
+                else if (LuaHelpers.luaVersion == 501 || LuaHelpers.luaVersion == 502)
+                {
+                    DebugHelpers.SkipStructPointer(process, ref address); // env
+                    DebugHelpers.SkipStructPointer(process, ref address); // len
+
+                    address = (address + 7ul) & ~7ul; // Align to 8
+
+                    pointerAtValueStart = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+                }
             }
         }
 
