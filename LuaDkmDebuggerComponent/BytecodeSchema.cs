@@ -460,7 +460,7 @@ namespace LuaDkmDebuggerComponent
 
             public static ulong? globalStateAddress;
             public static ulong? callInfoAddress;
-            public static ulong? savedPointerCounterAddress_5_1;
+            public static ulong? savedProgramCounterAddress_5_1;
             public static ulong? baseCallInfoAddress_5_1;
 
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
@@ -471,10 +471,10 @@ namespace LuaDkmDebuggerComponent
 
                 globalStateAddress = Helper.Read(inspectionSession, thread, frame, "lua_State", "l_G", ref available, ref success, ref failure);
                 callInfoAddress = Helper.Read(inspectionSession, thread, frame, "lua_State", "ci", ref available, ref success, ref failure);
-                savedPointerCounterAddress_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "lua_State", "savedpc", ref optional);
+                savedProgramCounterAddress_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "lua_State", "savedpc", ref optional);
                 baseCallInfoAddress_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "lua_State", "base_ci", ref optional);
 
-                if (savedPointerCounterAddress_5_1.HasValue && baseCallInfoAddress_5_1.HasValue)
+                if (savedProgramCounterAddress_5_1.HasValue && baseCallInfoAddress_5_1.HasValue)
                     Helper.looksLike_5_1 = true;
 
                 if (Log.instance != null)

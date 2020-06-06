@@ -428,24 +428,37 @@ namespace LuaDkmDebuggerComponent
 
                 if (LuaHelpers.luaVersion == 501)
                 {
-                    // Read lua_State
-                    ulong temp = stateAddress.Value;
+                    ulong callInfoAddress;
+                    ulong savedProgramCounterAddress;
+                    ulong baseCallInfoAddress;
 
-                    // CommonHeader
-                    DebugHelpers.SkipStructPointer(process, ref temp);
-                    DebugHelpers.SkipStructByte(process, ref temp);
-                    DebugHelpers.SkipStructByte(process, ref temp);
+                    if (Schema.LuaStateData.available && Schema.LuaStateData.baseCallInfoAddress_5_1.HasValue && Schema.LuaStateData.savedProgramCounterAddress_5_1.HasValue)
+                    {
+                        callInfoAddress = DebugHelpers.ReadPointerVariable(process, stateAddress.Value + Schema.LuaStateData.callInfoAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+                        savedProgramCounterAddress = DebugHelpers.ReadPointerVariable(process, stateAddress.Value + Schema.LuaStateData.savedProgramCounterAddress_5_1.GetValueOrDefault(0)).GetValueOrDefault(0);
+                        baseCallInfoAddress = DebugHelpers.ReadPointerVariable(process, stateAddress.Value + Schema.LuaStateData.baseCallInfoAddress_5_1.GetValueOrDefault(0)).GetValueOrDefault(0);
+                    }
+                    else
+                    {
+                        // Read lua_State
+                        ulong temp = stateAddress.Value;
 
-                    DebugHelpers.SkipStructByte(process, ref temp); // status
-                    DebugHelpers.SkipStructPointer(process, ref temp); // top
-                    DebugHelpers.SkipStructPointer(process, ref temp); // base
-                    DebugHelpers.SkipStructPointer(process, ref temp); // l_G
-                    ulong callInfoAddress = DebugHelpers.ReadStructPointer(process, ref temp).GetValueOrDefault(0);
-                    ulong savedProgramCounterAddress = DebugHelpers.ReadStructPointer(process, ref temp).GetValueOrDefault(0);
-                    DebugHelpers.SkipStructPointer(process, ref temp); // stack_last
-                    DebugHelpers.SkipStructPointer(process, ref temp); // stack
-                    DebugHelpers.SkipStructPointer(process, ref temp); // end_ci
-                    ulong baseCallInfoAddress = DebugHelpers.ReadStructPointer(process, ref temp).GetValueOrDefault(0);
+                        // CommonHeader
+                        DebugHelpers.SkipStructPointer(process, ref temp);
+                        DebugHelpers.SkipStructByte(process, ref temp);
+                        DebugHelpers.SkipStructByte(process, ref temp);
+
+                        DebugHelpers.SkipStructByte(process, ref temp); // status
+                        DebugHelpers.SkipStructPointer(process, ref temp); // top
+                        DebugHelpers.SkipStructPointer(process, ref temp); // base
+                        DebugHelpers.SkipStructPointer(process, ref temp); // l_G
+                        callInfoAddress = DebugHelpers.ReadStructPointer(process, ref temp).GetValueOrDefault(0);
+                        savedProgramCounterAddress = DebugHelpers.ReadStructPointer(process, ref temp).GetValueOrDefault(0);
+                        DebugHelpers.SkipStructPointer(process, ref temp); // stack_last
+                        DebugHelpers.SkipStructPointer(process, ref temp); // stack
+                        DebugHelpers.SkipStructPointer(process, ref temp); // end_ci
+                        baseCallInfoAddress = DebugHelpers.ReadStructPointer(process, ref temp).GetValueOrDefault(0);
+                    }
 
                     ulong currCallInfoAddress = callInfoAddress;
 
@@ -463,9 +476,16 @@ namespace LuaDkmDebuggerComponent
                         if (currCallInfoData.func == null)
                             break;
 
+                        ulong prevCallInfoDataAddress;
+
+                        if (Schema.LuaFunctionCallInfoData.available)
+                            prevCallInfoDataAddress = currCallInfoAddress - (ulong)Schema.LuaFunctionCallInfoData.structSize;
+                        else
+                            prevCallInfoDataAddress = currCallInfoAddress - (DebugHelpers.Is64Bit(process) ? 40ul : 24ul);
+
                         LuaFunctionCallInfoData prevCallInfoData = new LuaFunctionCallInfoData();
 
-                        prevCallInfoData.ReadFrom(process, currCallInfoAddress - (DebugHelpers.Is64Bit(process) ? 40ul : 24ul));
+                        prevCallInfoData.ReadFrom(process, prevCallInfoDataAddress);
                         prevCallInfoData.ReadFunction(process);
 
                         if (prevCallInfoData.func == null)
@@ -475,7 +495,7 @@ namespace LuaDkmDebuggerComponent
                         {
                             stackContextData.skipFrames--;
 
-                            currCallInfoAddress = currCallInfoAddress - (DebugHelpers.Is64Bit(process) ? 40ul : 24ul);
+                            currCallInfoAddress = prevCallInfoDataAddress;
                             continue;
                         }
 
@@ -540,12 +560,17 @@ namespace LuaDkmDebuggerComponent
                             luaFrameFlags &= ~DkmStackWalkFrameFlags.TopFrame;
                         }
 
-                        currCallInfoAddress = currCallInfoAddress - (DebugHelpers.Is64Bit(process) ? 40ul : 24ul);
+                        currCallInfoAddress = prevCallInfoDataAddress;
                     }
                 }
                 else
                 {
-                    ulong? currCallInfoAddress = EvaluationHelpers.TryEvaluateAddressExpression($"L->ci", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                    ulong? currCallInfoAddress;
+
+                    if (Schema.LuaStateData.available)
+                        currCallInfoAddress = DebugHelpers.ReadPointerVariable(process, stateAddress.Value + Schema.LuaStateData.callInfoAddress.GetValueOrDefault(0));
+                    else
+                        currCallInfoAddress = EvaluationHelpers.TryEvaluateAddressExpression($"L->ci", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
                     while (stateAddress.HasValue && currCallInfoAddress.HasValue && currCallInfoAddress.Value != 0)
                     {
