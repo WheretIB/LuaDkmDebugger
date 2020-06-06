@@ -2343,6 +2343,8 @@ namespace LuaDkmDebuggerComponent
 
                     if (useSchema && !processData.schemaLoaded)
                     {
+                        Schema.LuaStringData.LoadSchema(inspectionSession, thread, frame);
+                        Schema.LuaValueData.LoadSchema(inspectionSession, thread, frame);
                         Schema.LuaLocalVariableData.LoadSchema(inspectionSession, thread, frame);
                         Schema.LuaUpvalueDescriptionData.LoadSchema(inspectionSession, thread, frame);
                         Schema.LuaUpvalueData.LoadSchema(inspectionSession, thread, frame);

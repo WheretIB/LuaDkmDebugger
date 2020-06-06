@@ -84,6 +84,54 @@ namespace LuaDkmDebuggerComponent
             }
         }
 
+        public static class LuaStringData
+        {
+            public static bool available = false;
+            public static int success = 0;
+            public static int failure = 0;
+            public static int optional = 0;
+
+            public static long structSize = 0;
+
+            public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
+            {
+                available = true;
+
+                structSize = EvaluationHelpers.TryEvaluateNumberExpression("sizeof(TString)", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).GetValueOrDefault(0);
+
+                if (Log.instance != null)
+                    Log.instance.Debug($"LuaStringData schema loaded with {success} successes and {failure} failures and {optional} optional");
+            }
+        }
+
+        public static class LuaValueData
+        {
+            public static bool available = false;
+            public static int success = 0;
+            public static int failure = 0;
+            public static int optional = 0;
+
+            public static long structSize = 0;
+
+            public static ulong? valueAddress;
+            public static ulong? typeAddress;
+            public static ulong? doubleAddress;
+
+            public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
+            {
+                available = true;
+
+                structSize = EvaluationHelpers.TryEvaluateNumberExpression("sizeof(TValue)", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).GetValueOrDefault(0);
+
+                valueAddress = Helper.Read(inspectionSession, thread, frame, "TValue", new[] { "u.i.v__", "value_", "value" }, ref available, ref success, ref failure);
+                typeAddress = Helper.Read(inspectionSession, thread, frame, "TValue", new[] { "u.i.tt__", "tt_", "tt" }, ref available, ref success, ref failure);
+                doubleAddress = Helper.ReadOptional(inspectionSession, thread, frame, "TValue", "u.d__", ref optional);
+
+                if (Log.instance != null)
+                    Log.instance.Debug($"LuaValueData schema loaded with {success} successes and {failure} failures and {optional} optional");
+            }
+        }
+
         public static class LuaLocalVariableData
         {
             public static bool available = false;
