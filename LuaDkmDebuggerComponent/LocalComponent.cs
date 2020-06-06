@@ -2312,6 +2312,29 @@ namespace LuaDkmDebuggerComponent
             log.Debug($"IDkmModuleInstanceLoadNotification.OnModuleInstanceLoad finished");
         }
 
+        void LoadSchema(LuaLocalProcessData processData, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
+        {
+            if (processData.schemaLoaded)
+                return;
+
+            Schema.LuaStringData.LoadSchema(inspectionSession, thread, frame);
+            Schema.LuaValueData.LoadSchema(inspectionSession, thread, frame);
+            Schema.LuaLocalVariableData.LoadSchema(inspectionSession, thread, frame);
+            Schema.LuaUpvalueDescriptionData.LoadSchema(inspectionSession, thread, frame);
+            Schema.LuaUpvalueData.LoadSchema(inspectionSession, thread, frame);
+            Schema.LuaFunctionData.LoadSchema(inspectionSession, thread, frame);
+            Schema.LuaFunctionCallInfoData.LoadSchema(inspectionSession, thread, frame);
+            Schema.LuaNodeData.LoadSchema(inspectionSession, thread, frame);
+            Schema.LuaTableData.LoadSchema(inspectionSession, thread, frame);
+            Schema.LuaClosureData.LoadSchema(inspectionSession, thread, frame);
+            Schema.LuaExternalClosureData.LoadSchema(inspectionSession, thread, frame);
+            Schema.LuaUserDataData.LoadSchema(inspectionSession, thread, frame);
+            Schema.LuaStateData.LoadSchema(inspectionSession, thread, frame);
+            Schema.LuaDebugData.LoadSchema(inspectionSession, thread, frame);
+
+            processData.schemaLoaded = true;
+        }
+
         DkmCustomMessage IDkmCustomMessageCallbackReceiver.SendHigher(DkmCustomMessage customMessage)
         {
             log.Debug($"IDkmCustomMessageCallbackReceiver.SendHigher begin");
@@ -2367,23 +2390,7 @@ namespace LuaDkmDebuggerComponent
                     var inspectionSession = EvaluationHelpers.CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
 
                     if (useSchema && !processData.schemaLoaded)
-                    {
-                        Schema.LuaStringData.LoadSchema(inspectionSession, thread, frame);
-                        Schema.LuaValueData.LoadSchema(inspectionSession, thread, frame);
-                        Schema.LuaLocalVariableData.LoadSchema(inspectionSession, thread, frame);
-                        Schema.LuaUpvalueDescriptionData.LoadSchema(inspectionSession, thread, frame);
-                        Schema.LuaUpvalueData.LoadSchema(inspectionSession, thread, frame);
-                        Schema.LuaFunctionData.LoadSchema(inspectionSession, thread, frame);
-                        Schema.LuaFunctionCallInfoData.LoadSchema(inspectionSession, thread, frame);
-                        Schema.LuaNodeData.LoadSchema(inspectionSession, thread, frame);
-                        Schema.LuaTableData.LoadSchema(inspectionSession, thread, frame);
-                        Schema.LuaClosureData.LoadSchema(inspectionSession, thread, frame);
-                        Schema.LuaExternalClosureData.LoadSchema(inspectionSession, thread, frame);
-                        Schema.LuaUserDataData.LoadSchema(inspectionSession, thread, frame);
-                        Schema.LuaStateData.LoadSchema(inspectionSession, thread, frame);
-
-                        processData.schemaLoaded = true;
-                    }
+                        LoadSchema(processData, inspectionSession, thread, frame);
 
                     ulong? stateAddress = EvaluationHelpers.TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 

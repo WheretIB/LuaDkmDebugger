@@ -1525,6 +1525,84 @@ namespace LuaDkmDebuggerComponent
         }
     }
 
+    public class LuaDebugData
+    {
+        public int eventType;
+
+        public ulong nameAddress;
+        public ulong nameWhatAddress;
+        public ulong whatAddress;
+        public ulong sourceAddress;
+
+        public int currentLine;
+        public int upvalueSize;
+        public int definitionStartLine;
+        public int definitionEndLine;
+
+        public string name;
+        public string nameWhat;
+        public string what;
+        public string source;
+
+        public void ReadFrom(DkmProcess process, ulong address)
+        {
+            if (Schema.LuaDebugData.available)
+            {
+                eventType = DebugHelpers.ReadIntVariable(process, address + Schema.LuaDebugData.eventType.GetValueOrDefault(0)).GetValueOrDefault(0);
+
+                nameAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaDebugData.nameAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+                nameWhatAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaDebugData.nameWhatAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+                whatAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaDebugData.whatAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+                sourceAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaDebugData.sourceAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+
+                currentLine = DebugHelpers.ReadIntVariable(process, address + Schema.LuaDebugData.currentLine.GetValueOrDefault(0)).GetValueOrDefault(0);
+                upvalueSize = DebugHelpers.ReadIntVariable(process, address + Schema.LuaDebugData.upvalueSize.GetValueOrDefault(0)).GetValueOrDefault(0);
+                definitionStartLine = DebugHelpers.ReadIntVariable(process, address + Schema.LuaDebugData.definitionStartLine.GetValueOrDefault(0)).GetValueOrDefault(0);
+                definitionEndLine = DebugHelpers.ReadIntVariable(process, address + Schema.LuaDebugData.definitionEndLine.GetValueOrDefault(0)).GetValueOrDefault(0);
+            }
+            else
+            {
+                eventType = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault();
+
+                nameAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+                nameWhatAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+                whatAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+                sourceAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+
+                currentLine = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault();
+
+                if (LuaHelpers.luaVersion == 501)
+                    upvalueSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault();
+
+                definitionStartLine = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault();
+                definitionEndLine = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault();
+
+                if (LuaHelpers.luaVersion == 502 || LuaHelpers.luaVersion == 503)
+                    upvalueSize = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+            }
+
+            if (nameAddress != 0)
+                name = DebugHelpers.ReadStringVariable(process, nameAddress, 1024);
+            else
+                name = "";
+
+            if (nameWhatAddress != 0)
+                nameWhat = DebugHelpers.ReadStringVariable(process, nameWhatAddress, 1024);
+            else
+                nameWhat = "";
+
+            if (whatAddress != 0)
+                what = DebugHelpers.ReadStringVariable(process, whatAddress, 1024);
+            else
+                what = "";
+
+            if (sourceAddress != 0)
+                source = DebugHelpers.ReadStringVariable(process, sourceAddress, 1024);
+            else
+                source = "";
+        }
+    }
+
     public class LuaAddressEntityData
     {
         // Main level - source:line

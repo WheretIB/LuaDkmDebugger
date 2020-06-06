@@ -498,5 +498,45 @@ namespace LuaDkmDebuggerComponent
                     Log.instance.Debug($"LuaStateData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
             }
         }
+
+        public class LuaDebugData
+        {
+            public static bool available = false;
+            public static int success = 0;
+            public static int failure = 0;
+            public static int optional = 0;
+
+            public static long structSize = 0;
+
+            public static ulong? eventType;
+            public static ulong? nameAddress;
+            public static ulong? nameWhatAddress;
+            public static ulong? whatAddress;
+            public static ulong? sourceAddress;
+            public static ulong? currentLine;
+            public static ulong? upvalueSize;
+            public static ulong? definitionStartLine;
+            public static ulong? definitionEndLine;
+
+            public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
+            {
+                available = true;
+
+                structSize = Helper.GetSize(inspectionSession, thread, frame, "lua_Debug", ref available);
+
+                eventType = Helper.Read(inspectionSession, thread, frame, "lua_Debug", "event", ref available, ref success, ref failure);
+                nameAddress = Helper.Read(inspectionSession, thread, frame, "lua_Debug", "name", ref available, ref success, ref failure);
+                nameWhatAddress = Helper.Read(inspectionSession, thread, frame, "lua_Debug", "namewhat", ref available, ref success, ref failure);
+                whatAddress = Helper.Read(inspectionSession, thread, frame, "lua_Debug", "what", ref available, ref success, ref failure);
+                sourceAddress = Helper.Read(inspectionSession, thread, frame, "lua_Debug", "source", ref available, ref success, ref failure);
+                currentLine = Helper.Read(inspectionSession, thread, frame, "lua_Debug", "currentline", ref available, ref success, ref failure);
+                upvalueSize = Helper.Read(inspectionSession, thread, frame, "lua_Debug", "nups", ref available, ref success, ref failure);
+                definitionStartLine = Helper.Read(inspectionSession, thread, frame, "lua_Debug", "linedefined", ref available, ref success, ref failure);
+                definitionEndLine = Helper.Read(inspectionSession, thread, frame, "lua_Debug", "lastlinedefined", ref available, ref success, ref failure);
+
+                if (Log.instance != null)
+                    Log.instance.Debug($"LuaDebugData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
+            }
+        }
     }
 }
