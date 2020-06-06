@@ -69,5 +69,4 @@ If you experience issues with the debugger on launch, you can disable attachment
 ## Known Issues:
  * This extension will always add Lua module to the application (can be seen in 'Modules' section of the debugger) even when debugging applications with no Lua code
  * Lua 5.2 is assumed to be compiled with LUA_NANTRICK in x86 (default configuration)
- * Breakpoints must be set after the debugger is launched
  * Step Into from Lua into C++ doesn't work at the moment

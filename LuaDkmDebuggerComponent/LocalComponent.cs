@@ -2494,6 +2494,15 @@ namespace LuaDkmDebuggerComponent
                             processData.symbolStore.FetchOrCreate(stateAddress.Value).AddScriptSource(scriptName, scriptContent, null);
 
                             log.Debug($"Adding script {scriptName} to symbol store of Lua state {stateAddress.Value} (without content)");
+
+                            string resolvedPath = TryFindSourcePath(process.Path, processData, scriptName, null);
+
+                            if (resolvedPath != null)
+                            {
+                                var message = DkmCustomMessage.Create(process.Connection, process, Guid.Empty, MessageToVsService.reloadBreakpoints, Encoding.UTF8.GetBytes(resolvedPath), null);
+
+                                message.SendToVsService(Guids.luaVsPackageComponentGuid, false);
+                            }
                         }
                         else
                         {
@@ -2536,6 +2545,15 @@ namespace LuaDkmDebuggerComponent
                                 processData.symbolStore.FetchOrCreate(stateAddress.Value).AddScriptSource(scriptName, scriptContent, sha1Hash);
 
                                 log.Debug($"Adding script {scriptName} to symbol store of Lua state {stateAddress.Value} (with content)");
+
+                                string resolvedPath = TryFindSourcePath(process.Path, processData, scriptName, null);
+
+                                if (resolvedPath != null)
+                                {
+                                    var message = DkmCustomMessage.Create(process.Connection, process, Guid.Empty, MessageToVsService.reloadBreakpoints, Encoding.UTF8.GetBytes(resolvedPath), null);
+
+                                    message.SendToVsService(Guids.luaVsPackageComponentGuid, false);
+                                }
                             }
                             else
                             {

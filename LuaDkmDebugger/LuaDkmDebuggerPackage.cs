@@ -19,6 +19,8 @@ using Microsoft.VisualStudio.Core.Imaging;
 using Microsoft.VisualStudio.Imaging;
 using System.ComponentModel.Composition;
 using Microsoft.VisualStudio.Text.Operations;
+using Microsoft.VisualStudio.Debugger.Interop;
+using System.Diagnostics;
 
 namespace LuaDkmDebugger
 {
@@ -59,6 +61,7 @@ namespace LuaDkmDebugger
         public static readonly Guid CommandSet = new Guid("6EB675D6-C146-4843-990E-32D43B56706C");
 
         private IServiceProvider ServiceProvider => this;
+        private IServiceContainer ServiceContainer => this;
 
         #region Package Members
 
@@ -210,6 +213,21 @@ namespace LuaDkmDebugger
 
                     commandService.AddCommand(menuItem);
                 }
+            }
+
+            try
+            {
+                DTE2 dte = (DTE2)ServiceProvider.GetService(typeof(SDTE));
+
+                Debugger5 debugger = dte?.Debugger as Debugger5;
+
+                var debuggerEventHandler = new LuaDebuggerEventHandler(this, debugger);
+
+                ServiceContainer.AddService(debuggerEventHandler.GetType(), debuggerEventHandler, promote: true);
+            }
+            catch (Exception e)
+            {
+                Debug.WriteLine("Failed to setup debuggerEventHandler with " + e.Message);
             }
         }
 
@@ -376,6 +394,99 @@ namespace LuaDkmDebugger
         public void Dispose()
         {
             // This provider does not perform any cleanup.
+        }
+    }
+
+    [Guid("B1C83EED-ADA7-492D-8E41-D47D97315BED")]
+    public class LuaDebuggerEventHandler : IVsCustomDebuggerEventHandler110
+    {
+        private class BreakpointData
+        {
+            public EnvDTE90a.Breakpoint3 source;
+
+            public bool Enabled;
+
+            public string FunctionName;
+            public string File;
+            public int FileLine;
+            public int FileColumn;
+            public string Condition;
+            public EnvDTE.dbgBreakpointConditionType ConditionType;
+            public int HitCountTarget;
+            public EnvDTE.dbgHitCountType HitCountType;
+        }
+
+        private readonly IServiceProvider serviceProvider;
+        private readonly Debugger5 debugger;
+
+        public LuaDebuggerEventHandler(IServiceProvider serviceProvider, Debugger5 debugger)
+        {
+            this.serviceProvider = serviceProvider;
+            this.debugger = debugger;
+        }
+
+        public int OnCustomDebugEvent(ref Guid ProcessId, VsComponentMessage message)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            if (message.MessageCode == 1)
+            {
+                try
+                {
+                    string path = System.Text.Encoding.UTF8.GetString(message.Parameter1 as byte[]);
+
+                    System.Collections.Generic.List<BreakpointData> reload = new System.Collections.Generic.List<BreakpointData>();
+
+                    foreach (var breakpoint in debugger.Breakpoints)
+                    {
+                        if (breakpoint is EnvDTE90a.Breakpoint3 breakpoint3)
+                        {
+                            if (!breakpoint3.Enabled)
+                                continue;
+
+                            string breakpointPath = breakpoint3.File;
+
+                            if (breakpointPath == path)
+                            {
+                                reload.Add(new BreakpointData
+                                {
+                                    source = breakpoint3,
+
+                                    Enabled = breakpoint3.Enabled,
+
+                                    FunctionName = breakpoint3.FunctionName,
+                                    File = breakpoint3.File,
+                                    FileLine = breakpoint3.FileLine,
+                                    FileColumn = breakpoint3.FileColumn,
+                                    Condition = breakpoint3.Condition,
+                                    ConditionType = breakpoint3.ConditionType,
+                                    HitCountTarget = breakpoint3.HitCountTarget,
+                                    HitCountType = breakpoint3.HitCountType,
+                                });
+                            }
+                        }
+                    }
+
+                    foreach (var breakpoint in reload)
+                    {
+                        breakpoint.source.Delete();
+                    }
+
+                    foreach (var breakpoint in reload)
+                    {
+                        debugger.Breakpoints.Add(breakpoint.FunctionName, breakpoint.File, breakpoint.FileLine, breakpoint.FileColumn, breakpoint.Condition, breakpoint.ConditionType, "Lua", "", 1, "", breakpoint.HitCountTarget, breakpoint.HitCountType);
+
+                        if (!breakpoint.Enabled)
+                            debugger.Breakpoints.Item(debugger.Breakpoints.Count - 1).Enabled = false;
+                    }
+                }
+                catch (Exception e)
+                {
+                    Debug.WriteLine("Failed to reload breakpoints with " + e.Message);
+                }
+            }
+
+            return 0;
         }
     }
 }
