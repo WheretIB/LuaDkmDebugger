@@ -59,6 +59,16 @@
 					<CommandName>LuaShowHiddenFramesCommandId</CommandName>
 				</Strings>
 			</Button>
+
+			<Button guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaUseSchemaCommandId" priority="0x0104" type="Button">
+				<Parent guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaMenuGroup" />
+				<CommandFlag>DontCache</CommandFlag>
+				<CommandFlag>DefaultDisabled</CommandFlag>
+				<Strings>
+					<ButtonText>Compatibility Mode (Experimental)</ButtonText>
+					<CommandName>LuaUseSchemaCommandId</CommandName>
+				</Strings>
+			</Button>
 		</Buttons>
 	</Commands>
 
@@ -72,6 +82,7 @@
 			<IDSymbol name="LuaBreakOnErrorCommandId" value="0x0150" />
 			<IDSymbol name="LuaEnableLoggingCommandId" value="0x0130" />
 			<IDSymbol name="LuaShowHiddenFramesCommandId" value="0x0140" />
+			<IDSymbol name="LuaUseSchemaCommandId" value="0x0160" />
 		</GuidSymbol>
 	</Symbols>
 </CommandTable>

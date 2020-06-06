@@ -54,6 +54,7 @@ namespace LuaDkmDebugger
         public const int LuaBreakOnErrorCommandId = 0x0150;
         public const int LoggingCommandId = 0x0130;
         public const int LuaShowHiddenFramesCommandId = 0x0140;
+        public const int LuaUseSchemaCommandId = 0x0160;
 
         public static readonly Guid CommandSet = new Guid("6EB675D6-C146-4843-990E-32D43B56706C");
 
@@ -65,6 +66,7 @@ namespace LuaDkmDebugger
         public static bool breakOnError = true;
         public static bool releaseDebugLogs = false;
         public static bool showHiddenFrames = false;
+        public static bool useSchema = false;
 
         private WritableSettingsStore configurationSettingsStore = null;
 
@@ -93,11 +95,13 @@ namespace LuaDkmDebugger
                 breakOnError = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "BreakOnError", true);
                 releaseDebugLogs = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "ReleaseDebugLogs", false);
                 showHiddenFrames = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "ShowHiddenFrames", false);
+                useSchema = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "UseSchema", false);
 
                 LuaDkmDebuggerComponent.LocalComponent.attachOnLaunch = attachOnLaunch;
                 LuaDkmDebuggerComponent.LocalComponent.breakOnError = breakOnError;
                 LuaDkmDebuggerComponent.LocalComponent.releaseDebugLogs = releaseDebugLogs;
                 LuaDkmDebuggerComponent.LocalComponent.showHiddenFrames = showHiddenFrames;
+                LuaDkmDebuggerComponent.LocalComponent.useSchema = useSchema;
             }
             catch (Exception e)
             {
@@ -183,6 +187,26 @@ namespace LuaDkmDebugger
 
                     menuItem.Enabled = true;
                     menuItem.Checked = showHiddenFrames;
+
+                    commandService.AddCommand(menuItem);
+                }
+
+                {
+                    CommandID menuCommandID = new CommandID(CommandSet, LuaUseSchemaCommandId);
+
+                    OleMenuCommand menuItem = new OleMenuCommand((object sender, EventArgs args) =>
+                    {
+                        HandleToggleMenuItem(sender, args, "UseSchema", ref LuaDkmDebuggerComponent.LocalComponent.useSchema, ref useSchema);
+                    }, menuCommandID);
+
+                    menuItem.BeforeQueryStatus += (object sender, EventArgs args) =>
+                    {
+                        if (sender is OleMenuCommand command)
+                            command.Checked = useSchema;
+                    };
+
+                    menuItem.Enabled = true;
+                    menuItem.Checked = useSchema;
 
                     commandService.AddCommand(menuItem);
                 }
