@@ -42,6 +42,8 @@ namespace LuaDkmDebuggerComponent
         public DkmNativeModuleInstance moduleWithLoadedLua = null;
         public ulong loadLibraryAddress = 0;
 
+        public bool schemaLoaded = false;
+
         public bool helperInjectRequested = false;
         public bool helperInjected = false;
         public bool helperInitializationWaitActive = false;
@@ -153,6 +155,7 @@ namespace LuaDkmDebuggerComponent
         public static bool breakOnError = true;
         public static bool releaseDebugLogs = false;
         public static bool showHiddenFrames = false;
+        public static bool useSchema = false;
 
 #if DEBUG
         public static Log log = new Log(Log.LogLevel.Debug, true);
@@ -2337,6 +2340,23 @@ namespace LuaDkmDebuggerComponent
                     log.Debug("Detected Lua thread start");
 
                     var inspectionSession = EvaluationHelpers.CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
+
+                    if (useSchema && !processData.schemaLoaded)
+                    {
+                        Schema.LuaLocalVariableData.LoadSchema(inspectionSession, thread, frame);
+                        Schema.LuaUpvalueDescriptionData.LoadSchema(inspectionSession, thread, frame);
+                        Schema.LuaUpvalueData.LoadSchema(inspectionSession, thread, frame);
+                        Schema.LuaFunctionData.LoadSchema(inspectionSession, thread, frame);
+                        Schema.LuaFunctionCallInfoData.LoadSchema(inspectionSession, thread, frame);
+                        Schema.LuaNodeData.LoadSchema(inspectionSession, thread, frame);
+                        Schema.LuaTableData.LoadSchema(inspectionSession, thread, frame);
+                        Schema.LuaClosureData.LoadSchema(inspectionSession, thread, frame);
+                        Schema.LuaExternalClosureData.LoadSchema(inspectionSession, thread, frame);
+                        Schema.LuaUserDataData.LoadSchema(inspectionSession, thread, frame);
+                        Schema.LuaStateData.LoadSchema(inspectionSession, thread, frame);
+
+                        processData.schemaLoaded = true;
+                    }
 
                     ulong? stateAddress = EvaluationHelpers.TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
                     long? version = EvaluationHelpers.TryEvaluateNumberExpression($"(int)*L->l_G->version", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);

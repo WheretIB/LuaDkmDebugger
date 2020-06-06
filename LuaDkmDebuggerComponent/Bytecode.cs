@@ -503,9 +503,7 @@ namespace LuaDkmDebuggerComponent
         public ulong nameAddress; // TString
         public string name;
 
-        // Not available in Lua 5.1
-        public byte isInStack;
-        public byte index;
+        // Not interested in other data
 
         public static int StructSize(DkmProcess process)
         {
@@ -526,8 +524,7 @@ namespace LuaDkmDebuggerComponent
                 // Same in Lua 5.2 and 5.3
                 nameAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
 
-                isInStack = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
-                index = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
+                // Not interested in other data
             }
 
             if (nameAddress != 0)
