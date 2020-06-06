@@ -2386,6 +2386,10 @@ namespace LuaDkmDebuggerComponent
                     }
 
                     ulong? stateAddress = EvaluationHelpers.TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+
+                    if (!stateAddress.HasValue)
+                        stateAddress = EvaluationHelpers.TryEvaluateAddressExpression(DebugHelpers.Is64Bit(process) ? "@rax" : "@eax", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+
                     long? version = EvaluationHelpers.TryEvaluateNumberExpression($"(int)*L->l_G->version", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
                     log.Debug("Completed evaluation");
