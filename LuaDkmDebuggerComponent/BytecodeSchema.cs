@@ -13,6 +13,23 @@ namespace LuaDkmDebuggerComponent
         {
             public static bool looksLike_5_1 = false;
 
+            public static long GetSize(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame, string type, ref bool available)
+            {
+                long? result = EvaluationHelpers.TryEvaluateNumberExpression($"sizeof({type})", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).GetValueOrDefault(0);
+
+                if (!result.HasValue)
+                {
+                    available = false;
+
+                    if (Log.instance != null)
+                        Log.instance.Debug($"Failed to get sizeof '{type}'");
+
+                    return 0;
+                }
+
+                return result.Value;
+            }
+
             public static ulong? Read(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame, string type, string[] memberOptions, ref bool available, ref int success, ref int failure)
             {
                 Debug.Assert(memberOptions.Length > 0);
@@ -97,10 +114,10 @@ namespace LuaDkmDebuggerComponent
             {
                 available = true;
 
-                structSize = EvaluationHelpers.TryEvaluateNumberExpression("sizeof(TString)", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).GetValueOrDefault(0);
+                structSize = Helper.GetSize(inspectionSession, thread, frame, "TString", ref available);
 
                 if (Log.instance != null)
-                    Log.instance.Debug($"LuaStringData schema loaded with {success} successes and {failure} failures and {optional} optional");
+                    Log.instance.Debug($"LuaStringData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
             }
         }
 
@@ -121,14 +138,14 @@ namespace LuaDkmDebuggerComponent
             {
                 available = true;
 
-                structSize = EvaluationHelpers.TryEvaluateNumberExpression("sizeof(TValue)", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).GetValueOrDefault(0);
+                structSize = Helper.GetSize(inspectionSession, thread, frame, "TValue", ref available);
 
                 valueAddress = Helper.Read(inspectionSession, thread, frame, "TValue", new[] { "u.i.v__", "value_", "value" }, ref available, ref success, ref failure);
                 typeAddress = Helper.Read(inspectionSession, thread, frame, "TValue", new[] { "u.i.tt__", "tt_", "tt" }, ref available, ref success, ref failure);
                 doubleAddress = Helper.ReadOptional(inspectionSession, thread, frame, "TValue", "u.d__", ref optional);
 
                 if (Log.instance != null)
-                    Log.instance.Debug($"LuaValueData schema loaded with {success} successes and {failure} failures and {optional} optional");
+                    Log.instance.Debug($"LuaValueData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
             }
         }
 
@@ -149,14 +166,14 @@ namespace LuaDkmDebuggerComponent
             {
                 available = true;
 
-                structSize = EvaluationHelpers.TryEvaluateNumberExpression("sizeof(LocVar)", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).GetValueOrDefault(0);
+                structSize = Helper.GetSize(inspectionSession, thread, frame, "LocVar", ref available);
 
                 nameAddress = Helper.Read(inspectionSession, thread, frame, "LocVar", "varname", ref available, ref success, ref failure);
                 lifetimeStartInstruction = Helper.Read(inspectionSession, thread, frame, "LocVar", "startpc", ref available, ref success, ref failure);
                 lifetimeEndInstruction = Helper.Read(inspectionSession, thread, frame, "LocVar", "endpc", ref available, ref success, ref failure);
 
                 if (Log.instance != null)
-                    Log.instance.Debug($"LuaLocalVariableData schema loaded with {success} successes and {failure} failures and {optional} optional");
+                    Log.instance.Debug($"LuaLocalVariableData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
             }
         }
 
@@ -175,12 +192,12 @@ namespace LuaDkmDebuggerComponent
             {
                 available = true;
 
-                structSize = EvaluationHelpers.TryEvaluateNumberExpression("sizeof(Upvaldesc)", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).GetValueOrDefault(0);
+                structSize = Helper.GetSize(inspectionSession, thread, frame, "Upvaldesc", ref available);
 
                 nameAddress = Helper.Read(inspectionSession, thread, frame, "Upvaldesc", "name", ref available, ref success, ref failure);
 
                 if (Log.instance != null)
-                    Log.instance.Debug($"LuaUpvalueDescriptionData schema loaded with {success} successes and {failure} failures and {optional} optional");
+                    Log.instance.Debug($"LuaUpvalueDescriptionData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
             }
         }
 
@@ -199,12 +216,12 @@ namespace LuaDkmDebuggerComponent
             {
                 available = true;
 
-                structSize = EvaluationHelpers.TryEvaluateNumberExpression("sizeof(UpVal)", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).GetValueOrDefault(0);
+                structSize = Helper.GetSize(inspectionSession, thread, frame, "UpVal", ref available);
 
                 valueAddress = Helper.Read(inspectionSession, thread, frame, "UpVal", "v", ref available, ref success, ref failure);
 
                 if (Log.instance != null)
-                    Log.instance.Debug($"LuaUpvalueData schema loaded with {success} successes and {failure} failures and {optional} optional");
+                    Log.instance.Debug($"LuaUpvalueData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
             }
         }
 
@@ -242,7 +259,7 @@ namespace LuaDkmDebuggerComponent
             {
                 available = true;
 
-                structSize = EvaluationHelpers.TryEvaluateNumberExpression("sizeof(Proto)", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).GetValueOrDefault(0);
+                structSize = Helper.GetSize(inspectionSession, thread, frame, "Proto", ref available);
 
                 argumentCount = Helper.Read(inspectionSession, thread, frame, "Proto", "numparams", ref available, ref success, ref failure);
                 isVarargs = Helper.Read(inspectionSession, thread, frame, "Proto", "is_vararg", ref available, ref success, ref failure);
@@ -266,7 +283,7 @@ namespace LuaDkmDebuggerComponent
                 gclistAddress = Helper.Read(inspectionSession, thread, frame, "Proto", "gclist", ref available, ref success, ref failure);
 
                 if (Log.instance != null)
-                    Log.instance.Debug($"LuaFunctionData schema loaded with {success} successes and {failure} failures and {optional} optional");
+                    Log.instance.Debug($"LuaFunctionData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
             }
         }
 
@@ -291,7 +308,7 @@ namespace LuaDkmDebuggerComponent
             {
                 available = true;
 
-                structSize = EvaluationHelpers.TryEvaluateNumberExpression("sizeof(CallInfo)", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).GetValueOrDefault(0);
+                structSize = Helper.GetSize(inspectionSession, thread, frame, "CallInfo", ref available);
 
                 funcAddress = Helper.Read(inspectionSession, thread, frame, "CallInfo", "func", ref available, ref success, ref failure);
                 previousAddress_5_23 = Helper.ReadOptional(inspectionSession, thread, frame, "CallInfo", "previous", ref optional);
@@ -301,7 +318,7 @@ namespace LuaDkmDebuggerComponent
                 callStatus_5_23 = Helper.ReadOptional(inspectionSession, thread, frame, "CallInfo", "callstatus", ref optional, out callStatus_size);
 
                 if (Log.instance != null)
-                    Log.instance.Debug($"LuaFunctionCallInfoData schema loaded with {success} successes and {failure} failures and {optional} optional");
+                    Log.instance.Debug($"LuaFunctionCallInfoData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
             }
         }
 
@@ -321,13 +338,13 @@ namespace LuaDkmDebuggerComponent
             {
                 available = true;
 
-                structSize = EvaluationHelpers.TryEvaluateNumberExpression("sizeof(Node)", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).GetValueOrDefault(0);
+                structSize = Helper.GetSize(inspectionSession, thread, frame, "Node", ref available);
 
                 valueDataAddress = Helper.Read(inspectionSession, thread, frame, "Node", "i_val", ref available, ref success, ref failure);
                 keyDataAddress = Helper.Read(inspectionSession, thread, frame, "Node", "i_key", ref available, ref success, ref failure);
 
                 if (Log.instance != null)
-                    Log.instance.Debug($"LuaNodeData schema loaded with {success} successes and {failure} failures and {optional} optional");
+                    Log.instance.Debug($"LuaNodeData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
             }
         }
 
@@ -353,7 +370,7 @@ namespace LuaDkmDebuggerComponent
             {
                 available = true;
 
-                structSize = EvaluationHelpers.TryEvaluateNumberExpression("sizeof(Table)", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).GetValueOrDefault(0);
+                structSize = Helper.GetSize(inspectionSession, thread, frame, "Table", ref available);
 
                 flags = Helper.Read(inspectionSession, thread, frame, "Table", "flags", ref available, ref success, ref failure);
                 nodeArraySizeLog2 = Helper.Read(inspectionSession, thread, frame, "Table", "lsizenode", ref available, ref success, ref failure);
@@ -365,7 +382,7 @@ namespace LuaDkmDebuggerComponent
                 gclistAddress = Helper.Read(inspectionSession, thread, frame, "Table", "gclist", ref available, ref success, ref failure);
 
                 if (Log.instance != null)
-                    Log.instance.Debug($"LuaTableData schema loaded with {success} successes and {failure} failures and {optional} optional");
+                    Log.instance.Debug($"LuaTableData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
             }
         }
 
@@ -388,7 +405,7 @@ namespace LuaDkmDebuggerComponent
             {
                 available = true;
 
-                structSize = EvaluationHelpers.TryEvaluateNumberExpression("sizeof(LClosure)", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).GetValueOrDefault(0);
+                structSize = Helper.GetSize(inspectionSession, thread, frame, "LClosure", ref available);
 
                 isC_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "LClosure", "isC", ref optional);
                 upvalueSize = Helper.Read(inspectionSession, thread, frame, "LClosure", "nupvalues", ref available, ref success, ref failure);
@@ -397,7 +414,7 @@ namespace LuaDkmDebuggerComponent
                 firstUpvaluePointerAddress = Helper.Read(inspectionSession, thread, frame, "LClosure", "upvals", ref available, ref success, ref failure);
 
                 if (Log.instance != null)
-                    Log.instance.Debug($"LuaClosureData schema loaded with {success} successes and {failure} failures and {optional} optional");
+                    Log.instance.Debug($"LuaClosureData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
             }
         }
 
@@ -416,12 +433,12 @@ namespace LuaDkmDebuggerComponent
             {
                 available = true;
 
-                structSize = EvaluationHelpers.TryEvaluateNumberExpression("sizeof(CClosure)", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).GetValueOrDefault(0);
+                structSize = Helper.GetSize(inspectionSession, thread, frame, "CClosure", ref available);
 
                 functionAddress = Helper.Read(inspectionSession, thread, frame, "CClosure", "f", ref available, ref success, ref failure);
 
                 if (Log.instance != null)
-                    Log.instance.Debug($"LuaExternalClosureData schema loaded with {success} successes and {failure} failures and {optional} optional");
+                    Log.instance.Debug($"LuaExternalClosureData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
             }
         }
 
@@ -440,12 +457,12 @@ namespace LuaDkmDebuggerComponent
             {
                 available = true;
 
-                structSize = EvaluationHelpers.TryEvaluateNumberExpression("sizeof(Udata)", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).GetValueOrDefault(0);
+                structSize = Helper.GetSize(inspectionSession, thread, frame, "Udata", ref available);
 
                 metaTableDataAddress = Helper.Read(inspectionSession, thread, frame, "Udata", new[] { "uv.metatable", "metatable" }, ref available, ref success, ref failure);
 
                 if (Log.instance != null)
-                    Log.instance.Debug($"LuaUserDataData schema loaded with {success} successes and {failure} failures and {optional} optional");
+                    Log.instance.Debug($"LuaUserDataData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
             }
         }
 
@@ -467,7 +484,7 @@ namespace LuaDkmDebuggerComponent
             {
                 available = true;
 
-                structSize = EvaluationHelpers.TryEvaluateNumberExpression("sizeof(lua_State)", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).GetValueOrDefault(0);
+                structSize = Helper.GetSize(inspectionSession, thread, frame, "lua_State", ref available);
 
                 globalStateAddress = Helper.Read(inspectionSession, thread, frame, "lua_State", "l_G", ref available, ref success, ref failure);
                 callInfoAddress = Helper.Read(inspectionSession, thread, frame, "lua_State", "ci", ref available, ref success, ref failure);
@@ -478,7 +495,7 @@ namespace LuaDkmDebuggerComponent
                     Helper.looksLike_5_1 = true;
 
                 if (Log.instance != null)
-                    Log.instance.Debug($"LuaStateData schema loaded with {success} successes and {failure} failures and {optional} optional");
+                    Log.instance.Debug($"LuaStateData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
             }
         }
     }
