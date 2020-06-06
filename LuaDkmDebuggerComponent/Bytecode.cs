@@ -58,11 +58,17 @@ namespace LuaDkmDebuggerComponent
 
         internal static ulong GetStringDataOffset(DkmProcess process)
         {
+            if (Schema.LuaStringData.available)
+                return (ulong)Schema.LuaStringData.structSize;
+
             return (ulong)DebugHelpers.GetPointerSize(process) * 2 + 8;
         }
 
         internal static ulong GetValueSize(DkmProcess process)
         {
+            if (Schema.LuaValueData.available)
+                return (ulong)Schema.LuaValueData.structSize;
+
             if (LuaHelpers.luaVersion == 501)
                 return 16u;
 
@@ -74,6 +80,9 @@ namespace LuaDkmDebuggerComponent
 
         internal static ulong GetNodeSize(DkmProcess process)
         {
+            if (Schema.LuaNodeData.available)
+                return (ulong)Schema.LuaNodeData.structSize;
+
             if (LuaHelpers.luaVersion == 501)
                 return DebugHelpers.Is64Bit(process) ? 40u : 32u;
 
@@ -468,6 +477,9 @@ namespace LuaDkmDebuggerComponent
 
         public static int StructSize(DkmProcess process)
         {
+            if (Schema.LuaLocalVariableData.available)
+                return (int)Schema.LuaLocalVariableData.structSize;
+
             return DebugHelpers.Is64Bit(process) ? 16 : 12;
         }
 
@@ -516,6 +528,9 @@ namespace LuaDkmDebuggerComponent
 
         public static int StructSize(DkmProcess process)
         {
+            if (Schema.LuaUpvalueDescriptionData.available)
+                return (int)Schema.LuaUpvalueDescriptionData.structSize;
+
             if (LuaHelpers.luaVersion == 501)
                 return DebugHelpers.GetPointerSize(process);
 
