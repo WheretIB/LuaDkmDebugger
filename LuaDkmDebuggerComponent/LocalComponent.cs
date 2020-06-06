@@ -951,7 +951,7 @@ namespace LuaDkmDebuggerComponent
 
         void IDkmLanguageExpressionEvaluator.EvaluateExpression(DkmInspectionContext inspectionContext, DkmWorkList workList, DkmLanguageExpression expression, DkmStackWalkFrame stackFrame, DkmCompletionRoutine<DkmEvaluateExpressionAsyncResult> completionRoutine)
         {
-            log.Debug($"IDkmSymbolQuery.EvaluateExpression begin (session {inspectionContext.InspectionSession.UniqueId})");
+            log.Debug($"IDkmLanguageExpressionEvaluator.EvaluateExpression begin (session {inspectionContext.InspectionSession.UniqueId})");
 
             var process = stackFrame.Process;
 
@@ -964,7 +964,7 @@ namespace LuaDkmDebuggerComponent
 
             if (!frameData.ReadFrom(instructionAddress.AdditionalData.ToArray()))
             {
-                log.Error($"IDkmSymbolQuery.EvaluateExpression failure (no frame data)");
+                log.Error($"IDkmLanguageExpressionEvaluator.EvaluateExpression failure (no frame data)");
 
                 completionRoutine(new DkmEvaluateExpressionAsyncResult(DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, expression.Text, expression.Text, "Missing function frame data", DkmEvaluationResultFlags.Invalid, null)));
                 return;
@@ -989,7 +989,7 @@ namespace LuaDkmDebuggerComponent
             {
                 var resultAsError = result as LuaValueDataError;
 
-                log.Warning($"IDkmSymbolQuery.EvaluateExpression failure (error result)");
+                log.Warning($"IDkmLanguageExpressionEvaluator.EvaluateExpression failure (error result)");
 
                 completionRoutine(new DkmEvaluateExpressionAsyncResult(DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, expressionText, expressionText, resultAsError.value, DkmEvaluationResultFlags.Invalid, null)));
                 return;
@@ -998,7 +998,7 @@ namespace LuaDkmDebuggerComponent
             // If result is an 'l-value' re-evaluate as a Lua value at address
             if (result.originalAddress != 0 && ideDisplayFormat == false)
             {
-                log.Debug($"IDkmSymbolQuery.EvaluateExpression completed (l-value)");
+                log.Debug($"IDkmLanguageExpressionEvaluator.EvaluateExpression completed (l-value)");
 
                 if (result as LuaValueDataExternalFunction != null)
                 {
@@ -1076,7 +1076,7 @@ namespace LuaDkmDebuggerComponent
 
             completionRoutine(new DkmEvaluateExpressionAsyncResult(DkmSuccessEvaluationResult.Create(inspectionContext, stackFrame, expressionText, expressionText, result.evaluationFlags, resultStr, null, type, category, accessType, storageType, typeModifiers, dataAddress, null, null, dataItem)));
 
-            log.Debug($"IDkmSymbolQuery.EvaluateExpression completed");
+            log.Debug($"IDkmLanguageExpressionEvaluator.EvaluateExpression completed");
         }
 
         DkmEvaluationResult GetNativeTypePseudoMember(DkmInspectionContext inspectionContext, DkmStackWalkFrame stackFrame, string type, ulong address)
@@ -1094,7 +1094,7 @@ namespace LuaDkmDebuggerComponent
 
         void IDkmLanguageExpressionEvaluator.GetChildren(DkmEvaluationResult result, DkmWorkList workList, int initialRequestSize, DkmInspectionContext inspectionContext, DkmCompletionRoutine<DkmGetChildrenAsyncResult> completionRoutine)
         {
-            log.Debug($"IDkmSymbolQuery.GetChildren begin");
+            log.Debug($"IDkmLanguageExpressionEvaluator.GetChildren begin");
 
             var process = result.StackFrame.Process;
 
@@ -1117,7 +1117,7 @@ namespace LuaDkmDebuggerComponent
 
                 completionRoutine(new DkmGetChildrenAsyncResult(initialResults, enumerator));
 
-                log.Debug($"IDkmSymbolQuery.GetChildren success (C++ native type)");
+                log.Debug($"IDkmLanguageExpressionEvaluator.GetChildren success (C++ native type)");
                 return;
             }
 
@@ -1126,7 +1126,7 @@ namespace LuaDkmDebuggerComponent
             // Shouldn't happen
             if (evalData == null)
             {
-                log.Error($"IDkmSymbolQuery.GetChildren failure");
+                log.Error($"IDkmLanguageExpressionEvaluator.GetChildren failure");
 
                 completionRoutine(new DkmGetChildrenAsyncResult(new DkmEvaluationResult[0], DkmEvaluationResultEnumContext.Create(0, result.StackFrame, inspectionContext, null)));
                 return;
@@ -1155,7 +1155,7 @@ namespace LuaDkmDebuggerComponent
 
                 completionRoutine(new DkmGetChildrenAsyncResult(initialResults, enumerator));
 
-                log.Debug($"IDkmSymbolQuery.GetChildren success (table)");
+                log.Debug($"IDkmLanguageExpressionEvaluator.GetChildren success (table)");
                 return;
             }
 
@@ -1174,7 +1174,7 @@ namespace LuaDkmDebuggerComponent
 
                 completionRoutine(new DkmGetChildrenAsyncResult(initialResults, enumerator));
 
-                log.Debug($"IDkmSymbolQuery.GetChildren success (c_function)");
+                log.Debug($"IDkmLanguageExpressionEvaluator.GetChildren success (c_function)");
                 return;
             }
 
@@ -1193,7 +1193,7 @@ namespace LuaDkmDebuggerComponent
 
                 completionRoutine(new DkmGetChildrenAsyncResult(initialResults, enumerator));
 
-                log.Debug($"IDkmSymbolQuery.GetChildren success (c_closure)");
+                log.Debug($"IDkmLanguageExpressionEvaluator.GetChildren success (c_closure)");
                 return;
             }
 
@@ -1205,7 +1205,7 @@ namespace LuaDkmDebuggerComponent
 
                 if (value.value.metaTable == null)
                 {
-                    log.Error($"IDkmSymbolQuery.GetChildren failure (no user data metatable)");
+                    log.Error($"IDkmLanguageExpressionEvaluator.GetChildren failure (no user data metatable)");
 
                     completionRoutine(new DkmGetChildrenAsyncResult(new DkmEvaluationResult[0], DkmEvaluationResultEnumContext.Create(0, result.StackFrame, inspectionContext, null)));
                     return;
@@ -1246,11 +1246,11 @@ namespace LuaDkmDebuggerComponent
 
                 completionRoutine(new DkmGetChildrenAsyncResult(initialResults, enumerator));
 
-                log.Debug($"IDkmSymbolQuery.GetChildren success (table)");
+                log.Debug($"IDkmLanguageExpressionEvaluator.GetChildren success (table)");
                 return;
             }
 
-            log.Error($"IDkmSymbolQuery.GetChildren failure (unexpected)");
+            log.Error($"IDkmLanguageExpressionEvaluator.GetChildren failure (unexpected)");
 
             // Shouldn't happen
             completionRoutine(new DkmGetChildrenAsyncResult(new DkmEvaluationResult[0], DkmEvaluationResultEnumContext.Create(0, result.StackFrame, inspectionContext, null)));
@@ -1263,7 +1263,7 @@ namespace LuaDkmDebuggerComponent
 
         void IDkmLanguageExpressionEvaluator.GetFrameLocals(DkmInspectionContext inspectionContext, DkmWorkList workList, DkmStackWalkFrame stackFrame, DkmCompletionRoutine<DkmGetFrameLocalsAsyncResult> completionRoutine)
         {
-            log.Debug($"IDkmSymbolQuery.GetFrameLocals begin");
+            log.Debug($"IDkmLanguageExpressionEvaluator.GetFrameLocals begin");
 
             var process = stackFrame.Process;
 
@@ -1276,7 +1276,7 @@ namespace LuaDkmDebuggerComponent
 
             if (!frameData.ReadFrom(instructionAddress.AdditionalData.ToArray()))
             {
-                log.Error($"IDkmSymbolQuery.GetFrameLocals failure");
+                log.Error($"IDkmLanguageExpressionEvaluator.GetFrameLocals failure");
 
                 completionRoutine(new DkmGetFrameLocalsAsyncResult(DkmEvaluationResultEnumContext.Create(0, stackFrame, inspectionContext, null)));
                 return;
@@ -1299,12 +1299,12 @@ namespace LuaDkmDebuggerComponent
 
             completionRoutine(new DkmGetFrameLocalsAsyncResult(DkmEvaluationResultEnumContext.Create(count, stackFrame, inspectionContext, frameLocalsEnumData)));
 
-            log.Debug($"IDkmSymbolQuery.GetFrameLocals success");
+            log.Debug($"IDkmLanguageExpressionEvaluator.GetFrameLocals success");
         }
 
         void IDkmLanguageExpressionEvaluator.GetItems(DkmEvaluationResultEnumContext enumContext, DkmWorkList workList, int startIndex, int count, DkmCompletionRoutine<DkmEvaluationEnumAsyncResult> completionRoutine)
         {
-            log.Debug($"IDkmSymbolQuery.GetItems begin");
+            log.Debug($"IDkmLanguageExpressionEvaluator.GetItems begin");
 
             var process = enumContext.StackFrame.Process;
 
@@ -1381,7 +1381,7 @@ namespace LuaDkmDebuggerComponent
 
                 completionRoutine(new DkmEvaluationEnumAsyncResult(results));
 
-                log.Debug($"IDkmSymbolQuery.GetItems success (locals)");
+                log.Debug($"IDkmLanguageExpressionEvaluator.GetItems success (locals)");
                 return;
             }
 
@@ -1400,7 +1400,7 @@ namespace LuaDkmDebuggerComponent
 
                 completionRoutine(new DkmEvaluationEnumAsyncResult(results));
 
-                log.Debug($"IDkmSymbolQuery.GetItems success (C++ native type)");
+                log.Debug($"IDkmLanguageExpressionEvaluator.GetItems success (C++ native type)");
                 return;
             }
 
@@ -1409,7 +1409,7 @@ namespace LuaDkmDebuggerComponent
             // Shouldn't happen
             if (evalData == null)
             {
-                log.Error($"IDkmSymbolQuery.GetItems failure");
+                log.Error($"IDkmLanguageExpressionEvaluator.GetItems failure");
 
                 completionRoutine(new DkmEvaluationEnumAsyncResult(new DkmEvaluationResult[0]));
                 return;
@@ -1429,7 +1429,7 @@ namespace LuaDkmDebuggerComponent
 
                 completionRoutine(new DkmEvaluationEnumAsyncResult(results));
 
-                log.Debug($"IDkmSymbolQuery.GetItems success (table)");
+                log.Debug($"IDkmLanguageExpressionEvaluator.GetItems success (table)");
                 return;
             }
 
@@ -1447,7 +1447,7 @@ namespace LuaDkmDebuggerComponent
 
                 completionRoutine(new DkmEvaluationEnumAsyncResult(results));
 
-                log.Debug($"IDkmSymbolQuery.GetItems success (c_function)");
+                log.Debug($"IDkmLanguageExpressionEvaluator.GetItems success (c_function)");
                 return;
             }
 
@@ -1465,7 +1465,7 @@ namespace LuaDkmDebuggerComponent
 
                 completionRoutine(new DkmEvaluationEnumAsyncResult(results));
 
-                log.Debug($"IDkmSymbolQuery.GetItems success (c_closure)");
+                log.Debug($"IDkmLanguageExpressionEvaluator.GetItems success (c_closure)");
                 return;
             }
 
@@ -1504,13 +1504,13 @@ namespace LuaDkmDebuggerComponent
 
                 completionRoutine(new DkmEvaluationEnumAsyncResult(results));
 
-                log.Debug($"IDkmSymbolQuery.GetItems success (table)");
+                log.Debug($"IDkmLanguageExpressionEvaluator.GetItems success (table)");
                 return;
             }
 
             completionRoutine(new DkmEvaluationEnumAsyncResult(new DkmEvaluationResult[0]));
 
-            log.Error($"IDkmSymbolQuery.GetItems failure (empty)");
+            log.Error($"IDkmLanguageExpressionEvaluator.GetItems failure (empty)");
         }
 
         string IDkmLanguageExpressionEvaluator.GetUnderlyingString(DkmEvaluationResult result)
@@ -1641,7 +1641,7 @@ namespace LuaDkmDebuggerComponent
 
         string IDkmLanguageInstructionDecoder.GetMethodName(DkmLanguageInstructionAddress languageInstructionAddress, DkmVariableInfoFlags argumentFlags)
         {
-            log.Debug($"IDkmSymbolQuery.GetMethodName begin");
+            log.Debug($"IDkmLanguageInstructionDecoder.GetMethodName begin");
 
             var process = languageInstructionAddress.Address.Process;
 
@@ -1658,7 +1658,7 @@ namespace LuaDkmDebuggerComponent
 
             if (addressEntityData.functionAddress == 0)
             {
-                log.Debug($"IDkmSymbolQuery.GetMethodName success (weak match)");
+                log.Debug($"IDkmLanguageInstructionDecoder.GetMethodName success (weak match)");
 
                 return $"[{addressEntityData.source}:{addressEntityData.line}](...)";
             }
@@ -1684,13 +1684,13 @@ namespace LuaDkmDebuggerComponent
 
                 if (functionName != null)
                 {
-                    log.Debug($"IDkmSymbolQuery.GetMethodName success");
+                    log.Debug($"IDkmLanguageInstructionDecoder.GetMethodName success");
 
                     return $"{functionName}({argumentList})";
                 }
             }
 
-            log.Debug($"IDkmSymbolQuery.GetMethodName success (no name)");
+            log.Debug($"IDkmLanguageInstructionDecoder.GetMethodName success (no name)");
 
             return $"[{addressEntityData.source}:{addressEntityData.line}]({argumentList})";
         }
@@ -1707,7 +1707,7 @@ namespace LuaDkmDebuggerComponent
             if (moduleInstance == null)
                 return module.FindDocuments(sourceFileId);
 
-            log.Debug($"IDkmSymbolQuery.FindDocuments begin ({sourceFileId.DocumentName})");
+            log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments begin ({sourceFileId.DocumentName})");
 
             var process = moduleInstance.Process;
             var processData = process.GetDataItem<LuaLocalProcessData>();
@@ -1727,7 +1727,7 @@ namespace LuaDkmDebuggerComponent
                             source.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, source.Key, scriptSource?.scriptContent);
 
                         if (source.Value.resolvedFileName != null)
-                            log.Debug($"IDkmSymbolQuery.FindDocuments Resolved {source.Value.sourceFileName} to {source.Value.resolvedFileName}");
+                            log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments Resolved {source.Value.sourceFileName} to {source.Value.resolvedFileName}");
                     }
 
                     var fileName = source.Value.resolvedFileName;
@@ -1739,7 +1739,7 @@ namespace LuaDkmDebuggerComponent
                             source = source.Value
                         };
 
-                        log.Debug($"IDkmSymbolQuery.FindDocuments success (known source)");
+                        log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments success (known source)");
 
                         return new DkmResolvedDocument[1] { DkmResolvedDocument.Create(module, sourceFileId.DocumentName, null, DkmDocumentMatchStrength.FullPath, DkmResolvedDocumentWarning.None, false, dataItem) };
                     }
@@ -1764,7 +1764,7 @@ namespace LuaDkmDebuggerComponent
 
                             if (sourceFileId.SHA1HashPart.Value.Value0 == value0 && sourceFileId.SHA1HashPart.Value.Value1 == value1 && sourceFileId.SHA1HashPart.Value.Value2 == value2 && sourceFileId.SHA1HashPart.Value.Value3 == value3 && sourceFileId.SHA1HashPart.Value.Value4 == value4)
                             {
-                                log.Debug($"IDkmSymbolQuery.FindDocuments Resolved {script.Value.sourceFileName} to {script.Value.resolvedFileName} based on SHA-1 hash");
+                                log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments Resolved {script.Value.sourceFileName} to {script.Value.resolvedFileName} based on SHA-1 hash");
 
                                 script.Value.resolvedFileName = sourceFileId.DocumentName;
                             }
@@ -1775,7 +1775,7 @@ namespace LuaDkmDebuggerComponent
                             script.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, script.Key, script.Value.scriptContent);
 
                             if (script.Value.resolvedFileName != null)
-                                log.Debug($"IDkmSymbolQuery.FindDocuments Resolved {script.Value.sourceFileName} to {script.Value.resolvedFileName}");
+                                log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments Resolved {script.Value.sourceFileName} to {script.Value.resolvedFileName}");
                         }
                     }
 
@@ -1788,14 +1788,14 @@ namespace LuaDkmDebuggerComponent
                             script = script.Value
                         };
 
-                        log.Debug($"IDkmSymbolQuery.FindDocuments success (known script)");
+                        log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments success (known script)");
 
                         return new DkmResolvedDocument[1] { DkmResolvedDocument.Create(module, sourceFileId.DocumentName, null, DkmDocumentMatchStrength.FullPath, DkmResolvedDocumentWarning.None, false, dataItem) };
                     }
                 }
             }
 
-            log.Error($"IDkmSymbolQuery.FindDocuments failure {sourceFileId.DocumentName}");
+            log.Error($"IDkmSymbolDocumentCollectionQuery.FindDocuments failure {sourceFileId.DocumentName}");
 
             return module.FindDocuments(sourceFileId);
         }
@@ -1833,13 +1833,13 @@ namespace LuaDkmDebuggerComponent
 
         DkmInstructionSymbol[] IDkmSymbolDocumentSpanQuery.FindSymbols(DkmResolvedDocument resolvedDocument, DkmTextSpan textSpan, string text, out DkmSourcePosition[] symbolLocation)
         {
-            log.Debug($"IDkmSymbolQuery.FindSymbols begin");
+            log.Debug($"IDkmSymbolDocumentSpanQuery.FindSymbols begin");
 
             var documentData = DebugHelpers.GetOrCreateDataItem<LuaResolvedDocumentItem>(resolvedDocument);
 
             if (documentData == null)
             {
-                log.Error($"IDkmSymbolQuery.FindSymbols failure (no document data)");
+                log.Error($"IDkmSymbolDocumentSpanQuery.FindSymbols failure (no document data)");
 
                 return resolvedDocument.FindSymbols(textSpan, text, out symbolLocation);
             }
@@ -1848,7 +1848,7 @@ namespace LuaDkmDebuggerComponent
 
             if (moduleInstance == null)
             {
-                log.Error($"IDkmSymbolQuery.FindSymbols failure (no module)");
+                log.Error($"IDkmSymbolDocumentSpanQuery.FindSymbols failure (no module)");
 
                 return resolvedDocument.FindSymbols(textSpan, text, out symbolLocation);
             }
@@ -1891,7 +1891,7 @@ namespace LuaDkmDebuggerComponent
                         var entityDataBytes = entityData.Encode();
                         var additionalDataBytes = additionalData.Encode();
 
-                        log.Debug($"IDkmSymbolQuery.FindSymbols success");
+                        log.Debug($"IDkmSymbolDocumentSpanQuery.FindSymbols success");
 
                         return new DkmInstructionSymbol[1] { DkmCustomInstructionSymbol.Create(resolvedDocument.Module, Guids.luaRuntimeGuid, entityDataBytes, (ulong)((line << 16) + instructionPointer), additionalDataBytes) };
                     }
@@ -1924,19 +1924,19 @@ namespace LuaDkmDebuggerComponent
                 var entityDataBytes = entityData.Encode();
                 var additionalDataBytes = additionalData.Encode();
 
-                log.Debug($"IDkmSymbolQuery.FindSymbols success (weak match)");
+                log.Debug($"IDkmSymbolDocumentSpanQuery.FindSymbols success (weak match)");
 
                 return new DkmInstructionSymbol[1] { DkmCustomInstructionSymbol.Create(resolvedDocument.Module, Guids.luaRuntimeGuid, entityDataBytes, (ulong)((textSpan.StartLine << 16) + 0), additionalDataBytes) };
             }
 
-            log.Error($"IDkmSymbolQuery.FindSymbols failure (not found)");
+            log.Error($"IDkmSymbolDocumentSpanQuery.FindSymbols failure (not found)");
 
             return resolvedDocument.FindSymbols(textSpan, text, out symbolLocation);
         }
 
         void IDkmModuleInstanceLoadNotification.OnModuleInstanceLoad(DkmModuleInstance moduleInstance, DkmWorkList workList, DkmEventDescriptorS eventDescriptor)
         {
-            log.Debug($"IDkmSymbolQuery.OnModuleInstanceLoad begin");
+            log.Debug($"IDkmModuleInstanceLoadNotification.OnModuleInstanceLoad begin");
 
             var nativeModuleInstance = moduleInstance as DkmNativeModuleInstance;
 
@@ -2154,7 +2154,7 @@ namespace LuaDkmDebuggerComponent
 
                     processData.helperInjectRequested = true;
 
-                    // Track Lua state initialization (breakpoint at the end of the function)
+                    // Track Lua state initialization (breakpoint at the start of the function)
                     processData.breakpointLuaInitialization = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "lua_newstate", "initialization mark", out _).GetValueOrDefault(Guid.Empty);
 
                     // Track Lua state creation (breakpoint at the end of the function)
@@ -2281,12 +2281,12 @@ namespace LuaDkmDebuggerComponent
                 }
             }
 
-            log.Debug($"IDkmSymbolQuery.OnModuleInstanceLoad finished");
+            log.Debug($"IDkmModuleInstanceLoadNotification.OnModuleInstanceLoad finished");
         }
 
         DkmCustomMessage IDkmCustomMessageCallbackReceiver.SendHigher(DkmCustomMessage customMessage)
         {
-            log.Debug($"IDkmSymbolQuery.SendHigher begin");
+            log.Debug($"IDkmCustomMessageCallbackReceiver.SendHigher begin");
 
             var process = customMessage.Process;
 
@@ -2590,7 +2590,7 @@ namespace LuaDkmDebuggerComponent
                 }
             }
 
-            log.Debug($"IDkmSymbolQuery.SendHigher finished");
+            log.Debug($"IDkmCustomMessageCallbackReceiver.SendHigher finished");
 
             return null;
         }
