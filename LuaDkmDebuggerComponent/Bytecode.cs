@@ -95,8 +95,31 @@ namespace LuaDkmDebuggerComponent
         internal static LuaValueDataBase ReadValue(DkmProcess process, ulong address)
         {
             int? typeTag;
+            ulong valueAddress = address;
 
-            if (luaVersion == 502 && !DebugHelpers.Is64Bit(process))
+            if (Schema.LuaValueData.available)
+            {
+                // Handle NAN trick
+                if (Schema.LuaValueData.doubleAddress.HasValue)
+                {
+                    double? value = DebugHelpers.ReadDoubleVariable(process, address + Schema.LuaValueData.doubleAddress.GetValueOrDefault(0));
+
+                    if (value == null)
+                        return null;
+
+                    if (double.IsNaN(value.Value))
+                        typeTag = DebugHelpers.ReadIntVariable(process, address + Schema.LuaValueData.typeAddress.GetValueOrDefault(0));
+                    else
+                        typeTag = (int)LuaExtendedType.FloatNumber;
+                }
+                else
+                {
+                    typeTag = DebugHelpers.ReadIntVariable(process, address + Schema.LuaValueData.typeAddress.GetValueOrDefault(0));
+                }
+
+                valueAddress = address + Schema.LuaValueData.valueAddress.GetValueOrDefault(0);
+            }
+            else if (luaVersion == 502 && !DebugHelpers.Is64Bit(process))
             {
                 // union { struct { Value v__; int tt__; } i; double d__; } u
                 double? value = DebugHelpers.ReadDoubleVariable(process, address);
@@ -119,7 +142,7 @@ namespace LuaDkmDebuggerComponent
             if (typeTag == null)
                 return null;
 
-            return ReadValueOfType(process, typeTag.Value, address);
+            return ReadValueOfType(process, typeTag.Value, valueAddress);
         }
 
         internal static LuaValueDataBase ReadValueOfType(DkmProcess process, int typeTag, ulong address)
