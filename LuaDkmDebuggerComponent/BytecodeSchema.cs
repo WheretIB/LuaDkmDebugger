@@ -251,7 +251,6 @@ namespace LuaDkmDebuggerComponent
             public static ulong? lineInfoDataAddress;
             public static ulong? localVariableDataAddress;
             public static ulong? upvalueDataAddress;
-            public static ulong? lastClosureCache;
             public static ulong? sourceAddress;
             public static ulong? gclistAddress;
 
@@ -278,7 +277,6 @@ namespace LuaDkmDebuggerComponent
                 lineInfoDataAddress = Helper.Read(inspectionSession, thread, frame, "Proto", "lineinfo", ref available, ref success, ref failure);
                 localVariableDataAddress = Helper.Read(inspectionSession, thread, frame, "Proto", "locvars", ref available, ref success, ref failure);
                 upvalueDataAddress = Helper.Read(inspectionSession, thread, frame, "Proto", "upvalues", ref available, ref success, ref failure);
-                lastClosureCache = Helper.Read(inspectionSession, thread, frame, "Proto", "cache", ref available, ref success, ref failure);
                 sourceAddress = Helper.Read(inspectionSession, thread, frame, "Proto", "source", ref available, ref success, ref failure);
                 gclistAddress = Helper.Read(inspectionSession, thread, frame, "Proto", "gclist", ref available, ref success, ref failure);
 

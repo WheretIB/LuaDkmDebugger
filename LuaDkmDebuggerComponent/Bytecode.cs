@@ -650,7 +650,6 @@ namespace LuaDkmDebuggerComponent
         public ulong lineInfoDataAddress; // For each opcode (int[])
         public ulong localVariableDataAddress; // LocVar[]
         public ulong upvalueDataAddress; // Upvaldesc[]
-        public ulong lastClosureCache; // LClosure
         public ulong sourceAddress; // TString
         public ulong gclistAddress; // GCObject
 
@@ -739,7 +738,7 @@ namespace LuaDkmDebuggerComponent
                 lineInfoDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
                 localVariableDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
                 upvalueDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
-                lastClosureCache = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
+                DebugHelpers.SkipStructPointer(process, ref address); // last closure cache
                 sourceAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
 
                 upvalueSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
@@ -801,8 +800,9 @@ namespace LuaDkmDebuggerComponent
                 address += pointerSize;
                 upvalueDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
                 address += pointerSize;
-                lastClosureCache = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
-                address += pointerSize;
+
+                DebugHelpers.SkipStructPointer(process, ref address); // last closure cache
+
                 sourceAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
                 address += pointerSize;
                 gclistAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
