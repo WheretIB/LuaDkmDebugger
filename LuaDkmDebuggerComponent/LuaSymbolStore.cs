@@ -51,7 +51,7 @@ namespace LuaDkmDebuggerComponent
 
             source.knownFunctions[function.originalAddress] = function;
 
-            if (function.definitionStartLine == 0)
+            if (function.hasDefinitionLineInfo && function.definitionStartLine_opt == 0)
             {
                 function.ReadLocalFunctions(process);
             }

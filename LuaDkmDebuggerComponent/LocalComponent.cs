@@ -366,7 +366,7 @@ namespace LuaDkmDebuggerComponent
 
                     if (sourceName != null)
                     {
-                        if (currFunctionData.definitionStartLine == 0)
+                        if (currFunctionData.hasDefinitionLineInfo && currFunctionData.definitionStartLine_opt == 0)
                             functionName = "main";
 
                         LuaFunctionData functionData = currFunctionData;

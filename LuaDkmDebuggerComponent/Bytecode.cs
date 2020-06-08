@@ -642,8 +642,8 @@ namespace LuaDkmDebuggerComponent
         public int lineInfoSize;
         public int localFunctionSize;
         public int localVariableSize;
-        public int definitionStartLine;
-        public int definitionEndLine;
+        public int definitionStartLine_opt;
+        public int definitionEndLine_opt;
         public ulong constantDataAddress; // TValue[]
         public ulong codeDataAddress; // Opcode list (unsigned[])
         public ulong localFunctionDataAddress; // (Proto*[])
@@ -662,6 +662,8 @@ namespace LuaDkmDebuggerComponent
         public string source;
 
         public List<LuaUpvalueDescriptionData> upvalues;
+
+        public bool hasDefinitionLineInfo = false;
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
@@ -685,14 +687,20 @@ namespace LuaDkmDebuggerComponent
                 lineInfoSize = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.lineInfoSize.GetValueOrDefault(0)).GetValueOrDefault(0);
                 localFunctionSize = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.localFunctionSize.GetValueOrDefault(0)).GetValueOrDefault(0);
                 localVariableSize = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.localVariableSize.GetValueOrDefault(0)).GetValueOrDefault(0);
-                definitionStartLine = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.definitionStartLine.GetValueOrDefault(0)).GetValueOrDefault(0);
-                definitionEndLine = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.definitionEndLine.GetValueOrDefault(0)).GetValueOrDefault(0);
+
+                if (Schema.LuaFunctionData.definitionStartLine_opt.HasValue)
+                    definitionStartLine_opt = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.definitionStartLine_opt.GetValueOrDefault(0)).GetValueOrDefault(0);
+
+                if (Schema.LuaFunctionData.definitionEndLine_opt.HasValue)
+                    definitionEndLine_opt = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.definitionEndLine_opt.GetValueOrDefault(0)).GetValueOrDefault(0);
 
                 gclistAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionData.gclistAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
 
                 argumentCount = DebugHelpers.ReadByteVariable(process, address + Schema.LuaFunctionData.argumentCount.GetValueOrDefault(0)).GetValueOrDefault(0);
                 isVarargs = DebugHelpers.ReadByteVariable(process, address + Schema.LuaFunctionData.isVarargs.GetValueOrDefault(0)).GetValueOrDefault(0);
                 maxStackSize = DebugHelpers.ReadByteVariable(process, address + Schema.LuaFunctionData.maxStackSize.GetValueOrDefault(0)).GetValueOrDefault(0);
+
+                hasDefinitionLineInfo = Schema.LuaFunctionData.definitionStartLine_opt.HasValue && Schema.LuaFunctionData.definitionEndLine_opt.HasValue;
             }
             else if (LuaHelpers.luaVersion == 501)
             {
@@ -715,8 +723,8 @@ namespace LuaDkmDebuggerComponent
                 lineInfoSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
                 localFunctionSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
                 localVariableSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
-                definitionStartLine = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
-                definitionEndLine = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+                definitionStartLine_opt = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+                definitionEndLine_opt = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
 
                 gclistAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
 
@@ -724,6 +732,8 @@ namespace LuaDkmDebuggerComponent
                 argumentCount = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
                 isVarargs = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
                 maxStackSize = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
+
+                hasDefinitionLineInfo = true;
             }
             else if (LuaHelpers.luaVersion == 502)
             {
@@ -747,14 +757,16 @@ namespace LuaDkmDebuggerComponent
                 lineInfoSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
                 localFunctionSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
                 localVariableSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
-                definitionStartLine = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
-                definitionEndLine = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+                definitionStartLine_opt = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
+                definitionEndLine_opt = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
 
                 gclistAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault(0);
 
                 argumentCount = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
                 isVarargs = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
                 maxStackSize = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
+
+                hasDefinitionLineInfo = true;
             }
             else
             {
@@ -783,9 +795,9 @@ namespace LuaDkmDebuggerComponent
                 address += sizeof(int);
                 localVariableSize = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
                 address += sizeof(int);
-                definitionStartLine = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+                definitionStartLine_opt = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
                 address += sizeof(int);
-                definitionEndLine = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+                definitionEndLine_opt = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
                 address += sizeof(int);
 
                 constantDataAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
@@ -807,11 +819,11 @@ namespace LuaDkmDebuggerComponent
                 address += pointerSize;
                 gclistAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
                 address += pointerSize;
+
+                hasDefinitionLineInfo = true;
             }
 
             // Sanity checks to 'guess' if we have wrong function data
-            Debug.Assert(definitionStartLine >= 0 && definitionStartLine < 1000000);
-            Debug.Assert(definitionEndLine >= 0 && definitionEndLine < 1000000);
             Debug.Assert(lineInfoSize >= 0 && lineInfoSize < 1000000);
 
             Debug.Assert(localFunctionSize >= 0 && localFunctionSize < 10000);

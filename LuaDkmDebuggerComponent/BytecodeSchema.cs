@@ -243,8 +243,8 @@ namespace LuaDkmDebuggerComponent
             public static ulong? lineInfoSize;
             public static ulong? localFunctionSize;
             public static ulong? localVariableSize;
-            public static ulong? definitionStartLine;
-            public static ulong? definitionEndLine;
+            public static ulong? definitionStartLine_opt;
+            public static ulong? definitionEndLine_opt;
             public static ulong? constantDataAddress;
             public static ulong? codeDataAddress;
             public static ulong? localFunctionDataAddress;
@@ -269,8 +269,8 @@ namespace LuaDkmDebuggerComponent
                 lineInfoSize = Helper.Read(inspectionSession, thread, frame, "Proto", "sizelineinfo", ref available, ref success, ref failure);
                 localFunctionSize = Helper.Read(inspectionSession, thread, frame, "Proto", "sizep", ref available, ref success, ref failure);
                 localVariableSize = Helper.Read(inspectionSession, thread, frame, "Proto", "sizelocvars", ref available, ref success, ref failure);
-                definitionStartLine = Helper.Read(inspectionSession, thread, frame, "Proto", "linedefined", ref available, ref success, ref failure);
-                definitionEndLine = Helper.Read(inspectionSession, thread, frame, "Proto", "lastlinedefined", ref available, ref success, ref failure);
+                definitionStartLine_opt = Helper.ReadOptional(inspectionSession, thread, frame, "Proto", "linedefined", "used to detect main function", ref optional);
+                definitionEndLine_opt = Helper.ReadOptional(inspectionSession, thread, frame, "Proto", "lastlinedefined", "not used", ref optional);
                 constantDataAddress = Helper.Read(inspectionSession, thread, frame, "Proto", "k", ref available, ref success, ref failure);
                 codeDataAddress = Helper.Read(inspectionSession, thread, frame, "Proto", "code", ref available, ref success, ref failure);
                 localFunctionDataAddress = Helper.Read(inspectionSession, thread, frame, "Proto", "p", ref available, ref success, ref failure);
