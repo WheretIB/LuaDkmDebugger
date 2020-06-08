@@ -57,6 +57,7 @@ namespace LuaDkmDebugger
         public const int LoggingCommandId = 0x0130;
         public const int LuaShowHiddenFramesCommandId = 0x0140;
         public const int LuaUseSchemaCommandId = 0x0160;
+        public const int LuaInitializeCommandId = 0x0170;
 
         public static readonly Guid CommandSet = new Guid("6EB675D6-C146-4843-990E-32D43B56706C");
 
@@ -116,6 +117,26 @@ namespace LuaDkmDebugger
             if (commandService != null)
             {
                 {
+                    CommandID menuCommandID = new CommandID(CommandSet, LuaInitializeCommandId);
+
+                    OleMenuCommand menuItem = new OleMenuCommand((object sender, EventArgs args) =>
+                    {
+                        if (sender is OleMenuCommand command)
+                            command.Visible = false;
+                    }, menuCommandID);
+
+                    menuItem.BeforeQueryStatus += (object sender, EventArgs args) =>
+                    {
+                        if (sender is OleMenuCommand command)
+                            command.Visible = false;
+                    };
+
+                    menuItem.Visible = false;
+
+                    commandService.AddCommand(menuItem);
+                }
+
+                {
                     CommandID menuCommandID = new CommandID(CommandSet, LuaAttachOnLaunchCommandId);
 
                     OleMenuCommand menuItem = new OleMenuCommand((object sender, EventArgs args) =>
@@ -134,6 +155,7 @@ namespace LuaDkmDebugger
 
                     commandService.AddCommand(menuItem);
                 }
+
                 {
                     CommandID menuCommandID = new CommandID(CommandSet, LuaBreakOnErrorCommandId);
 
