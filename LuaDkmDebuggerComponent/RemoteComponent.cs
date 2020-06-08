@@ -47,6 +47,10 @@ namespace LuaDkmDebuggerComponent
         public DkmStepper activeStepper = null;
 
         public Dictionary<ulong, LuaFunctionData> functionDataCache = new Dictionary<ulong, LuaFunctionData>();
+
+        public Dictionary<ulong, RegisterStateMessage> knownStates = new Dictionary<ulong, RegisterStateMessage>();
+        public bool hooksEnabled = false;
+        public bool hadActiveStepper = false;
     }
 
     public class RemoteComponent : IDkmCustomMessageForwardReceiver, IDkmRuntimeBreakpointReceived, IDkmRuntimeMonitorBreakpointHandler, IDkmRuntimeStepper, IDkmLanguageConditionEvaluator, IDkmExceptionFormatter
@@ -108,8 +112,75 @@ namespace LuaDkmDebuggerComponent
             {
                 processData.luaVersion = (customMessage.Parameter1 as int?).GetValueOrDefault(0);
             }
+            else if (customMessage.MessageCode == MessageToRemote.registerLuaState)
+            {
+                var data = new RegisterStateMessage();
+
+                data.ReadFrom(customMessage.Parameter1 as byte[]);
+
+                Debug.Assert(processData.knownStates.ContainsKey(data.stateAddress) == false);
+
+                processData.knownStates.Add(data.stateAddress, data);
+
+                if (processData.hooksEnabled)
+                    SetupHooks(process, processData);
+            }
+            else if (customMessage.MessageCode == MessageToRemote.unregisterLuaState)
+            {
+                var data = new UnregisterStateMessage();
+
+                data.ReadFrom(customMessage.Parameter1 as byte[]);
+
+                Debug.Assert(processData.knownStates.ContainsKey(data.stateAddress) == true);
+
+                processData.knownStates.Remove(data.stateAddress);
+            }
 
             return null;
+        }
+
+        void SetupHooks(DkmProcess process, LuaRemoteProcessData processData)
+        {
+            processData.hooksEnabled = true;
+
+            foreach (var stateKV in processData.knownStates)
+            {
+                var state = stateKV.Value;
+
+                DebugHelpers.TryWritePointerVariable(process, state.hookFunctionAddress, state.helperHookFunctionAddress);
+                DebugHelpers.TryWriteIntVariable(process, state.hookMaskAddress, 7); // LUA_HOOKLINE | LUA_HOOKCALL | LUA_HOOKRET
+                DebugHelpers.TryWriteIntVariable(process, state.hookBaseCountAddress, 0);
+                DebugHelpers.TryWriteIntVariable(process, state.hookCountAddress, 0);
+            }
+        }
+
+        void RemoveHooks(DkmProcess process, LuaRemoteProcessData processData)
+        {
+            processData.hooksEnabled = false;
+
+            foreach (var stateKV in processData.knownStates)
+            {
+                var state = stateKV.Value;
+
+                DebugHelpers.TryWritePointerVariable(process, state.hookFunctionAddress, 0);
+                DebugHelpers.TryWriteIntVariable(process, state.hookMaskAddress, 0);
+                DebugHelpers.TryWriteIntVariable(process, state.hookBaseCountAddress, 0);
+                DebugHelpers.TryWriteIntVariable(process, state.hookCountAddress, 0);
+            }
+        }
+
+        void UpdateHooks(DkmProcess process, LuaRemoteProcessData processData)
+        {
+            if (processData.activeBreakpoints.Count != 0 || processData.hadActiveStepper)
+            {
+                if (!processData.hooksEnabled)
+                    SetupHooks(process, processData);
+            }
+            else
+            {
+                if (processData.hooksEnabled)
+                    RemoveHooks(process, processData);
+            }
         }
 
         void UpdateBreakpoints(DkmProcess process, LuaRemoteProcessData processData)
@@ -117,6 +188,8 @@ namespace LuaDkmDebuggerComponent
             // Can't update breakpoints if we don't have the hook attached
             if (processData.locations == null)
                 return;
+
+            UpdateHooks(process, processData);
 
             int count = processData.activeBreakpoints.Count;
 
@@ -422,6 +495,10 @@ namespace LuaDkmDebuggerComponent
             }
 
             processData.activeStepper = stepper;
+
+            processData.hadActiveStepper = true;
+
+            UpdateHooks(process, processData);
         }
 
         void IDkmRuntimeStepper.StopStep(DkmRuntimeInstance runtimeInstance, DkmStepper stepper)

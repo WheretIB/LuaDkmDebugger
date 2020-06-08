@@ -2426,24 +2426,24 @@ namespace LuaDkmDebuggerComponent
 
                             if (hookFunctionAddress.HasValue && hookBaseCountAddress.HasValue && hookCountAddress.HasValue && hookMaskAddress.HasValue)
                             {
-                                if (LuaHelpers.luaVersion == 501)
+                                var message = new RegisterStateMessage
                                 {
-                                    DebugHelpers.TryWritePointerVariable(process, hookFunctionAddress.Value, processData.helperHookFunctionAddress_5_1);
-                                    DebugHelpers.TryWriteByteVariable(process, hookMaskAddress.Value, 7); // LUA_HOOKLINE | LUA_HOOKCALL | LUA_HOOKRET
-                                }
-                                else if (LuaHelpers.luaVersion == 502)
-                                {
-                                    DebugHelpers.TryWritePointerVariable(process, hookFunctionAddress.Value, processData.helperHookFunctionAddress_5_2);
-                                    DebugHelpers.TryWriteByteVariable(process, hookMaskAddress.Value, 7); // LUA_HOOKLINE | LUA_HOOKCALL | LUA_HOOKRET
-                                }
-                                else if (LuaHelpers.luaVersion == 503)
-                                {
-                                    DebugHelpers.TryWritePointerVariable(process, hookFunctionAddress.Value, processData.helperHookFunctionAddress_5_3);
-                                    DebugHelpers.TryWriteIntVariable(process, hookMaskAddress.Value, 7); // LUA_HOOKLINE | LUA_HOOKCALL | LUA_HOOKRET
-                                }
+                                    stateAddress = stateAddress.Value,
 
-                                DebugHelpers.TryWriteIntVariable(process, hookBaseCountAddress.Value, 0);
-                                DebugHelpers.TryWriteIntVariable(process, hookCountAddress.Value, 0);
+                                    hookFunctionAddress = hookFunctionAddress.Value,
+                                    hookBaseCountAddress = hookBaseCountAddress.Value,
+                                    hookCountAddress = hookCountAddress.Value,
+                                    hookMaskAddress = hookMaskAddress.Value,
+                                };
+
+                                if (LuaHelpers.luaVersion == 501)
+                                    message.helperHookFunctionAddress = processData.helperHookFunctionAddress_5_1;
+                                else if (LuaHelpers.luaVersion == 502)
+                                    message.helperHookFunctionAddress = processData.helperHookFunctionAddress_5_2;
+                                else if (LuaHelpers.luaVersion == 503)
+                                    message.helperHookFunctionAddress = processData.helperHookFunctionAddress_5_3;
+
+                                DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.registerLuaState, message.Encode(), null).SendLower();
 
                                 log.Debug("Hooked Lua state");
                             }
@@ -2477,6 +2477,13 @@ namespace LuaDkmDebuggerComponent
                         log.Debug($"Removing Lua state 0x{stateAddress:x} from symbol store");
 
                         processData.symbolStore.Remove(stateAddress.Value);
+
+                        var message = new UnregisterStateMessage
+                        {
+                            stateAddress = stateAddress.Value,
+                        };
+
+                        DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.unregisterLuaState, message.Encode(), null).SendLower();
                     }
 
                     inspectionSession.Close();

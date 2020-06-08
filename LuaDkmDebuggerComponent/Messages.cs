@@ -144,4 +144,91 @@ namespace LuaDkmDebuggerComponent
             return true;
         }
     }
+
+    public class RegisterStateMessage
+    {
+        public ulong stateAddress = 0;
+
+        public ulong hookFunctionAddress = 0;
+        public ulong hookBaseCountAddress = 0;
+        public ulong hookCountAddress = 0;
+        public ulong hookMaskAddress = 0;
+
+        public ulong helperHookFunctionAddress = 0;
+
+        public byte[] Encode()
+        {
+            using (var stream = new MemoryStream())
+            {
+                using (var writer = new BinaryWriter(stream))
+                {
+                    writer.Write(stateAddress);
+
+                    writer.Write(hookFunctionAddress);
+                    writer.Write(hookBaseCountAddress);
+                    writer.Write(hookCountAddress);
+                    writer.Write(hookMaskAddress);
+
+                    writer.Write(helperHookFunctionAddress);
+
+                    writer.Flush();
+
+                    return stream.ToArray();
+                }
+            }
+        }
+
+        public bool ReadFrom(byte[] data)
+        {
+            using (var stream = new MemoryStream(data))
+            {
+                using (var reader = new BinaryReader(stream))
+                {
+                    stateAddress = reader.ReadUInt64();
+
+                    hookFunctionAddress = reader.ReadUInt64();
+                    hookBaseCountAddress = reader.ReadUInt64();
+                    hookCountAddress = reader.ReadUInt64();
+                    hookMaskAddress = reader.ReadUInt64();
+
+                    helperHookFunctionAddress = reader.ReadUInt64();
+                }
+            }
+
+            return true;
+        }
+    }
+
+    public class UnregisterStateMessage
+    {
+        public ulong stateAddress = 0;
+
+        public byte[] Encode()
+        {
+            using (var stream = new MemoryStream())
+            {
+                using (var writer = new BinaryWriter(stream))
+                {
+                    writer.Write(stateAddress);
+
+                    writer.Flush();
+
+                    return stream.ToArray();
+                }
+            }
+        }
+
+        public bool ReadFrom(byte[] data)
+        {
+            using (var stream = new MemoryStream(data))
+            {
+                using (var reader = new BinaryReader(stream))
+                {
+                    stateAddress = reader.ReadUInt64();
+                }
+            }
+
+            return true;
+        }
+    }
 }
