@@ -64,14 +64,14 @@ namespace LuaDkmDebuggerComponent
                 return Read(inspectionSession, thread, frame, type, new[] { member }, ref available, ref success, ref failure);
             }
 
-            public static ulong? ReadOptional(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame, string type, string member, ref int optional, out long size)
+            public static ulong? ReadOptional(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame, string type, string member, string message, ref int optional, out long size)
             {
                 long? result = EvaluationHelpers.TryEvaluateNumberExpression($"(int)&(({type}*)0)->{member}", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
                 if (!result.HasValue)
                 {
                     if (Log.instance != null)
-                        Log.instance.Debug($"Failed to get offsetof '{member}' in '{type}' (optional)");
+                        Log.instance.Debug($"Failed to get offsetof '{member}' in '{type}' (optional, {message})");
 
                     size = 0;
                     return null;
@@ -84,14 +84,14 @@ namespace LuaDkmDebuggerComponent
                 return (ulong)result.Value;
             }
 
-            public static ulong? ReadOptional(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame, string type, string member, ref int optional)
+            public static ulong? ReadOptional(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame, string type, string member, string message, ref int optional)
             {
                 long? result = EvaluationHelpers.TryEvaluateNumberExpression($"(int)&(({type}*)0)->{member}", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
                 if (!result.HasValue)
                 {
                     if (Log.instance != null)
-                        Log.instance.Debug($"Failed to get offsetof '{member}' in '{type}' (optional)");
+                        Log.instance.Debug($"Failed to get offsetof '{member}' in '{type}' (optional, {message})");
 
                     return null;
                 }
@@ -142,7 +142,7 @@ namespace LuaDkmDebuggerComponent
 
                 valueAddress = Helper.Read(inspectionSession, thread, frame, "TValue", new[] { "u.i.v__", "value_", "value" }, ref available, ref success, ref failure);
                 typeAddress = Helper.Read(inspectionSession, thread, frame, "TValue", new[] { "u.i.tt__", "tt_", "tt" }, ref available, ref success, ref failure);
-                doubleAddress = Helper.ReadOptional(inspectionSession, thread, frame, "TValue", "u.d__", ref optional);
+                doubleAddress = Helper.ReadOptional(inspectionSession, thread, frame, "TValue", "u.d__", "used in NAN trick", ref optional);
 
                 if (Log.instance != null)
                     Log.instance.Debug($"LuaValueData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
@@ -311,11 +311,11 @@ namespace LuaDkmDebuggerComponent
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "CallInfo", ref available);
 
                 funcAddress = Helper.Read(inspectionSession, thread, frame, "CallInfo", "func", ref available, ref success, ref failure);
-                previousAddress_5_23 = Helper.ReadOptional(inspectionSession, thread, frame, "CallInfo", "previous", ref optional);
+                previousAddress_5_23 = Helper.ReadOptional(inspectionSession, thread, frame, "CallInfo", "previous", "used in 5.2/5.3", ref optional);
                 stackBaseAddress = Helper.Read(inspectionSession, thread, frame, "CallInfo", new[] { "u.l.base", "base" }, ref available, ref success, ref failure);
                 savedInstructionPointerAddress = Helper.Read(inspectionSession, thread, frame, "CallInfo", new[] { "u.l.savedpc", "savedpc" }, ref available, ref success, ref failure);
-                tailCallCount_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "CallInfo", "tailcalls", ref optional);
-                callStatus_5_23 = Helper.ReadOptional(inspectionSession, thread, frame, "CallInfo", "callstatus", ref optional, out callStatus_size);
+                tailCallCount_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "CallInfo", "tailcalls", "used in 5.1", ref optional);
+                callStatus_5_23 = Helper.ReadOptional(inspectionSession, thread, frame, "CallInfo", "callstatus", "used in 5.2/5.3", ref optional, out callStatus_size);
 
                 if (Log.instance != null)
                     Log.instance.Debug($"LuaFunctionCallInfoData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
@@ -407,9 +407,9 @@ namespace LuaDkmDebuggerComponent
 
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "LClosure", ref available);
 
-                isC_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "LClosure", "isC", ref optional);
+                isC_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "LClosure", "isC", "used in 5.1", ref optional);
                 upvalueSize = Helper.Read(inspectionSession, thread, frame, "LClosure", "nupvalues", ref available, ref success, ref failure);
-                envTableDataAddress_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "LClosure", "env", ref optional);
+                envTableDataAddress_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "LClosure", "env", "used in 5.1", ref optional);
                 functionAddress = Helper.Read(inspectionSession, thread, frame, "LClosure", "p", ref available, ref success, ref failure);
                 firstUpvaluePointerAddress = Helper.Read(inspectionSession, thread, frame, "LClosure", "upvals", ref available, ref success, ref failure);
 
@@ -488,8 +488,8 @@ namespace LuaDkmDebuggerComponent
 
                 globalStateAddress = Helper.Read(inspectionSession, thread, frame, "lua_State", "l_G", ref available, ref success, ref failure);
                 callInfoAddress = Helper.Read(inspectionSession, thread, frame, "lua_State", "ci", ref available, ref success, ref failure);
-                savedProgramCounterAddress_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "lua_State", "savedpc", ref optional);
-                baseCallInfoAddress_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "lua_State", "base_ci", ref optional);
+                savedProgramCounterAddress_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "lua_State", "savedpc", "used in 5.1", ref optional);
+                baseCallInfoAddress_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "lua_State", "base_ci", "used in 5.1", ref optional);
 
                 if (savedProgramCounterAddress_5_1.HasValue && baseCallInfoAddress_5_1.HasValue)
                     Helper.looksLike_5_1 = true;
