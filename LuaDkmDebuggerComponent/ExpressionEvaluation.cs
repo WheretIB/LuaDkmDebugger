@@ -196,7 +196,7 @@ namespace LuaDkmDebuggerComponent
 
                     if (upvalue.name == name)
                     {
-                        LuaUpvalueData upvalueData = luaClosure.ReadUpvalue(process, i);
+                        LuaUpvalueData upvalueData = luaClosure.ReadUpvalue(process, i, functionData.upvalueSize);
 
                         if (upvalueData == null || upvalueData.value == null)
                             return Report($"Failed to read variable '{name}'");
@@ -225,7 +225,7 @@ namespace LuaDkmDebuggerComponent
                     // Check _ENV.name
                     if (envIndex != -1)
                     {
-                        LuaUpvalueData upvalueData = luaClosure.ReadUpvalue(process, envIndex);
+                        LuaUpvalueData upvalueData = luaClosure.ReadUpvalue(process, envIndex, functionData.upvalueSize);
 
                         if (upvalueData == null || upvalueData.value == null)
                             return Report($"Failed to read environment value");

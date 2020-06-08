@@ -1301,7 +1301,7 @@ namespace LuaDkmDebuggerComponent
 
         // ClosureHeader
         public byte isC_5_1;
-        public byte upvalueSize;
+        public byte upvalueSize_opt;
         public ulong gcListAddress;
 
         // LClosure
@@ -1318,7 +1318,8 @@ namespace LuaDkmDebuggerComponent
         {
             if (Schema.LuaClosureData.available)
             {
-                upvalueSize = DebugHelpers.ReadByteVariable(process, address + Schema.LuaClosureData.upvalueSize.GetValueOrDefault(0)).GetValueOrDefault(0);
+                if (Schema.LuaClosureData.upvalueSize_opt.HasValue)
+                    upvalueSize_opt = DebugHelpers.ReadByteVariable(process, address + Schema.LuaClosureData.upvalueSize_opt.GetValueOrDefault(0)).GetValueOrDefault(0);
 
                 functionAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaClosureData.functionAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
 
@@ -1339,7 +1340,7 @@ namespace LuaDkmDebuggerComponent
                 if (LuaHelpers.luaVersion == 501)
                     isC_5_1 = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
 
-                upvalueSize = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
+                upvalueSize_opt = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
                 gcListAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
 
                 if (LuaHelpers.luaVersion == 501)
@@ -1366,12 +1367,18 @@ namespace LuaDkmDebuggerComponent
             return function;
         }
 
-        public LuaUpvalueData ReadUpvalue(DkmProcess process, int index)
+        public LuaUpvalueData ReadUpvalue(DkmProcess process, int index, int expectedCount)
         {
-            Debug.Assert(index < upvalueSize);
+            int count = upvalueSize_opt;
+
+            if (count == 0)
+                count = expectedCount;
 
             if (upvalues == null)
-                upvalues = new LuaUpvalueData[upvalueSize];
+                upvalues = new LuaUpvalueData[count];
+
+            if (index >= upvalues.Length)
+                return null;
 
             if (upvalues[index] != null)
                 return upvalues[index];

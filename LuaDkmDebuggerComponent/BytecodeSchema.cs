@@ -394,7 +394,7 @@ namespace LuaDkmDebuggerComponent
             public static long structSize = 0;
 
             public static ulong? isC_5_1;
-            public static ulong? upvalueSize;
+            public static ulong? upvalueSize_opt;
             public static ulong? envTableDataAddress_5_1;
             public static ulong? functionAddress;
             public static ulong? firstUpvaluePointerAddress;
@@ -406,7 +406,7 @@ namespace LuaDkmDebuggerComponent
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "LClosure", ref available);
 
                 isC_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "LClosure", "isC", "used in 5.1", ref optional);
-                upvalueSize = Helper.Read(inspectionSession, thread, frame, "LClosure", "nupvalues", ref available, ref success, ref failure);
+                upvalueSize_opt = Helper.ReadOptional(inspectionSession, thread, frame, "LClosure", "nupvalues", "used if avaiable", ref optional);
                 envTableDataAddress_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "LClosure", "env", "used in 5.1", ref optional);
                 functionAddress = Helper.Read(inspectionSession, thread, frame, "LClosure", "p", ref available, ref success, ref failure);
                 firstUpvaluePointerAddress = Helper.Read(inspectionSession, thread, frame, "LClosure", "upvals", ref available, ref success, ref failure);

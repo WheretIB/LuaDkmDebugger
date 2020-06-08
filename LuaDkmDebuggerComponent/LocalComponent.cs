@@ -1396,7 +1396,7 @@ namespace LuaDkmDebuggerComponent
 
                     if (index < function.upvalues.Count)
                     {
-                        var upvalueData = closureData.ReadUpvalue(process, index);
+                        var upvalueData = closureData.ReadUpvalue(process, index, function.upvalueSize);
 
                         string name = function.upvalues[index].name;
 
