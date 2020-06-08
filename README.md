@@ -18,7 +18,6 @@ Supported Lua versions:
  * Lua expression evaluation in Watch, Immediate and similar elements
  * Numeric and user data values can be modified
  * Breakpoints
-    * Known issue: breakpoints must be set after the debugger is launched
     * Up to 256 breakpoints are supported
  * Step Over, Step Into and Step Out
  * Conditional breakpoints
