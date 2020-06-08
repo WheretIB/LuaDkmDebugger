@@ -351,11 +351,11 @@ namespace LuaDkmDebuggerComponent
                     if (currFunctionData == null)
                         return null;
 
-                    // Possible in bad break locations
-                    if (callInfoData.savedInstructionPointerAddress < currFunctionData.codeDataAddress)
-                        return null;
+                    long currInstructionPointer = 0;
 
-                    long currInstructionPointer = ((long)callInfoData.savedInstructionPointerAddress - (long)currFunctionData.codeDataAddress) / 4; // unsigned size instructions
+                    // Invalid value is possible in bad break locations
+                    if (callInfoData.savedInstructionPointerAddress >= currFunctionData.codeDataAddress)
+                        currInstructionPointer = ((long)callInfoData.savedInstructionPointerAddress - (long)currFunctionData.codeDataAddress) / 4; // unsigned size instructions
 
                     // If the call was already made, savedpc will be offset by 1 (return location)
                     int prevInstructionPointer = currInstructionPointer == 0 ? 0 : (int)currInstructionPointer - 1;
@@ -428,15 +428,17 @@ namespace LuaDkmDebuggerComponent
 
                 if (LuaHelpers.luaVersion == 501)
                 {
-                    ulong callInfoAddress;
-                    ulong savedProgramCounterAddress;
-                    ulong baseCallInfoAddress;
+                    ulong callInfoAddress = 0;
+                    ulong? savedProgramCounterAddress = null;
+                    ulong baseCallInfoAddress = 0;
 
-                    if (Schema.LuaStateData.available && Schema.LuaStateData.baseCallInfoAddress_5_1.HasValue && Schema.LuaStateData.savedProgramCounterAddress_5_1.HasValue)
+                    if (Schema.LuaStateData.available && Schema.LuaStateData.baseCallInfoAddress_5_1.HasValue)
                     {
                         callInfoAddress = DebugHelpers.ReadPointerVariable(process, stateAddress.Value + Schema.LuaStateData.callInfoAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
-                        savedProgramCounterAddress = DebugHelpers.ReadPointerVariable(process, stateAddress.Value + Schema.LuaStateData.savedProgramCounterAddress_5_1.GetValueOrDefault(0)).GetValueOrDefault(0);
                         baseCallInfoAddress = DebugHelpers.ReadPointerVariable(process, stateAddress.Value + Schema.LuaStateData.baseCallInfoAddress_5_1.GetValueOrDefault(0)).GetValueOrDefault(0);
+
+                        if (Schema.LuaStateData.savedProgramCounterAddress_5_1_opt.HasValue)
+                            savedProgramCounterAddress = DebugHelpers.ReadPointerVariable(process, stateAddress.Value + Schema.LuaStateData.savedProgramCounterAddress_5_1_opt.GetValueOrDefault(0)).GetValueOrDefault(0);
                     }
                     else
                     {
@@ -470,8 +472,8 @@ namespace LuaDkmDebuggerComponent
                         currCallInfoData.ReadFunction(process);
 
                         // Last function call info program counter is saved in lua_State
-                        if (currCallInfoAddress == callInfoAddress)
-                            currCallInfoData.savedInstructionPointerAddress = savedProgramCounterAddress;
+                        if (currCallInfoAddress == callInfoAddress && savedProgramCounterAddress.HasValue)
+                            currCallInfoData.savedInstructionPointerAddress = savedProgramCounterAddress.Value;
 
                         if (currCallInfoData.func == null)
                             break;

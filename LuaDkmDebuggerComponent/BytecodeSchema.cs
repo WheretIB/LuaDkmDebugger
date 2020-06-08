@@ -475,9 +475,9 @@ namespace LuaDkmDebuggerComponent
 
             public static long structSize = 0;
 
-            public static ulong? globalStateAddress;
+            public static ulong? globalStateAddress_opt;
             public static ulong? callInfoAddress;
-            public static ulong? savedProgramCounterAddress_5_1;
+            public static ulong? savedProgramCounterAddress_5_1_opt;
             public static ulong? baseCallInfoAddress_5_1;
 
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
@@ -486,12 +486,12 @@ namespace LuaDkmDebuggerComponent
 
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "lua_State", ref available);
 
-                globalStateAddress = Helper.Read(inspectionSession, thread, frame, "lua_State", "l_G", ref available, ref success, ref failure);
+                globalStateAddress_opt = Helper.ReadOptional(inspectionSession, thread, frame, "lua_State", "l_G", "used in Locals Window", ref optional);
                 callInfoAddress = Helper.Read(inspectionSession, thread, frame, "lua_State", "ci", ref available, ref success, ref failure);
-                savedProgramCounterAddress_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "lua_State", "savedpc", "used in 5.1", ref optional);
+                savedProgramCounterAddress_5_1_opt = Helper.ReadOptional(inspectionSession, thread, frame, "lua_State", "savedpc", "used in 5.1 (*)", ref optional);
                 baseCallInfoAddress_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "lua_State", "base_ci", "used in 5.1", ref optional);
 
-                if (savedProgramCounterAddress_5_1.HasValue && baseCallInfoAddress_5_1.HasValue)
+                if (savedProgramCounterAddress_5_1_opt.HasValue && baseCallInfoAddress_5_1.HasValue)
                     Helper.looksLike_5_1 = true;
 
                 if (Log.instance != null)
