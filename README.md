@@ -57,15 +57,18 @@ If you experience issues with the extension, you can enable debug logs in 'Exten
 
 ### Breakpoints and Stepping information
 
-As in other Lua debuggers, breakpoints are implemented using Lua library hooks. The hook is set as soon as Lua state is created.
-
-If you use your own Lua hooks in your application, you can call the previous hook function from your hook.
+As in other Lua debuggers, breakpoints are implemented using Lua library hooks. The hooks are set when breakpoints are active or if stepping through Lua code was performed.
 
 This debugger or other debuggers might override each other hooks, so if breakpoints are not hit, this might be the reason.
 
 If you experience issues with the debugger on launch, you can disable attachment to your process in 'Extensions -> Lua Debugger' menu. Debug logs can be enabled there as well if you wish to report the issue. (note that names of your Lua scripts might be included in the log). If debugger attachment is disabled, all features except for breakpoints and stepping will still work.
 
+## Compatibility Mode
+
+If you use Lua 5.2 without LUA_NANTRICK or if you have your own modifications in Lua library and you are experiencing issues with this extension, you can enable 'Compatibility Mode' from the extension menu options.
+
+With this options, the debugger will load Lua data using symbolic field offsets instead of constant byte offsets expected for a specific version of Lua library.
+
 ## Known Issues:
  * This extension will always add Lua module to the application (can be seen in 'Modules' section of the debugger) even when debugging applications with no Lua code
- * Lua 5.2 is assumed to be compiled with LUA_NANTRICK in x86 (default configuration)
  * Step Into from Lua into C++ doesn't work at the moment
