@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.7] - 2020-06-10
+
+### Added
+
+- Compatibility Mode for customized Lua interpreters
+- Added 'Initialize...' action to the extension menu that can be used if extension hasn't loaded yet
+
+### Changed
+
+- Breakpoints can now be set before application has launched
+- Lua hooks are only set when breakpoints are active or stepping through code was performed
+
 ## [0.8.2] - 2020-06-06
 
 ### Added
