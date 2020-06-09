@@ -2623,7 +2623,7 @@ namespace LuaDkmDebuggerComponent
                 }
                 else if (data.breakpointId == processData.breakpointLuaRuntimeError || data.breakpointId == processData.breakpointLuaBreakError)
                 {
-                    log.Debug("Detected Lua runtimer error");
+                    log.Debug("Detected Lua runtime error");
 
                     if (!breakOnError)
                     {
