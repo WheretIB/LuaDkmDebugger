@@ -998,8 +998,8 @@ namespace LuaDkmDebuggerComponent
                 }
                 else if (instructionPointer >= absLineInfo[(absLineInfoSize_5_4.Value - 1) * 2 + 0])
                 {
-                    baseInstructionPointer = absLineInfo[(absLineInfoSize_5_4.Value - 1) * 2 + 1];
-                    baseLine = absLineInfo[(absLineInfoSize_5_4.Value - 1) * 2 + 0];
+                    baseInstructionPointer = absLineInfo[(absLineInfoSize_5_4.Value - 1) * 2 + 0];
+                    baseLine = absLineInfo[(absLineInfoSize_5_4.Value - 1) * 2 + 1];
                 }
                 else
                 {
@@ -1007,8 +1007,8 @@ namespace LuaDkmDebuggerComponent
                     {
                         if (absLineInfo[i * 2 + 0] >= instructionPointer)
                         {
-                            baseInstructionPointer = absLineInfo[i * 2 + 1];
-                            baseLine = absLineInfo[i * 2 + 0];
+                            baseInstructionPointer = absLineInfo[i * 2 + 0];
+                            baseLine = absLineInfo[i * 2 + 1];
                         }
                     }
                 }
