@@ -1224,10 +1224,10 @@ namespace LuaDkmDebuggerComponent
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
-            valueDataAddress = address;
-
             if (Schema.LuaNodeData.available)
             {
+                valueDataAddress = address + Schema.LuaNodeData.valueDataAddress.GetValueOrDefault(0);
+
                 value = LuaHelpers.ReadValue(process, address + Schema.LuaNodeData.valueDataAddress.GetValueOrDefault(0));
 
                 if (Schema.LuaNodeData.keyDataAddress_5_123.HasValue)
@@ -1244,6 +1244,8 @@ namespace LuaDkmDebuggerComponent
             }
             else
             {
+                valueDataAddress = address;
+
                 // Same in Lua 5.1, 5.2 and 5.3
                 value = LuaHelpers.ReadValue(process, address);
                 key = LuaHelpers.ReadValue(process, address + LuaHelpers.GetValueSize(process));
@@ -1252,10 +1254,29 @@ namespace LuaDkmDebuggerComponent
 
         public void ReadFromKeyOnly(DkmProcess process, ulong address)
         {
-            valueDataAddress = address;
+            if (Schema.LuaNodeData.available)
+            {
+                valueDataAddress = address + Schema.LuaNodeData.valueDataAddress.GetValueOrDefault(0);
 
-            // Same in Lua 5.1, 5.2 and 5.3
-            key = LuaHelpers.ReadValue(process, address + LuaHelpers.GetValueSize(process));
+                if (Schema.LuaNodeData.keyDataAddress_5_123.HasValue)
+                {
+                    key = LuaHelpers.ReadValue(process, address + Schema.LuaNodeData.keyDataAddress_5_123.GetValueOrDefault(0));
+                }
+                else
+                {
+                    var typeTag = DebugHelpers.ReadIntVariable(process, address + Schema.LuaNodeData.keyDataTypeAddress_5_4.GetValueOrDefault(0));
+                    var valueAddress = address + Schema.LuaNodeData.keyDataValueAddress_5_4.GetValueOrDefault(0);
+
+                    key = LuaHelpers.ReadValueOfType(process, typeTag.GetValueOrDefault(0), valueAddress);
+                }
+            }
+            else
+            {
+                valueDataAddress = address;
+
+                // Same in Lua 5.1, 5.2 and 5.3
+                key = LuaHelpers.ReadValue(process, address + LuaHelpers.GetValueSize(process));
+            }
         }
 
         public LuaValueDataBase LoadValue(DkmProcess process)
