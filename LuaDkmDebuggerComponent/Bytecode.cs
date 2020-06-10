@@ -528,12 +528,19 @@ namespace LuaDkmDebuggerComponent
 
             if (nameAddress != 0)
             {
-                byte[] nameData = process.ReadMemoryString(nameAddress + LuaHelpers.GetStringDataOffset(process), DkmReadMemoryFlags.None, 1, 256);
+                try
+                {
+                    byte[] nameData = process.ReadMemoryString(nameAddress + LuaHelpers.GetStringDataOffset(process), DkmReadMemoryFlags.None, 1, 256);
 
-                if (nameData != null && nameData.Length != 0)
-                    name = System.Text.Encoding.UTF8.GetString(nameData, 0, nameData.Length - 1);
-                else
+                    if (nameData != null && nameData.Length != 0)
+                        name = System.Text.Encoding.UTF8.GetString(nameData, 0, nameData.Length - 1);
+                    else
+                        name = "failed_to_read_name";
+                }
+                catch (DkmException)
+                {
                     name = "failed_to_read_name";
+                }
             }
             else
             {
@@ -580,12 +587,19 @@ namespace LuaDkmDebuggerComponent
 
             if (nameAddress != 0)
             {
-                byte[] nameData = process.ReadMemoryString(nameAddress + LuaHelpers.GetStringDataOffset(process), DkmReadMemoryFlags.None, 1, 256);
+                try
+                {
+                    byte[] nameData = process.ReadMemoryString(nameAddress + LuaHelpers.GetStringDataOffset(process), DkmReadMemoryFlags.None, 1, 256);
 
-                if (nameData != null && nameData.Length != 0)
-                    name = System.Text.Encoding.UTF8.GetString(nameData, 0, nameData.Length - 1);
-                else
+                    if (nameData != null && nameData.Length != 0)
+                        name = System.Text.Encoding.UTF8.GetString(nameData, 0, nameData.Length - 1);
+                    else
+                        name = "failed_to_read_name";
+                }
+                catch (DkmException)
+                {
                     name = "failed_to_read_name";
+                }
             }
             else
             {
