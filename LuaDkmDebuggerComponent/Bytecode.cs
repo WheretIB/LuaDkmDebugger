@@ -1082,7 +1082,7 @@ namespace LuaDkmDebuggerComponent
                 }
                 else
                 {
-                    stackBaseAddress = funcAddress + (ulong)DebugHelpers.GetPointerSize(process);
+                    stackBaseAddress = funcAddress + LuaHelpers.GetValueSize(process);
                 }
 
                 savedInstructionPointerAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionCallInfoData.savedInstructionPointerAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
