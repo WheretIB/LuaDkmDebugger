@@ -245,6 +245,7 @@ namespace LuaDkmDebuggerComponent
             public static ulong? constantSize;
             public static ulong? codeSize;
             public static ulong? lineInfoSize;
+            public static ulong? absLineInfoSize_5_4;
             public static ulong? localFunctionSize;
             public static ulong? localVariableSize;
             public static ulong? definitionStartLine_opt;
@@ -253,6 +254,7 @@ namespace LuaDkmDebuggerComponent
             public static ulong? codeDataAddress;
             public static ulong? localFunctionDataAddress;
             public static ulong? lineInfoDataAddress;
+            public static ulong? absLineInfoDataAddress_5_4;
             public static ulong? localVariableDataAddress;
             public static ulong? upvalueDataAddress;
             public static ulong? sourceAddress;
@@ -271,6 +273,7 @@ namespace LuaDkmDebuggerComponent
                 constantSize = Helper.Read(inspectionSession, thread, frame, "Proto", "sizek", ref available, ref success, ref failure);
                 codeSize = Helper.Read(inspectionSession, thread, frame, "Proto", "sizecode", ref available, ref success, ref failure);
                 lineInfoSize = Helper.Read(inspectionSession, thread, frame, "Proto", "sizelineinfo", ref available, ref success, ref failure);
+                absLineInfoSize_5_4 = Helper.ReadOptional(inspectionSession, thread, frame, "Proto", "sizeabslineinfo", "used in 5.4", ref optional);
                 localFunctionSize = Helper.Read(inspectionSession, thread, frame, "Proto", "sizep", ref available, ref success, ref failure);
                 localVariableSize = Helper.Read(inspectionSession, thread, frame, "Proto", "sizelocvars", ref available, ref success, ref failure);
                 definitionStartLine_opt = Helper.ReadOptional(inspectionSession, thread, frame, "Proto", "linedefined", "used to detect main function", ref optional);
@@ -279,6 +282,7 @@ namespace LuaDkmDebuggerComponent
                 codeDataAddress = Helper.Read(inspectionSession, thread, frame, "Proto", "code", ref available, ref success, ref failure);
                 localFunctionDataAddress = Helper.Read(inspectionSession, thread, frame, "Proto", "p", ref available, ref success, ref failure);
                 lineInfoDataAddress = Helper.Read(inspectionSession, thread, frame, "Proto", "lineinfo", ref available, ref success, ref failure);
+                absLineInfoDataAddress_5_4 = Helper.ReadOptional(inspectionSession, thread, frame, "Proto", "abslineinfo", "used in 5.4", ref optional);
                 localVariableDataAddress = Helper.Read(inspectionSession, thread, frame, "Proto", "locvars", ref available, ref success, ref failure);
                 upvalueDataAddress = Helper.Read(inspectionSession, thread, frame, "Proto", "upvalues", ref available, ref success, ref failure);
                 sourceAddress = Helper.Read(inspectionSession, thread, frame, "Proto", "source", ref available, ref success, ref failure);

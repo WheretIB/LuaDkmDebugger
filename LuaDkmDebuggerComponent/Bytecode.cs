@@ -659,6 +659,7 @@ namespace LuaDkmDebuggerComponent
         public int constantSize;
         public int codeSize;
         public int lineInfoSize;
+        public int? absLineInfoSize_5_4;
         public int localFunctionSize;
         public int localVariableSize;
         public int definitionStartLine_opt;
@@ -667,6 +668,7 @@ namespace LuaDkmDebuggerComponent
         public ulong codeDataAddress; // Opcode list (unsigned[])
         public ulong localFunctionDataAddress; // (Proto*[])
         public ulong lineInfoDataAddress; // For each opcode (int[])
+        public ulong absLineInfoDataAddress_5_4; // AbsLineInfo[]
         public ulong localVariableDataAddress; // LocVar[]
         public ulong upvalueDataAddress; // Upvaldesc[]
         public ulong sourceAddress; // TString
@@ -677,6 +679,7 @@ namespace LuaDkmDebuggerComponent
 
         public List<LuaFunctionData> localFunctions;
         public int[] lineInfo;
+        public int[] absLineInfo;
 
         public string source;
 
@@ -696,6 +699,10 @@ namespace LuaDkmDebuggerComponent
                 codeDataAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionData.codeDataAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
                 localFunctionDataAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionData.localFunctionDataAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
                 lineInfoDataAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionData.lineInfoDataAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+
+                if (Schema.LuaFunctionData.absLineInfoDataAddress_5_4.HasValue)
+                    absLineInfoDataAddress_5_4 = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionData.absLineInfoDataAddress_5_4.GetValueOrDefault(0)).GetValueOrDefault(0);
+
                 localVariableDataAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionData.localVariableDataAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
                 upvalueDataAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionData.upvalueDataAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
                 sourceAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionData.sourceAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
@@ -704,6 +711,10 @@ namespace LuaDkmDebuggerComponent
                 constantSize = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.constantSize.GetValueOrDefault(0)).GetValueOrDefault(0);
                 codeSize = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.codeSize.GetValueOrDefault(0)).GetValueOrDefault(0);
                 lineInfoSize = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.lineInfoSize.GetValueOrDefault(0)).GetValueOrDefault(0);
+
+                if (Schema.LuaFunctionData.absLineInfoSize_5_4.HasValue)
+                    absLineInfoSize_5_4 = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.absLineInfoSize_5_4.GetValueOrDefault(0));
+
                 localFunctionSize = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.localFunctionSize.GetValueOrDefault(0)).GetValueOrDefault(0);
                 localVariableSize = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.localVariableSize.GetValueOrDefault(0)).GetValueOrDefault(0);
 
@@ -924,15 +935,44 @@ namespace LuaDkmDebuggerComponent
             }
         }
 
-        public void ReadLineInfo(DkmProcess process)
+        public int[] ReadLineInfo(DkmProcess process)
         {
             if (lineInfo != null)
-                return;
+                return lineInfo;
 
             lineInfo = new int[lineInfoSize];
 
-            for (int i = 0; i < lineInfoSize; i++)
-                lineInfo[i] = DebugHelpers.ReadIntVariable(process, lineInfoDataAddress + (ulong)i * 4u).GetValueOrDefault(0);
+            if (absLineInfoSize_5_4.HasValue)
+            {
+                // TODO: block read
+                for (int i = 0; i < lineInfoSize; i++)
+                    lineInfo[i] = DebugHelpers.ReadByteVariable(process, lineInfoDataAddress + (ulong)i).GetValueOrDefault(0);
+            }
+            else
+            {
+                // TODO: block read
+                for (int i = 0; i < lineInfoSize; i++)
+                    lineInfo[i] = DebugHelpers.ReadIntVariable(process, lineInfoDataAddress + (ulong)i * 4u).GetValueOrDefault(0);
+            }
+
+            return lineInfo;
+        }
+
+        public int[] ReadAbsoluteLineInfo(DkmProcess process)
+        {
+            if (absLineInfo != null)
+                return absLineInfo;
+
+            if (!absLineInfoSize_5_4.HasValue)
+                return null;
+
+            absLineInfo = new int[absLineInfoSize_5_4.Value * 2];
+
+            // TODO: block read
+            for (int i = 0; i < absLineInfoSize_5_4.Value * 2; i++)
+                absLineInfo[i] = DebugHelpers.ReadIntVariable(process, absLineInfoDataAddress_5_4 + (ulong)i * 4u).GetValueOrDefault(0);
+
+            return absLineInfo;
         }
 
         public int ReadLineInfoFor(DkmProcess process, int instructionPointer)
@@ -941,6 +981,43 @@ namespace LuaDkmDebuggerComponent
 
             if (instructionPointer >= lineInfoSize)
                 return 0;
+
+            if (absLineInfoSize_5_4.HasValue)
+            {
+                // We need all data for this
+                ReadLineInfo(process);
+                ReadAbsoluteLineInfo(process);
+
+                int baseInstructionPointer = 0;
+                int baseLine = 0;
+
+                if (absLineInfoSize_5_4.Value == 0 || instructionPointer < absLineInfo[0])
+                {
+                    baseInstructionPointer = -1;
+                    baseLine = definitionStartLine_opt;
+                }
+                else if (instructionPointer >= absLineInfo[(absLineInfoSize_5_4.Value - 1) * 2 + 0])
+                {
+                    baseInstructionPointer = absLineInfo[(absLineInfoSize_5_4.Value - 1) * 2 + 1];
+                    baseLine = absLineInfo[(absLineInfoSize_5_4.Value - 1) * 2 + 0];
+                }
+                else
+                {
+                    for (int i = 0; i < absLineInfoSize_5_4.Value; i++)
+                    {
+                        if (absLineInfo[i * 2 + 0] >= instructionPointer)
+                        {
+                            baseInstructionPointer = absLineInfo[i * 2 + 1];
+                            baseLine = absLineInfo[i * 2 + 0];
+                        }
+                    }
+                }
+
+                while (baseInstructionPointer++ < instructionPointer)
+                    baseLine += (sbyte)lineInfo[baseInstructionPointer];
+
+                return baseLine;
+            }
 
             return DebugHelpers.ReadIntVariable(process, lineInfoDataAddress + (ulong)instructionPointer * 4).GetValueOrDefault(0);
         }
@@ -1083,6 +1160,9 @@ namespace LuaDkmDebuggerComponent
 
         public bool CheckCallStatusLua()
         {
+            if (LuaHelpers.luaVersion == 504)
+                return (callStatus & (int)CallStatus_5_4.C) == 0;
+
             if (LuaHelpers.luaVersion == 502)
                 return (callStatus & (int)CallStatus_5_2.Lua) != 0;
 
@@ -1091,14 +1171,20 @@ namespace LuaDkmDebuggerComponent
 
         public bool CheckCallStatusFinalizer()
         {
-            if (LuaHelpers.luaVersion == 502)
-                return false;
+            if (LuaHelpers.luaVersion == 504)
+                return (callStatus & (int)CallStatus_5_4.Finalizer) != 0;
 
-            return (callStatus & (int)CallStatus_5_3.Finalizer) != 0;
+            if (LuaHelpers.luaVersion == 503)
+                return (callStatus & (int)CallStatus_5_3.Finalizer) != 0;
+
+            return false;
         }
 
         public bool CheckCallStatusTailCall()
         {
+            if (LuaHelpers.luaVersion == 504)
+                return (callStatus & (int)CallStatus_5_4.TailCall) != 0;
+
             if (LuaHelpers.luaVersion == 502)
                 return (callStatus & (int)CallStatus_5_2.Tail) != 0;
 

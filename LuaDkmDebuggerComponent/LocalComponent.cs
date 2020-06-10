@@ -1905,6 +1905,15 @@ namespace LuaDkmDebuggerComponent
 
         bool FindFunctionInstructionForLine(DkmProcess process, LuaFunctionData function, int startLine, int endLine, out LuaFunctionData targetFunction, out int targetInstructionPointer, out int targetLine)
         {
+            // TODO: Reverse search in line map
+            if (function.absLineInfoSize_5_4.HasValue)
+            {
+                targetFunction = null;
+                targetInstructionPointer = 0;
+                targetLine = 0;
+                return false;
+            }
+
             function.ReadLocalFunctions(process);
             function.ReadLineInfo(process);
 
