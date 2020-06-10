@@ -496,7 +496,7 @@ namespace LuaDkmDebuggerComponent
                     ulong? savedProgramCounterAddress = null;
                     ulong baseCallInfoAddress = 0;
 
-                    if (Schema.LuaStateData.available && Schema.LuaStateData.baseCallInfoAddress_5_1.HasValue)
+                    if (Schema.LuaStateData.available && stateAddress.HasValue && Schema.LuaStateData.baseCallInfoAddress_5_1.HasValue)
                     {
                         callInfoAddress = DebugHelpers.ReadPointerVariable(process, stateAddress.Value + Schema.LuaStateData.callInfoAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
                         baseCallInfoAddress = DebugHelpers.ReadPointerVariable(process, stateAddress.Value + Schema.LuaStateData.baseCallInfoAddress_5_1.GetValueOrDefault(0)).GetValueOrDefault(0);
@@ -504,7 +504,7 @@ namespace LuaDkmDebuggerComponent
                         if (Schema.LuaStateData.savedProgramCounterAddress_5_1_opt.HasValue)
                             savedProgramCounterAddress = DebugHelpers.ReadPointerVariable(process, stateAddress.Value + Schema.LuaStateData.savedProgramCounterAddress_5_1_opt.GetValueOrDefault(0)).GetValueOrDefault(0);
                     }
-                    else
+                    else if (stateAddress.HasValue)
                     {
                         // Read lua_State
                         ulong temp = stateAddress.Value;
@@ -633,7 +633,7 @@ namespace LuaDkmDebuggerComponent
                 {
                     ulong? currCallInfoAddress;
 
-                    if (Schema.LuaStateData.available)
+                    if (Schema.LuaStateData.available && stateAddress.HasValue)
                         currCallInfoAddress = DebugHelpers.ReadPointerVariable(process, stateAddress.Value + Schema.LuaStateData.callInfoAddress.GetValueOrDefault(0));
                     else
                         currCallInfoAddress = EvaluationHelpers.TryEvaluateAddressExpression($"L->ci", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
