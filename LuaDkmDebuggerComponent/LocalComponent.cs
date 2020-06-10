@@ -900,14 +900,21 @@ namespace LuaDkmDebuggerComponent
 
         string TryFindSourcePath(string processPath, LuaLocalProcessData processData, string source, string content)
         {
-            string filePath;
+            string filePath = null;
 
             if (source.StartsWith("@"))
                 source = source.Substring(1);
 
             string winSourcePath = source.Replace('/', '\\');
 
-            filePath = CheckConfigPaths(processPath, processData, winSourcePath);
+            try
+            {
+                filePath = CheckConfigPaths(processPath, processData, winSourcePath);
+            }
+            catch (Exception)
+            {
+                log.Error($"Failed to check config paths for {winSourcePath}");
+            }
 
             if (filePath == null)
             {
