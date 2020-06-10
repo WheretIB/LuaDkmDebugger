@@ -23,7 +23,10 @@ namespace LuaDkmDebuggerComponent
     public enum LuaExtendedType
     {
         Nil = LuaBaseType.Nil,
+
         Boolean = LuaBaseType.Boolean,
+        BooleanTrue = LuaBaseType.Boolean + 16, // Lua 5.4
+
         LightUserData = LuaBaseType.LightUserData,
 
         ShortString = LuaBaseType.String,
@@ -182,6 +185,18 @@ namespace LuaDkmDebuggerComponent
 
             if (extenedType == LuaExtendedType.Boolean)
             {
+                if (LuaHelpers.luaVersion == 504)
+                {
+                    return new LuaValueDataBool()
+                    {
+                        baseType = GetBaseType(typeTag),
+                        extendedType = GetExtendedType(typeTag),
+                        evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean | DkmEvaluationResultFlags.ReadOnly,
+                        originalAddress = address,
+                        value = false
+                    };
+                }
+
                 var value = DebugHelpers.ReadIntVariable(process, address);
 
                 if (value.HasValue)
@@ -193,6 +208,29 @@ namespace LuaDkmDebuggerComponent
                         evaluationFlags = value.Value != 0 ? DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean | DkmEvaluationResultFlags.BooleanTrue : DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean,
                         originalAddress = address,
                         value = value.Value != 0
+                    };
+                }
+
+                return new LuaValueDataError()
+                {
+                    baseType = GetBaseType(typeTag),
+                    extendedType = GetExtendedType(typeTag),
+                    evaluationFlags = DkmEvaluationResultFlags.None,
+                    originalAddress = address
+                };
+            }
+
+            if (extenedType == LuaExtendedType.BooleanTrue)
+            {
+                if (LuaHelpers.luaVersion == 504)
+                {
+                    return new LuaValueDataBool()
+                    {
+                        baseType = GetBaseType(typeTag),
+                        extendedType = GetExtendedType(typeTag),
+                        evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean | DkmEvaluationResultFlags.BooleanTrue | DkmEvaluationResultFlags.ReadOnly,
+                        originalAddress = address,
+                        value = true
                     };
                 }
 

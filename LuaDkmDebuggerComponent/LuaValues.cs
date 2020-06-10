@@ -96,7 +96,12 @@ namespace LuaDkmDebuggerComponent
         public LuaValueDataBool(bool value)
         {
             baseType = LuaBaseType.Boolean;
-            extendedType = LuaExtendedType.Boolean;
+
+            if (LuaHelpers.luaVersion == 504)
+                extendedType = value ? LuaExtendedType.BooleanTrue : LuaExtendedType.Boolean;
+            else
+                extendedType = LuaExtendedType.Boolean;
+
             evaluationFlags = (value ? DkmEvaluationResultFlags.BooleanTrue : DkmEvaluationResultFlags.None) | DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean | DkmEvaluationResultFlags.ReadOnly;
             originalAddress = 0;
             this.value = value;
