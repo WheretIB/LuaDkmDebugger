@@ -131,9 +131,9 @@ namespace LuaDkmDebuggerComponent
 
                 data.ReadFrom(customMessage.Parameter1 as byte[]);
 
-                Debug.Assert(processData.knownStates.ContainsKey(data.stateAddress) == true);
-
-                processData.knownStates.Remove(data.stateAddress);
+                // Registration is called only for states that can be hooked, unregistration is always called
+                if (processData.knownStates.ContainsKey(data.stateAddress))
+                    processData.knownStates.Remove(data.stateAddress);
             }
 
             return null;
