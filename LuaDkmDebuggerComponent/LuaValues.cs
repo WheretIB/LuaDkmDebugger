@@ -174,7 +174,7 @@ namespace LuaDkmDebuggerComponent
         public LuaValueDataNumber(int value)
         {
             baseType = LuaBaseType.Number;
-            extendedType = LuaExtendedType.IntegerNumber;
+            extendedType = LuaHelpers.GetIntegerNumberExtendedType();
             evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
             originalAddress = 0;
             this.value = value;
@@ -183,7 +183,7 @@ namespace LuaDkmDebuggerComponent
         public LuaValueDataNumber(double value)
         {
             baseType = LuaBaseType.Number;
-            extendedType = LuaExtendedType.FloatNumber;
+            extendedType = LuaHelpers.GetFloatNumberExtendedType();
             evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
             originalAddress = 0;
             this.value = value;
@@ -201,12 +201,12 @@ namespace LuaDkmDebuggerComponent
 
         public override string GetLuaType()
         {
-            return extendedType == LuaExtendedType.IntegerNumber ? "int" : "double";
+            return extendedType == LuaHelpers.GetIntegerNumberExtendedType() ? "int" : "double";
         }
 
         public override string AsSimpleDisplayString(uint radix)
         {
-            if (extendedType == LuaExtendedType.IntegerNumber)
+            if (extendedType == LuaHelpers.GetIntegerNumberExtendedType())
             {
                 if (radix == 16)
                     return $"0x{(int)value:x8}";

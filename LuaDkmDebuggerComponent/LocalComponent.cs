@@ -1716,7 +1716,7 @@ namespace LuaDkmDebuggerComponent
 
             if (evalData.luaValueData as LuaValueDataNumber != null)
             {
-                if ((evalData.luaValueData as LuaValueDataNumber).extendedType == LuaExtendedType.IntegerNumber)
+                if ((evalData.luaValueData as LuaValueDataNumber).extendedType == LuaHelpers.GetIntegerNumberExtendedType())
                 {
                     if (int.TryParse(value, out int intValue))
                     {

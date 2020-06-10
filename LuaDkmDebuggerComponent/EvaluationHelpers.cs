@@ -166,7 +166,7 @@ namespace LuaDkmDebuggerComponent
             {
                 var value = valueBase as LuaValueDataNumber;
 
-                if (value.extendedType == LuaExtendedType.IntegerNumber)
+                if (value.extendedType == LuaHelpers.GetIntegerNumberExtendedType())
                 {
                     type = "int";
 

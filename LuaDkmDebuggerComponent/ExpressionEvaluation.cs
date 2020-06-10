@@ -371,7 +371,7 @@ namespace LuaDkmDebuggerComponent
                 // Check array index
                 var indexAsNumber = index as LuaValueDataNumber;
 
-                if (indexAsNumber != null && indexAsNumber.extendedType == LuaExtendedType.IntegerNumber)
+                if (indexAsNumber != null && indexAsNumber.extendedType == LuaHelpers.GetIntegerNumberExtendedType())
                 {
                     int result = (int)indexAsNumber.value;
 
@@ -532,7 +532,7 @@ namespace LuaDkmDebuggerComponent
                 if (lhsAsNumber == null)
                     return Report("value of the unary '-' operator must be a number");
 
-                if (lhsAsNumber.extendedType == LuaExtendedType.IntegerNumber)
+                if (lhsAsNumber.extendedType == LuaHelpers.GetIntegerNumberExtendedType())
                     return new LuaValueDataNumber(-(int)lhsAsNumber.value);
 
                 return new LuaValueDataNumber(-lhsAsNumber.value);
@@ -570,7 +570,7 @@ namespace LuaDkmDebuggerComponent
 
                 if (token == "*")
                 {
-                    if (lhsAsNumber.extendedType == LuaExtendedType.IntegerNumber && rhsAsNumber.extendedType == LuaExtendedType.IntegerNumber)
+                    if (lhsAsNumber.extendedType == LuaHelpers.GetIntegerNumberExtendedType() && rhsAsNumber.extendedType == LuaHelpers.GetIntegerNumberExtendedType())
                         return new LuaValueDataNumber((int)lhsAsNumber.value * (int)rhsAsNumber.value);
 
                     return new LuaValueDataNumber(lhsAsNumber.value * rhsAsNumber.value);
@@ -615,7 +615,7 @@ namespace LuaDkmDebuggerComponent
 
                 if (token == "+")
                 {
-                    if (lhsAsNumber.extendedType == LuaExtendedType.IntegerNumber && rhsAsNumber.extendedType == LuaExtendedType.IntegerNumber)
+                    if (lhsAsNumber.extendedType == LuaHelpers.GetIntegerNumberExtendedType() && rhsAsNumber.extendedType == LuaHelpers.GetIntegerNumberExtendedType())
                         return new LuaValueDataNumber((int)lhsAsNumber.value + (int)rhsAsNumber.value);
 
                     return new LuaValueDataNumber(lhsAsNumber.value + rhsAsNumber.value);
@@ -623,7 +623,7 @@ namespace LuaDkmDebuggerComponent
 
                 if (token == "-")
                 {
-                    if (lhsAsNumber.extendedType == LuaExtendedType.IntegerNumber && rhsAsNumber.extendedType == LuaExtendedType.IntegerNumber)
+                    if (lhsAsNumber.extendedType == LuaHelpers.GetIntegerNumberExtendedType() && rhsAsNumber.extendedType == LuaHelpers.GetIntegerNumberExtendedType())
                         return new LuaValueDataNumber((int)lhsAsNumber.value - (int)rhsAsNumber.value);
 
                     return new LuaValueDataNumber(lhsAsNumber.value - rhsAsNumber.value);
@@ -660,8 +660,8 @@ namespace LuaDkmDebuggerComponent
                 if (rhsAsNumber == null && rhsAsString == null)
                     return Report("rhs of a concatenation operator must be a number or a string");
 
-                string lhsString = lhsAsNumber != null ? (lhsAsNumber.extendedType == LuaExtendedType.IntegerNumber ? $"{(int)lhsAsNumber.value}" : $"{lhsAsNumber.value}") : lhsAsString.value;
-                string rhsString = rhsAsNumber != null ? (rhsAsNumber.extendedType == LuaExtendedType.IntegerNumber ? $"{(int)rhsAsNumber.value}" : $"{rhsAsNumber.value}") : rhsAsString.value;
+                string lhsString = lhsAsNumber != null ? (lhsAsNumber.extendedType == LuaHelpers.GetIntegerNumberExtendedType() ? $"{(int)lhsAsNumber.value}" : $"{lhsAsNumber.value}") : lhsAsString.value;
+                string rhsString = rhsAsNumber != null ? (rhsAsNumber.extendedType == LuaHelpers.GetIntegerNumberExtendedType() ? $"{(int)rhsAsNumber.value}" : $"{rhsAsNumber.value}") : rhsAsString.value;
 
                 return new LuaValueDataString(lhsString + rhsString);
             }

@@ -26,9 +26,6 @@ namespace LuaDkmDebuggerComponent
         Boolean = LuaBaseType.Boolean,
         LightUserData = LuaBaseType.LightUserData,
 
-        FloatNumber = LuaBaseType.Number,
-        IntegerNumber = LuaBaseType.Number + 16,
-
         ShortString = LuaBaseType.String,
         LongString = LuaBaseType.String + 16,
 
@@ -97,6 +94,22 @@ namespace LuaDkmDebuggerComponent
             return 32u;
         }
 
+        internal static LuaExtendedType GetFloatNumberExtendedType()
+        {
+            if (LuaHelpers.luaVersion == 504)
+                return (LuaExtendedType)(LuaBaseType.Number + 16);
+
+            return (LuaExtendedType)LuaBaseType.Number;
+        }
+
+        internal static LuaExtendedType GetIntegerNumberExtendedType()
+        {
+            if (LuaHelpers.luaVersion == 504)
+                return (LuaExtendedType)LuaBaseType.Number;
+
+            return (LuaExtendedType)(LuaBaseType.Number + 16);
+        }
+
         internal static LuaValueDataBase ReadValue(DkmProcess process, ulong address)
         {
             int? typeTag;
@@ -115,7 +128,7 @@ namespace LuaDkmDebuggerComponent
                     if (double.IsNaN(value.Value))
                         typeTag = DebugHelpers.ReadIntVariable(process, address + Schema.LuaValueData.typeAddress.GetValueOrDefault(0));
                     else
-                        typeTag = (int)LuaExtendedType.FloatNumber;
+                        typeTag = (int)GetFloatNumberExtendedType();
                 }
                 else
                 {
@@ -135,7 +148,7 @@ namespace LuaDkmDebuggerComponent
                 if (double.IsNaN(value.Value))
                     typeTag = DebugHelpers.ReadIntVariable(process, address + (ulong)DebugHelpers.GetPointerSize(process));
                 else
-                    typeTag = (int)LuaExtendedType.FloatNumber;
+                    typeTag = (int)GetFloatNumberExtendedType();
             }
             else
             {
@@ -152,343 +165,354 @@ namespace LuaDkmDebuggerComponent
 
         internal static LuaValueDataBase ReadValueOfType(DkmProcess process, int typeTag, ulong address)
         {
-            switch (GetExtendedType(typeTag))
+            var extenedType = GetExtendedType(typeTag);
+
+            if (extenedType == LuaExtendedType.Nil)
             {
-                case LuaExtendedType.Nil:
+                return new LuaValueDataNil()
+                {
+                    baseType = GetBaseType(typeTag),
+                    extendedType = GetExtendedType(typeTag),
+                    evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
+                    originalAddress = address
+                };
+            }
+
+            if (extenedType == LuaExtendedType.Boolean)
+            {
+                var value = DebugHelpers.ReadIntVariable(process, address);
+
+                if (value.HasValue)
+                {
+                    return new LuaValueDataBool()
                     {
-                        return new LuaValueDataNil()
+                        baseType = GetBaseType(typeTag),
+                        extendedType = GetExtendedType(typeTag),
+                        evaluationFlags = value.Value != 0 ? DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean | DkmEvaluationResultFlags.BooleanTrue : DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean,
+                        originalAddress = address,
+                        value = value.Value != 0
+                    };
+                }
+
+                return new LuaValueDataError()
+                {
+                    baseType = GetBaseType(typeTag),
+                    extendedType = GetExtendedType(typeTag),
+                    evaluationFlags = DkmEvaluationResultFlags.None,
+                    originalAddress = address
+                };
+            }
+
+            if (extenedType == LuaExtendedType.LightUserData)
+            {
+                var value = DebugHelpers.ReadPointerVariable(process, address);
+
+                if (value.HasValue)
+                {
+                    return new LuaValueDataLightUserData()
+                    {
+                        baseType = GetBaseType(typeTag),
+                        extendedType = GetExtendedType(typeTag),
+                        evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType,
+                        originalAddress = address,
+                        value = value.Value
+                    };
+                }
+
+                return new LuaValueDataError()
+                {
+                    baseType = GetBaseType(typeTag),
+                    extendedType = GetExtendedType(typeTag),
+                    evaluationFlags = DkmEvaluationResultFlags.None,
+                    originalAddress = address
+                };
+            }
+
+            if (extenedType == GetFloatNumberExtendedType())
+            {
+                var value = DebugHelpers.ReadDoubleVariable(process, address);
+
+                if (value.HasValue)
+                {
+                    return new LuaValueDataNumber()
+                    {
+                        baseType = GetBaseType(typeTag),
+                        extendedType = GetExtendedType(typeTag),
+                        evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType,
+                        originalAddress = address,
+                        value = value.Value
+                    };
+                }
+
+                return new LuaValueDataError()
+                {
+                    baseType = GetBaseType(typeTag),
+                    extendedType = GetExtendedType(typeTag),
+                    evaluationFlags = DkmEvaluationResultFlags.None,
+                    originalAddress = address
+                };
+            }
+
+            if (extenedType == GetIntegerNumberExtendedType())
+            {
+                var value = DebugHelpers.ReadIntVariable(process, address);
+
+                if (value.HasValue)
+                {
+                    return new LuaValueDataNumber()
+                    {
+                        baseType = GetBaseType(typeTag),
+                        extendedType = GetExtendedType(typeTag),
+                        evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType,
+                        originalAddress = address,
+                        value = value.Value
+                    };
+                }
+
+                return new LuaValueDataError()
+                {
+                    baseType = GetBaseType(typeTag),
+                    extendedType = GetExtendedType(typeTag),
+                    evaluationFlags = DkmEvaluationResultFlags.None,
+                    originalAddress = address
+                };
+            }
+
+            if (extenedType == LuaExtendedType.ShortString)
+            {
+                var value = DebugHelpers.ReadPointerVariable(process, address);
+
+                if (value.HasValue)
+                {
+                    ulong luaStringOffset = LuaHelpers.GetStringDataOffset(process);
+
+                    var target = DebugHelpers.ReadStringVariable(process, value.Value + luaStringOffset, 256);
+
+                    if (target != null)
+                    {
+                        return new LuaValueDataString()
                         {
                             baseType = GetBaseType(typeTag),
                             extendedType = GetExtendedType(typeTag),
-                            evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
-                            originalAddress = address
+                            evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.RawString | DkmEvaluationResultFlags.ReadOnly,
+                            originalAddress = address,
+                            value = target,
+                            targetAddress = value.Value + luaStringOffset
                         };
                     }
-                case LuaExtendedType.Boolean:
+                }
+
+                return new LuaValueDataError()
+                {
+                    baseType = GetBaseType(typeTag),
+                    extendedType = GetExtendedType(typeTag),
+                    evaluationFlags = DkmEvaluationResultFlags.None,
+                    originalAddress = address
+                };
+            }
+
+            if (extenedType == LuaExtendedType.LongString)
+            {
+                var value = DebugHelpers.ReadPointerVariable(process, address);
+
+                if (value.HasValue)
+                {
+                    ulong luaStringOffset = LuaHelpers.GetStringDataOffset(process);
+
+                    var target = DebugHelpers.ReadStringVariable(process, value.Value + luaStringOffset, 256);
+
+                    if (target != null)
                     {
-                        var value = DebugHelpers.ReadIntVariable(process, address);
-
-                        if (value.HasValue)
+                        return new LuaValueDataString()
                         {
-                            return new LuaValueDataBool()
-                            {
-                                baseType = GetBaseType(typeTag),
-                                extendedType = GetExtendedType(typeTag),
-                                evaluationFlags = value.Value != 0 ? DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean | DkmEvaluationResultFlags.BooleanTrue : DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean,
-                                originalAddress = address,
-                                value = value.Value != 0
-                            };
-                        }
+                            baseType = GetBaseType(typeTag),
+                            extendedType = GetExtendedType(typeTag),
+                            evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.RawString | DkmEvaluationResultFlags.ReadOnly,
+                            originalAddress = address,
+                            value = target,
+                            targetAddress = value.Value + luaStringOffset
+                        };
                     }
+                }
 
-                    return new LuaValueDataError()
+                return new LuaValueDataError()
+                {
+                    baseType = GetBaseType(typeTag),
+                    extendedType = GetExtendedType(typeTag),
+                    evaluationFlags = DkmEvaluationResultFlags.None,
+                    originalAddress = address
+                };
+            }
+
+            if (extenedType == LuaExtendedType.Table)
+            {
+                var value = DebugHelpers.ReadPointerVariable(process, address);
+
+                if (value.HasValue)
+                {
+                    LuaTableData target = new LuaTableData();
+
+                    target.ReadFrom(process, value.Value);
+
+                    return new LuaValueDataTable()
                     {
                         baseType = GetBaseType(typeTag),
                         extendedType = GetExtendedType(typeTag),
-                        evaluationFlags = DkmEvaluationResultFlags.None,
-                        originalAddress = address
+                        evaluationFlags = DkmEvaluationResultFlags.ReadOnly | DkmEvaluationResultFlags.Expandable,
+                        originalAddress = address,
+                        value = target,
+                        targetAddress = value.Value
                     };
-                case LuaExtendedType.LightUserData:
-                    {
-                        var value = DebugHelpers.ReadPointerVariable(process, address);
+                }
 
-                        if (value.HasValue)
-                        {
-                            return new LuaValueDataLightUserData()
-                            {
-                                baseType = GetBaseType(typeTag),
-                                extendedType = GetExtendedType(typeTag),
-                                evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType,
-                                originalAddress = address,
-                                value = value.Value
-                            };
-                        }
-                    }
+                return new LuaValueDataError()
+                {
+                    baseType = GetBaseType(typeTag),
+                    extendedType = GetExtendedType(typeTag),
+                    evaluationFlags = DkmEvaluationResultFlags.None,
+                    originalAddress = address
+                };
+            }
 
-                    return new LuaValueDataError()
+            if (extenedType == LuaExtendedType.LuaFunction)
+            {
+                // Read pointer to GCObject from address
+                var value = DebugHelpers.ReadPointerVariable(process, address);
+
+                if (value.HasValue)
+                {
+                    LuaClosureData target = new LuaClosureData();
+
+                    target.ReadFrom(process, value.Value);
+
+                    return new LuaValueDataLuaFunction()
                     {
                         baseType = GetBaseType(typeTag),
                         extendedType = GetExtendedType(typeTag),
-                        evaluationFlags = DkmEvaluationResultFlags.None,
-                        originalAddress = address
+                        evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
+                        originalAddress = address,
+                        value = target,
+                        targetAddress = value.Value
                     };
-                case LuaExtendedType.FloatNumber:
-                    {
-                        var value = DebugHelpers.ReadDoubleVariable(process, address);
+                }
 
-                        if (value.HasValue)
-                        {
-                            return new LuaValueDataNumber()
-                            {
-                                baseType = GetBaseType(typeTag),
-                                extendedType = GetExtendedType(typeTag),
-                                evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType,
-                                originalAddress = address,
-                                value = value.Value
-                            };
-                        }
-                    }
+                return new LuaValueDataError()
+                {
+                    baseType = GetBaseType(typeTag),
+                    extendedType = GetExtendedType(typeTag),
+                    evaluationFlags = DkmEvaluationResultFlags.None,
+                    originalAddress = address
+                };
+            }
 
-                    return new LuaValueDataError()
+            if (extenedType == LuaExtendedType.ExternalFunction)
+            {
+                var value = DebugHelpers.ReadPointerVariable(process, address);
+
+                if (value.HasValue)
+                {
+                    return new LuaValueDataExternalFunction()
                     {
                         baseType = GetBaseType(typeTag),
                         extendedType = GetExtendedType(typeTag),
-                        evaluationFlags = DkmEvaluationResultFlags.None,
-                        originalAddress = address
+                        evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
+                        originalAddress = address,
+                        targetAddress = value.Value
                     };
-                case LuaExtendedType.IntegerNumber:
-                    {
-                        var value = DebugHelpers.ReadIntVariable(process, address);
+                }
 
-                        if (value.HasValue)
-                        {
-                            return new LuaValueDataNumber()
-                            {
-                                baseType = GetBaseType(typeTag),
-                                extendedType = GetExtendedType(typeTag),
-                                evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType,
-                                originalAddress = address,
-                                value = value.Value
-                            };
-                        }
-                    }
+                return new LuaValueDataError()
+                {
+                    baseType = GetBaseType(typeTag),
+                    extendedType = GetExtendedType(typeTag),
+                    evaluationFlags = DkmEvaluationResultFlags.None,
+                    originalAddress = address
+                };
+            }
 
-                    return new LuaValueDataError()
+            if (extenedType == LuaExtendedType.ExternalClosure)
+            {
+                var value = DebugHelpers.ReadPointerVariable(process, address);
+
+                if (value.HasValue)
+                {
+                    LuaExternalClosureData target = new LuaExternalClosureData();
+
+                    target.ReadFrom(process, value.Value);
+
+                    return new LuaValueDataExternalClosure()
                     {
                         baseType = GetBaseType(typeTag),
                         extendedType = GetExtendedType(typeTag),
-                        evaluationFlags = DkmEvaluationResultFlags.None,
-                        originalAddress = address
+                        evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
+                        originalAddress = address,
+                        value = target,
+                        targetAddress = value.Value
                     };
-                case LuaExtendedType.ShortString:
-                    {
-                        var value = DebugHelpers.ReadPointerVariable(process, address);
+                }
 
-                        if (value.HasValue)
-                        {
-                            ulong luaStringOffset = LuaHelpers.GetStringDataOffset(process);
+                return new LuaValueDataError()
+                {
+                    baseType = GetBaseType(typeTag),
+                    extendedType = GetExtendedType(typeTag),
+                    evaluationFlags = DkmEvaluationResultFlags.None,
+                    originalAddress = address
+                };
+            }
 
-                            var target = DebugHelpers.ReadStringVariable(process, value.Value + luaStringOffset, 256);
+            if (extenedType == LuaExtendedType.UserData)
+            {
+                var value = DebugHelpers.ReadPointerVariable(process, address);
 
-                            if (target != null)
-                            {
-                                return new LuaValueDataString()
-                                {
-                                    baseType = GetBaseType(typeTag),
-                                    extendedType = GetExtendedType(typeTag),
-                                    evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.RawString | DkmEvaluationResultFlags.ReadOnly,
-                                    originalAddress = address,
-                                    value = target,
-                                    targetAddress = value.Value + luaStringOffset
-                                };
-                            }
-                        }
-                    }
+                if (value.HasValue)
+                {
+                    LuaUserDataData target = new LuaUserDataData();
 
-                    return new LuaValueDataError()
+                    target.ReadFrom(process, value.Value);
+
+                    return new LuaValueDataUserData()
                     {
                         baseType = GetBaseType(typeTag),
                         extendedType = GetExtendedType(typeTag),
-                        evaluationFlags = DkmEvaluationResultFlags.None,
-                        originalAddress = address
+                        evaluationFlags = DkmEvaluationResultFlags.ReadOnly,
+                        originalAddress = address,
+                        value = target,
+                        targetAddress = value.Value
                     };
-                case LuaExtendedType.LongString:
-                    {
-                        var value = DebugHelpers.ReadPointerVariable(process, address);
+                }
 
-                        if (value.HasValue)
-                        {
-                            ulong luaStringOffset = LuaHelpers.GetStringDataOffset(process);
+                return new LuaValueDataError()
+                {
+                    baseType = GetBaseType(typeTag),
+                    extendedType = GetExtendedType(typeTag),
+                    evaluationFlags = DkmEvaluationResultFlags.None,
+                    originalAddress = address
+                };
+            }
 
-                            var target = DebugHelpers.ReadStringVariable(process, value.Value + luaStringOffset, 256);
+            if (extenedType == LuaExtendedType.Thread)
+            {
+                var value = DebugHelpers.ReadPointerVariable(process, address);
 
-                            if (target != null)
-                            {
-                                return new LuaValueDataString()
-                                {
-                                    baseType = GetBaseType(typeTag),
-                                    extendedType = GetExtendedType(typeTag),
-                                    evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.RawString | DkmEvaluationResultFlags.ReadOnly,
-                                    originalAddress = address,
-                                    value = target,
-                                    targetAddress = value.Value + luaStringOffset
-                                };
-                            }
-                        }
-                    }
-
-                    return new LuaValueDataError()
+                if (value.HasValue)
+                {
+                    return new LuaValueDataThread()
                     {
                         baseType = GetBaseType(typeTag),
                         extendedType = GetExtendedType(typeTag),
-                        evaluationFlags = DkmEvaluationResultFlags.None,
-                        originalAddress = address
+                        evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
+                        originalAddress = address,
+                        targetAddress = value.Value
                     };
-                case LuaExtendedType.Table:
-                    {
-                        var value = DebugHelpers.ReadPointerVariable(process, address);
+                }
 
-                        if (value.HasValue)
-                        {
-                            LuaTableData target = new LuaTableData();
-
-                            target.ReadFrom(process, value.Value);
-
-                            return new LuaValueDataTable()
-                            {
-                                baseType = GetBaseType(typeTag),
-                                extendedType = GetExtendedType(typeTag),
-                                evaluationFlags = DkmEvaluationResultFlags.ReadOnly | DkmEvaluationResultFlags.Expandable,
-                                originalAddress = address,
-                                value = target,
-                                targetAddress = value.Value
-                            };
-                        }
-                    }
-
-                    return new LuaValueDataError()
-                    {
-                        baseType = GetBaseType(typeTag),
-                        extendedType = GetExtendedType(typeTag),
-                        evaluationFlags = DkmEvaluationResultFlags.None,
-                        originalAddress = address
-                    };
-                case LuaExtendedType.LuaFunction:
-                    {
-                        // Read pointer to GCObject from address
-                        var value = DebugHelpers.ReadPointerVariable(process, address);
-
-                        if (value.HasValue)
-                        {
-                            LuaClosureData target = new LuaClosureData();
-
-                            target.ReadFrom(process, value.Value);
-
-                            return new LuaValueDataLuaFunction()
-                            {
-                                baseType = GetBaseType(typeTag),
-                                extendedType = GetExtendedType(typeTag),
-                                evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
-                                originalAddress = address,
-                                value = target,
-                                targetAddress = value.Value
-                            };
-                        }
-                    }
-
-                    return new LuaValueDataError()
-                    {
-                        baseType = GetBaseType(typeTag),
-                        extendedType = GetExtendedType(typeTag),
-                        evaluationFlags = DkmEvaluationResultFlags.None,
-                        originalAddress = address
-                    };
-                case LuaExtendedType.ExternalFunction:
-                    {
-                        var value = DebugHelpers.ReadPointerVariable(process, address);
-
-                        if (value.HasValue)
-                        {
-                            return new LuaValueDataExternalFunction()
-                            {
-                                baseType = GetBaseType(typeTag),
-                                extendedType = GetExtendedType(typeTag),
-                                evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
-                                originalAddress = address,
-                                targetAddress = value.Value
-                            };
-                        }
-                    }
-
-                    return new LuaValueDataError()
-                    {
-                        baseType = GetBaseType(typeTag),
-                        extendedType = GetExtendedType(typeTag),
-                        evaluationFlags = DkmEvaluationResultFlags.None,
-                        originalAddress = address
-                    };
-                case LuaExtendedType.ExternalClosure:
-                    {
-                        var value = DebugHelpers.ReadPointerVariable(process, address);
-
-                        if (value.HasValue)
-                        {
-                            LuaExternalClosureData target = new LuaExternalClosureData();
-
-                            target.ReadFrom(process, value.Value);
-
-                            return new LuaValueDataExternalClosure()
-                            {
-                                baseType = GetBaseType(typeTag),
-                                extendedType = GetExtendedType(typeTag),
-                                evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
-                                originalAddress = address,
-                                value = target,
-                                targetAddress = value.Value
-                            };
-                        }
-                    }
-
-                    return new LuaValueDataError()
-                    {
-                        baseType = GetBaseType(typeTag),
-                        extendedType = GetExtendedType(typeTag),
-                        evaluationFlags = DkmEvaluationResultFlags.None,
-                        originalAddress = address
-                    };
-                case LuaExtendedType.UserData:
-                    {
-                        var value = DebugHelpers.ReadPointerVariable(process, address);
-
-                        if (value.HasValue)
-                        {
-                            LuaUserDataData target = new LuaUserDataData();
-
-                            target.ReadFrom(process, value.Value);
-
-                            return new LuaValueDataUserData()
-                            {
-                                baseType = GetBaseType(typeTag),
-                                extendedType = GetExtendedType(typeTag),
-                                evaluationFlags = DkmEvaluationResultFlags.ReadOnly,
-                                originalAddress = address,
-                                value = target,
-                                targetAddress = value.Value
-                            };
-                        }
-                    }
-
-                    return new LuaValueDataError()
-                    {
-                        baseType = GetBaseType(typeTag),
-                        extendedType = GetExtendedType(typeTag),
-                        evaluationFlags = DkmEvaluationResultFlags.None,
-                        originalAddress = address
-                    };
-                case LuaExtendedType.Thread:
-                    {
-                        var value = DebugHelpers.ReadPointerVariable(process, address);
-
-                        if (value.HasValue)
-                        {
-                            return new LuaValueDataThread()
-                            {
-                                baseType = GetBaseType(typeTag),
-                                extendedType = GetExtendedType(typeTag),
-                                evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
-                                originalAddress = address,
-                                targetAddress = value.Value
-                            };
-                        }
-                    }
-
-                    return new LuaValueDataError()
-                    {
-                        baseType = GetBaseType(typeTag),
-                        extendedType = GetExtendedType(typeTag),
-                        evaluationFlags = DkmEvaluationResultFlags.None,
-                        originalAddress = address
-                    };
+                return new LuaValueDataError()
+                {
+                    baseType = GetBaseType(typeTag),
+                    extendedType = GetExtendedType(typeTag),
+                    evaluationFlags = DkmEvaluationResultFlags.None,
+                    originalAddress = address
+                };
             }
 
             return null;
