@@ -4,6 +4,7 @@
 This Visual Studio extension enables debugging of Lua scripts running inside C++ applications with Lua library.
 
 Supported Lua versions:
+* Lua 5.4
 * Lua 5.3
 * Lua 5.2 with LUA_NANTRICK (default configuration)
 * Lua 5.1
