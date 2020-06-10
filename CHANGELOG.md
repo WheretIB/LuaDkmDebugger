@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.8.8] - 2020-06-10
+
+### Added
+
+- Support for Visual Studio 2017
+
+### Changed
+
+- Fixed debug hook setup for Lua 5.1 and 5.2
+- Fixed empty files being saved to Temp folder
+
 ## [0.8.7] - 2020-06-10
 
 ### Added
