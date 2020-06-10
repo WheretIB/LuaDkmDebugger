@@ -779,6 +779,15 @@ namespace LuaDkmDebuggerComponent
                                     stackContextData.hideInternalLuaLibraryFrames = true;
                                     break;
                                 }
+
+                                // In Lua 5.4, Lua calls are made with a fresh 'luaV_execute' frame
+                                if (LuaHelpers.luaVersion == 504 && prevCallInfoData.CheckCallStatusLua())
+                                {
+                                    stackContextData.skipFrames = stackContextData.seenFrames;
+
+                                    stackContextData.hideInternalLuaLibraryFrames = true;
+                                    break;
+                                }
                             }
                             else if (currCallInfoData.func.extendedType == LuaExtendedType.ExternalFunction)
                             {
