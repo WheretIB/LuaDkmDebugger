@@ -59,7 +59,12 @@ namespace LuaDkmDebuggerComponent
         internal static ulong GetStringDataOffset(DkmProcess process)
         {
             if (Schema.LuaStringData.available)
+            {
+                if (Schema.LuaStringData.offsetToContent_5_4.HasValue)
+                    return Schema.LuaStringData.offsetToContent_5_4.Value;
+
                 return (ulong)Schema.LuaStringData.structSize;
+            }
 
             return (ulong)DebugHelpers.GetPointerSize(process) * 2 + 8;
         }
@@ -992,8 +997,17 @@ namespace LuaDkmDebuggerComponent
 
             if (Schema.LuaFunctionCallInfoData.available)
             {
-                stackBaseAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionCallInfoData.stackBaseAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
                 funcAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionCallInfoData.funcAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
+
+                if (Schema.LuaFunctionCallInfoData.stackBaseAddress_5_123.HasValue)
+                {
+                    stackBaseAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionCallInfoData.stackBaseAddress_5_123.GetValueOrDefault(0)).GetValueOrDefault(0);
+                }
+                else
+                {
+                    stackBaseAddress = funcAddress + (ulong)DebugHelpers.GetPointerSize(process);
+                }
+
                 savedInstructionPointerAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaFunctionCallInfoData.savedInstructionPointerAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
 
                 if (Schema.LuaFunctionCallInfoData.previousAddress_5_23.HasValue)
@@ -1105,7 +1119,18 @@ namespace LuaDkmDebuggerComponent
             if (Schema.LuaNodeData.available)
             {
                 value = LuaHelpers.ReadValue(process, address + Schema.LuaNodeData.valueDataAddress.GetValueOrDefault(0));
-                key = LuaHelpers.ReadValue(process, address + Schema.LuaNodeData.keyDataAddress.GetValueOrDefault(0));
+
+                if (Schema.LuaNodeData.keyDataAddress_5_123.HasValue)
+                {
+                    key = LuaHelpers.ReadValue(process, address + Schema.LuaNodeData.keyDataAddress_5_123.GetValueOrDefault(0));
+                }
+                else
+                {
+                    var typeTag = DebugHelpers.ReadIntVariable(process, address + Schema.LuaNodeData.keyDataTypeAddress_5_4.GetValueOrDefault(0));
+                    var valueAddress = address + Schema.LuaNodeData.keyDataValueAddress_5_4.GetValueOrDefault(0);
+
+                    key = LuaHelpers.ReadValueOfType(process, typeTag.GetValueOrDefault(0), valueAddress);
+                }
             }
             else
             {

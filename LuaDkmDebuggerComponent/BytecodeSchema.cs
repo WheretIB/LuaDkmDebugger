@@ -110,11 +110,15 @@ namespace LuaDkmDebuggerComponent
 
             public static long structSize = 0;
 
+            public static ulong? offsetToContent_5_4;
+
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
             {
                 available = true;
 
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "TString", ref available);
+
+                offsetToContent_5_4 = Helper.ReadOptional(inspectionSession, thread, frame, "TString", "contents", "used in 5.4", ref optional);
 
                 if (Log.instance != null)
                     Log.instance.Debug($"LuaStringData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
@@ -296,7 +300,7 @@ namespace LuaDkmDebuggerComponent
 
             public static ulong? funcAddress;
             public static ulong? previousAddress_5_23;
-            public static ulong? stackBaseAddress;
+            public static ulong? stackBaseAddress_5_123;
             public static ulong? savedInstructionPointerAddress;
             public static ulong? tailCallCount_5_1;
             public static long callStatus_size = 0;
@@ -310,7 +314,11 @@ namespace LuaDkmDebuggerComponent
 
                 funcAddress = Helper.Read(inspectionSession, thread, frame, "CallInfo", "func", ref available, ref success, ref failure);
                 previousAddress_5_23 = Helper.ReadOptional(inspectionSession, thread, frame, "CallInfo", "previous", "used in 5.2/5.3", ref optional);
-                stackBaseAddress = Helper.Read(inspectionSession, thread, frame, "CallInfo", new[] { "u.l.base", "base" }, ref available, ref success, ref failure);
+
+                // Try to guess if we have Lua 5.4 using new field
+                if (!Helper.ReadOptional(inspectionSession, thread, frame, "CallInfo", "u.l.trap", "used to detect 5.4", ref optional).HasValue)
+                    stackBaseAddress_5_123 = Helper.Read(inspectionSession, thread, frame, "CallInfo", new[] { "u.l.base", "base" }, ref available, ref success, ref failure);
+
                 savedInstructionPointerAddress = Helper.Read(inspectionSession, thread, frame, "CallInfo", new[] { "u.l.savedpc", "savedpc" }, ref available, ref success, ref failure);
                 tailCallCount_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "CallInfo", "tailcalls", "used in 5.1", ref optional);
                 callStatus_5_23 = Helper.ReadOptional(inspectionSession, thread, frame, "CallInfo", "callstatus", "used in 5.2/5.3", ref optional, out callStatus_size);
@@ -330,7 +338,12 @@ namespace LuaDkmDebuggerComponent
             public static long structSize = 0;
 
             public static ulong? valueDataAddress;
-            public static ulong? keyDataAddress;
+
+            // Two ways of storing key value
+            public static ulong? keyDataAddress_5_123;
+
+            public static ulong? keyDataTypeAddress_5_4;
+            public static ulong? keyDataValueAddress_5_4;
 
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
             {
@@ -339,7 +352,12 @@ namespace LuaDkmDebuggerComponent
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "Node", ref available);
 
                 valueDataAddress = Helper.Read(inspectionSession, thread, frame, "Node", "i_val", ref available, ref success, ref failure);
-                keyDataAddress = Helper.Read(inspectionSession, thread, frame, "Node", "i_key", ref available, ref success, ref failure);
+
+                keyDataTypeAddress_5_4 = Helper.ReadOptional(inspectionSession, thread, frame, "Node", "u.key_tt", "used in Lua 5.4", ref optional);
+                keyDataValueAddress_5_4 = Helper.ReadOptional(inspectionSession, thread, frame, "Node", "u.key_val", "used in Lua 5.4", ref optional);
+
+                if (!keyDataTypeAddress_5_4.HasValue || !keyDataValueAddress_5_4.HasValue)
+                    keyDataAddress_5_123 = Helper.Read(inspectionSession, thread, frame, "Node", "i_key", ref available, ref success, ref failure);
 
                 if (Log.instance != null)
                     Log.instance.Debug($"LuaNodeData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
@@ -372,7 +390,7 @@ namespace LuaDkmDebuggerComponent
 
                 flags = Helper.Read(inspectionSession, thread, frame, "Table", "flags", ref available, ref success, ref failure);
                 nodeArraySizeLog2 = Helper.Read(inspectionSession, thread, frame, "Table", "lsizenode", ref available, ref success, ref failure);
-                arraySize = Helper.Read(inspectionSession, thread, frame, "Table", "sizearray", ref available, ref success, ref failure);
+                arraySize = Helper.Read(inspectionSession, thread, frame, "Table", new[] { "sizearray", "alimit" }, ref available, ref success, ref failure);
                 arrayDataAddress = Helper.Read(inspectionSession, thread, frame, "Table", "array", ref available, ref success, ref failure);
                 nodeDataAddress = Helper.Read(inspectionSession, thread, frame, "Table", "node", ref available, ref success, ref failure);
                 lastFreeNodeDataAddress = Helper.Read(inspectionSession, thread, frame, "Table", "lastfree", ref available, ref success, ref failure);

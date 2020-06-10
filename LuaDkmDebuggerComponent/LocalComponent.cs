@@ -370,6 +370,14 @@ namespace LuaDkmDebuggerComponent
                 {
                     long? version = EvaluationHelpers.TryEvaluateNumberExpression($"(int)*L->l_G->version", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
+                    // Sadly, version field was only added in 5.1 and was removed in 5.4
+                    if (!version.HasValue)
+                    {
+                        // Warning function was added in 5.4
+                        if (EvaluationHelpers.TryEvaluateNumberExpression($"(int)L->l_G->ud_warn", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).HasValue)
+                            version = 504;
+                    }
+
                     LuaHelpers.luaVersion = (int)version.GetValueOrDefault(501); // Lua 5.1 doesn't have version field
                 }
 
@@ -2465,6 +2473,14 @@ namespace LuaDkmDebuggerComponent
                         stateAddress = EvaluationHelpers.TryEvaluateAddressExpression(DebugHelpers.Is64Bit(process) ? "@rax" : "@eax", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
                     long? version = EvaluationHelpers.TryEvaluateNumberExpression($"(int)*L->l_G->version", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+
+                    // Sadly, version field was only added in 5.1 and was removed in 5.4
+                    if (!version.HasValue)
+                    {
+                        // Warning function was added in 5.4
+                        if (EvaluationHelpers.TryEvaluateNumberExpression($"(int)L->l_G->ud_warn", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).HasValue)
+                            version = 504;
+                    }
 
                     log.Debug("Completed evaluation");
 
