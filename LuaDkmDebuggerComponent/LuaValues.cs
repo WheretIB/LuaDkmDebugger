@@ -59,8 +59,8 @@ namespace LuaDkmDebuggerComponent
     {
         public LuaValueDataNil()
         {
-            baseType = LuaBaseType.Boolean;
-            extendedType = LuaExtendedType.Boolean;
+            baseType = LuaBaseType.Nil;
+            extendedType = LuaExtendedType.Nil;
             evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
             originalAddress = 0;
         }
