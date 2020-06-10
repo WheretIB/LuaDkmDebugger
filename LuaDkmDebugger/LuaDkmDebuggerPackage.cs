@@ -15,8 +15,6 @@ using Microsoft.VisualStudio.Text;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.Text.Adornments;
 using Microsoft.VisualStudio.Language.StandardClassification;
-using Microsoft.VisualStudio.Core.Imaging;
-using Microsoft.VisualStudio.Imaging;
 using System.ComponentModel.Composition;
 using Microsoft.VisualStudio.Text.Operations;
 using Microsoft.VisualStudio.Debugger.Interop;
@@ -308,8 +306,6 @@ namespace LuaDkmDebugger
 
     internal sealed class LuaDataTipsSourceSource : IAsyncQuickInfoSource
     {
-        private static readonly ImageId icon = KnownMonikers.AbstractCube.ToImageId();
-
         private readonly ITextBuffer textBuffer;
 
         private readonly ITextStructureNavigator textStructureNavigator;
