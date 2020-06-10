@@ -149,13 +149,32 @@ namespace LuaDkmDebuggerComponent
 
                 DebugHelpers.TryWritePointerVariable(process, state.hookFunctionAddress, state.helperHookFunctionAddress);
 
-                if (processData.luaVersion == 503)
+                if (processData.luaVersion == 503 || processData.luaVersion == 504)
                     DebugHelpers.TryWriteIntVariable(process, state.hookMaskAddress, 7); // LUA_HOOKLINE | LUA_HOOKCALL | LUA_HOOKRET
                 else
                     DebugHelpers.TryWriteByteVariable(process, state.hookMaskAddress, 7); // LUA_HOOKLINE | LUA_HOOKCALL | LUA_HOOKRET
 
                 DebugHelpers.TryWriteIntVariable(process, state.hookBaseCountAddress, 0);
                 DebugHelpers.TryWriteIntVariable(process, state.hookCountAddress, 0);
+
+                // Lua 5.4 has to update 'trap' flag for all Lua call stack frames
+                if (processData.luaVersion == 504)
+                {
+                    ulong? callInfo = DebugHelpers.ReadPointerVariable(process, state.stateAddress + state.setTrapStateCallInfoOffset);
+
+                    while (callInfo.HasValue && callInfo.Value != 0)
+                    {
+                        var callStatus = DebugHelpers.ReadShortVariable(process, callInfo.Value + state.setTrapCallInfoCallStatusOffset);
+
+                        if (callStatus.HasValue && (callStatus.Value & (int)CallStatus_5_4.C) == 0)
+                        {
+                            if (!DebugHelpers.TryWriteIntVariable(process, callInfo.Value + state.setTrapCallInfoTrapOffset, 1))
+                                break;
+                        }
+
+                        callInfo = DebugHelpers.ReadPointerVariable(process, callInfo.Value + state.setTrapCallInfoPreviousOffset);
+                    }
+                }
             }
         }
 
@@ -169,7 +188,7 @@ namespace LuaDkmDebuggerComponent
 
                 DebugHelpers.TryWritePointerVariable(process, state.hookFunctionAddress, 0);
 
-                if (processData.luaVersion == 503)
+                if (processData.luaVersion == 503 || processData.luaVersion == 504)
                     DebugHelpers.TryWriteIntVariable(process, state.hookMaskAddress, 0);
                 else
                     DebugHelpers.TryWriteByteVariable(process, state.hookMaskAddress, 0);

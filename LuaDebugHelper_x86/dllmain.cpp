@@ -61,6 +61,140 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 #define LUA_HOOKTAILCALL 4
 #define LUA_HOOKTAILRET 4
 
+namespace Lua_5_4
+{
+    typedef unsigned char lu_byte;
+    typedef signed char ls_byte;
+
+    struct GCObject;
+
+    union Value
+    {
+        struct GCObject *gc;    /* collectable objects */
+        void *p;         /* light userdata */
+        void* f; /* light C functions */
+        long long i;   /* integer numbers */
+        double n;    /* float numbers */
+    };
+
+    struct TValue
+    {
+        Value value_;
+        lu_byte tt_;
+    };
+
+    union StackValue
+    {
+        TValue val;
+    };
+
+    typedef StackValue *StkId;
+
+    typedef unsigned Instruction;
+
+    struct LocVar;
+    struct Upvaldesc;
+    struct TString;
+    struct AbsLineInfo;
+
+    struct Proto
+    {
+        GCObject *next;
+        lu_byte tt;
+        lu_byte marked;
+
+        lu_byte numparams;  /* number of fixed (named) parameters */
+        lu_byte is_vararg;
+        lu_byte maxstacksize;  /* number of registers needed by this function */
+        int sizeupvalues;  /* size of 'upvalues' */
+        int sizek;  /* size of 'k' */
+        int sizecode;
+        int sizelineinfo;
+        int sizep;  /* size of 'p' */
+        int sizelocvars;
+        int sizeabslineinfo;  /* size of 'abslineinfo' */
+        int linedefined;  /* debug information  */
+        int lastlinedefined;  /* debug information  */
+        TValue *k;  /* constants used by the function */
+        Instruction *code;  /* opcodes */
+        struct Proto **p;  /* functions defined inside the function */
+        Upvaldesc *upvalues;  /* upvalue information */
+        ls_byte *lineinfo;  /* information about source lines (debug information) */
+        AbsLineInfo *abslineinfo;  /* idem */
+        LocVar *locvars;  /* information about local variables (debug information) */
+        TString  *source;  /* used for debug information */
+        GCObject *gclist;
+    };
+
+    struct LClosure
+    {
+        GCObject *next;
+        lu_byte tt;
+        lu_byte marked;
+
+        lu_byte nupvalues;
+        GCObject *gclist;
+
+        struct Proto *p;
+
+        // Don't care for other fields
+    };
+
+    struct CallInfo
+    {
+        StkId func;  /* function index in the stack */
+
+        // Don't care for other fields
+    };
+
+    struct lua_Debug
+    {
+        int event;
+        const char *name;	/* (n) */
+        const char *namewhat;	/* (n) 'global', 'local', 'field', 'method' */
+        const char *what;	/* (S) 'Lua', 'C', 'main', 'tail' */
+        const char *source;	/* (S) */
+        size_t srclen;	/* (S) */
+        int currentline;	/* (l) */
+        int linedefined;	/* (S) */
+        int lastlinedefined;	/* (S) */
+        unsigned char nups;	/* (u) number of upvalues */
+        unsigned char nparams;/* (u) number of parameters */
+        char isvararg;        /* (u) */
+        char istailcall;	/* (t) */
+
+        // Don't care for other fields
+    };
+
+    struct global_State;
+
+    struct lua_State
+    {
+        GCObject *next; lu_byte tt; lu_byte marked;
+        lu_byte status;
+        lu_byte allowhook;
+        unsigned short nci;  /* number of items in 'ci' list */
+        StkId top;  /* first free slot in the stack */
+        global_State *l_G;
+        CallInfo *ci;  /* call info for current function */
+    };
+
+    struct TString
+    {
+        GCObject *next; lu_byte tt; lu_byte marked;
+        lu_byte extra;  /* reserved words for short strings; "has hash" for longs */
+        lu_byte shrlen;  /* length for short strings */
+        unsigned int hash;
+        union
+        {
+            size_t lnglen;  /* length for long strings */
+            struct TString *hnext;  /* linked list for hash table */
+        } u;
+
+        // Ignore 'char contents[1]' field, we want the end of the string struct to land on string start
+    };
+}
+
 namespace Lua_5_3
 {
     typedef unsigned char lu_byte;
@@ -487,6 +621,63 @@ void LuaHelperStepHook(int event)
         OnLuaHelperStepComplete();
 }
 
+void LuaHelperDebugStepHook(int event, int line, const char *sourceName)
+{
+    if(event == LUA_HOOKCALL)
+    {
+        if(luaHelperStepInto)
+        {
+            printf("hook call at line %d from '%s', step into (skip depth %d)\n", line, sourceName, luaHelperSkipDepth);
+
+            OnLuaHelperStepInto();
+        }
+        else if(luaHelperStepOver || luaHelperStepOut)
+        {
+            printf("hook call at line %d from '%s', step over (skip depth raised to %d)\n", line, sourceName, luaHelperSkipDepth + 1);
+
+            luaHelperSkipDepth++;
+        }
+    }
+
+    if(event == LUA_HOOKTAILCALL)
+    {
+        if(luaHelperStepInto)
+        {
+            printf("hook tail at line %d from '%s', step into (skip depth %d)\n", line, sourceName, luaHelperSkipDepth);
+
+            OnLuaHelperStepInto();
+        }
+    }
+
+    if(event == LUA_HOOKRET)
+    {
+        if(luaHelperStepOut && luaHelperSkipDepth == 0)
+        {
+            printf("hook return at line %d from '%s', step out (skip depth %d)\n", line, sourceName, luaHelperSkipDepth);
+
+            OnLuaHelperStepOut();
+        }
+        else if((luaHelperStepOver || luaHelperStepOut) && luaHelperSkipDepth > 0)
+        {
+            printf("hook return at line %d from '%s', step over (skip depth dropped to %d)\n", line, sourceName, luaHelperSkipDepth - 1);
+
+            luaHelperSkipDepth--;
+        }
+    }
+
+    if(event == LUA_HOOKLINE && (luaHelperStepOver || luaHelperStepInto))
+    {
+        printf("hook line at line %d from '%s', step%s%s%s (skip depth %d)\n", line, sourceName, luaHelperStepOver ? " over" : "", luaHelperStepInto ? " into" : "", luaHelperStepOut ? " out" : "", luaHelperSkipDepth);
+
+        if(luaHelperSkipDepth == 0)
+        {
+            printf("step complete\n");
+
+            OnLuaHelperStepComplete();
+        }
+    }
+}
+
 void LuaHelperBreakpointHook(void *L, int line, uintptr_t proto, const char *sourceName)
 {
     for(auto curr = luaHelperBreakData, end = luaHelperBreakData + luaHelperBreakCount; curr != end; curr++)
@@ -519,71 +710,46 @@ void LuaHelperBreakpointHook(void *L, int line, uintptr_t proto, const char *sou
     }
 }
 
+extern "C" __declspec(dllexport) void LuaHelperHook_5_4(Lua_5_4::lua_State *L, Lua_5_4::lua_Debug *ar)
+{
+#if defined(DEBUG_MODE)
+    const char *sourceName = "uknown location";
+
+    if(L->ci && (L->ci->func->val.tt_ & 0x3f) == 6)
+    {
+        auto proto = ((Lua_5_4::LClosure*)L->ci->func->val.value_.gc)->p;
+
+        sourceName = (char*)proto->source + sizeof(Lua_5_4::TString);
+    }
+
+    LuaHelperDebugStepHook(ar->event, ar->currentline, sourceName);
+#else
+    LuaHelperStepHook(ar->event);
+#endif
+
+    if(L->ci && (L->ci->func->val.tt_ & 0x3f) == 6)
+    {
+        auto proto = ((Lua_5_4::LClosure*)L->ci->func->val.value_.gc)->p;
+
+        const char *sourceName = (char*)proto->source + sizeof(Lua_5_4::TString);
+
+        LuaHelperBreakpointHook(L, ar->currentline, uintptr_t(proto), sourceName);
+    }
+}
+
 extern "C" __declspec(dllexport) void LuaHelperHook_5_3(Lua_5_3::lua_State *L, Lua_5_3::lua_Debug *ar)
 {
 #if defined(DEBUG_MODE)
     const char *sourceName = "uknown location";
 
-    if(ar->i_ci && (ar->i_ci->func->tt_ & 0x3f) == 6)
+    if(L->ci && (L->ci->func->tt_ & 0x3f) == 6)
     {
-        auto proto = ((Lua_5_3::LClosure*)ar->i_ci->func->value_.gc)->p;
+        auto proto = ((Lua_5_3::LClosure*)L->ci->func->value_.gc)->p;
 
         sourceName = (char*)proto->source + sizeof(Lua_5_3::TString);
     }
 
-    if(ar->event == LUA_HOOKCALL)
-    {
-        if(luaHelperStepInto)
-        {
-            printf("hook call at line %d from '%s', step into (skip depth %d)\n", ar->currentline, sourceName, luaHelperSkipDepth);
-
-            OnLuaHelperStepInto();
-        }
-        else if(luaHelperStepOver || luaHelperStepOut)
-        {
-            printf("hook call at line %d from '%s', step over (skip depth raised to %d)\n", ar->currentline, sourceName, luaHelperSkipDepth + 1);
-
-            luaHelperSkipDepth++;
-        }
-    }
-
-    if(ar->event == LUA_HOOKTAILCALL)
-    {
-        if(luaHelperStepInto)
-        {
-            printf("hook tail at line %d from '%s', step into (skip depth %d)\n", ar->currentline, sourceName, luaHelperSkipDepth);
-
-            OnLuaHelperStepInto();
-        }
-    }
-
-    if(ar->event == LUA_HOOKRET)
-    {
-        if(luaHelperStepOut && luaHelperSkipDepth == 0)
-        {
-            printf("hook return at line %d from '%s', step out (skip depth %d)\n", ar->currentline, sourceName, luaHelperSkipDepth);
-
-            OnLuaHelperStepOut();
-        }
-        else if((luaHelperStepOver || luaHelperStepOut) && luaHelperSkipDepth > 0)
-        {
-            printf("hook return at line %d from '%s', step over (skip depth dropped to %d)\n", ar->currentline, sourceName, luaHelperSkipDepth - 1);
-
-            luaHelperSkipDepth--;
-        }
-    }
-
-    if(ar->event == LUA_HOOKLINE && (luaHelperStepOver || luaHelperStepInto))
-    {
-        printf("hook line at line %d from '%s', step%s%s%s (skip depth %d)\n", ar->currentline, sourceName, luaHelperStepOver ? " over" : "", luaHelperStepInto ? " into" : "", luaHelperStepOut ? " out" : "", luaHelperSkipDepth);
-
-        if(luaHelperSkipDepth == 0)
-        {
-            printf("step complete\n");
-
-            OnLuaHelperStepComplete();
-        }
-    }
+    LuaHelperDebugStepHook(ar->event, ar->currentline, sourceName);
 #else
     LuaHelperStepHook(ar->event);
 #endif

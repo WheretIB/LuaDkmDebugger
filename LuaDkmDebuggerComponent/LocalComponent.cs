@@ -56,6 +56,7 @@ namespace LuaDkmDebuggerComponent
         public ulong helperHookFunctionAddress_5_1 = 0;
         public ulong helperHookFunctionAddress_5_2 = 0;
         public ulong helperHookFunctionAddress_5_3 = 0;
+        public ulong helperHookFunctionAddress_5_4 = 0;
 
         public ulong helperBreakCountAddress = 0;
         public ulong helperBreakDataAddress = 0;
@@ -2136,6 +2137,7 @@ namespace LuaDkmDebuggerComponent
                         processData.helperHookFunctionAddress_5_1 = AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "LuaHelperHook_5_1");
                         processData.helperHookFunctionAddress_5_2 = AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "LuaHelperHook_5_2");
                         processData.helperHookFunctionAddress_5_3 = AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "LuaHelperHook_5_3");
+                        processData.helperHookFunctionAddress_5_4 = AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "LuaHelperHook_5_4");
 
                         processData.helperBreakCountAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperBreakCount");
                         processData.helperBreakDataAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperBreakData");
@@ -2516,14 +2518,30 @@ namespace LuaDkmDebuggerComponent
                         {
                             log.Warning("No helper to hook Lua state to");
                         }
-                        else if (LuaHelpers.luaVersion == 501 || LuaHelpers.luaVersion == 502 || LuaHelpers.luaVersion == 503)
+                        else if (LuaHelpers.luaVersion == 501 || LuaHelpers.luaVersion == 502 || LuaHelpers.luaVersion == 503 || LuaHelpers.luaVersion == 504)
                         {
                             ulong? hookFunctionAddress = EvaluationHelpers.TryEvaluateAddressExpression($"&L->hook", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
                             ulong? hookBaseCountAddress = EvaluationHelpers.TryEvaluateAddressExpression($"&L->basehookcount", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
                             ulong? hookCountAddress = EvaluationHelpers.TryEvaluateAddressExpression($"&L->hookcount", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
                             ulong? hookMaskAddress = EvaluationHelpers.TryEvaluateAddressExpression($"&L->hookmask", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
-                            if (hookFunctionAddress.HasValue && hookBaseCountAddress.HasValue && hookCountAddress.HasValue && hookMaskAddress.HasValue)
+                            ulong? setTrapStateCallInfoOffset = null;
+                            ulong? setTrapCallInfoPreviousOffset = null;
+                            ulong? setTrapCallInfoCallStatusOffset = null;
+                            ulong? setTrapCallInfoTrapOffset = null;
+                            bool hasExtraValues = true;
+
+                            if (LuaHelpers.luaVersion == 504)
+                            {
+                                setTrapStateCallInfoOffset = EvaluationHelpers.TryEvaluateAddressExpression($"&((lua_State*)0)->ci", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                                setTrapCallInfoPreviousOffset = EvaluationHelpers.TryEvaluateAddressExpression($"&((CallInfo*)0)->previous", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                                setTrapCallInfoCallStatusOffset = EvaluationHelpers.TryEvaluateAddressExpression($"&((CallInfo*)0)->callstatus", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                                setTrapCallInfoTrapOffset = EvaluationHelpers.TryEvaluateAddressExpression($"&((CallInfo*)0)->u.l.trap", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+
+                                hasExtraValues = setTrapStateCallInfoOffset.HasValue && setTrapCallInfoPreviousOffset.HasValue && setTrapCallInfoCallStatusOffset.HasValue && setTrapCallInfoTrapOffset.HasValue;
+                            }
+
+                            if (hookFunctionAddress.HasValue && hookBaseCountAddress.HasValue && hookCountAddress.HasValue && hookMaskAddress.HasValue && hasExtraValues)
                             {
                                 var message = new RegisterStateMessage
                                 {
@@ -2533,6 +2551,11 @@ namespace LuaDkmDebuggerComponent
                                     hookBaseCountAddress = hookBaseCountAddress.Value,
                                     hookCountAddress = hookCountAddress.Value,
                                     hookMaskAddress = hookMaskAddress.Value,
+
+                                    setTrapStateCallInfoOffset = setTrapStateCallInfoOffset.GetValueOrDefault(0),
+                                    setTrapCallInfoPreviousOffset = setTrapCallInfoPreviousOffset.GetValueOrDefault(0),
+                                    setTrapCallInfoCallStatusOffset = setTrapCallInfoCallStatusOffset.GetValueOrDefault(0),
+                                    setTrapCallInfoTrapOffset = setTrapCallInfoTrapOffset.GetValueOrDefault(0),
                                 };
 
                                 if (LuaHelpers.luaVersion == 501)
@@ -2541,6 +2564,8 @@ namespace LuaDkmDebuggerComponent
                                     message.helperHookFunctionAddress = processData.helperHookFunctionAddress_5_2;
                                 else if (LuaHelpers.luaVersion == 503)
                                     message.helperHookFunctionAddress = processData.helperHookFunctionAddress_5_3;
+                                else if (LuaHelpers.luaVersion == 504)
+                                    message.helperHookFunctionAddress = processData.helperHookFunctionAddress_5_4;
 
                                 DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.registerLuaState, message.Encode(), null).SendLower();
 

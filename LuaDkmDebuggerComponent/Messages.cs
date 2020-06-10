@@ -154,6 +154,12 @@ namespace LuaDkmDebuggerComponent
         public ulong hookCountAddress = 0;
         public ulong hookMaskAddress = 0;
 
+        // For Lua 5.4 'settraps'
+        public ulong setTrapStateCallInfoOffset = 0;
+        public ulong setTrapCallInfoPreviousOffset = 0;
+        public ulong setTrapCallInfoCallStatusOffset = 0;
+        public ulong setTrapCallInfoTrapOffset = 0;
+
         public ulong helperHookFunctionAddress = 0;
 
         public byte[] Encode()
@@ -168,6 +174,11 @@ namespace LuaDkmDebuggerComponent
                     writer.Write(hookBaseCountAddress);
                     writer.Write(hookCountAddress);
                     writer.Write(hookMaskAddress);
+
+                    writer.Write(setTrapStateCallInfoOffset);
+                    writer.Write(setTrapCallInfoPreviousOffset);
+                    writer.Write(setTrapCallInfoCallStatusOffset);
+                    writer.Write(setTrapCallInfoTrapOffset);
 
                     writer.Write(helperHookFunctionAddress);
 
@@ -190,6 +201,11 @@ namespace LuaDkmDebuggerComponent
                     hookBaseCountAddress = reader.ReadUInt64();
                     hookCountAddress = reader.ReadUInt64();
                     hookMaskAddress = reader.ReadUInt64();
+
+                    setTrapStateCallInfoOffset = reader.ReadUInt64();
+                    setTrapCallInfoPreviousOffset = reader.ReadUInt64();
+                    setTrapCallInfoCallStatusOffset = reader.ReadUInt64();
+                    setTrapCallInfoTrapOffset = reader.ReadUInt64();
 
                     helperHookFunctionAddress = reader.ReadUInt64();
                 }
