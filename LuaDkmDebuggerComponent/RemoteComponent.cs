@@ -148,7 +148,12 @@ namespace LuaDkmDebuggerComponent
                 var state = stateKV.Value;
 
                 DebugHelpers.TryWritePointerVariable(process, state.hookFunctionAddress, state.helperHookFunctionAddress);
-                DebugHelpers.TryWriteIntVariable(process, state.hookMaskAddress, 7); // LUA_HOOKLINE | LUA_HOOKCALL | LUA_HOOKRET
+
+                if (processData.luaVersion == 503)
+                    DebugHelpers.TryWriteIntVariable(process, state.hookMaskAddress, 7); // LUA_HOOKLINE | LUA_HOOKCALL | LUA_HOOKRET
+                else
+                    DebugHelpers.TryWriteByteVariable(process, state.hookMaskAddress, 7); // LUA_HOOKLINE | LUA_HOOKCALL | LUA_HOOKRET
+
                 DebugHelpers.TryWriteIntVariable(process, state.hookBaseCountAddress, 0);
                 DebugHelpers.TryWriteIntVariable(process, state.hookCountAddress, 0);
             }
@@ -163,7 +168,12 @@ namespace LuaDkmDebuggerComponent
                 var state = stateKV.Value;
 
                 DebugHelpers.TryWritePointerVariable(process, state.hookFunctionAddress, 0);
-                DebugHelpers.TryWriteIntVariable(process, state.hookMaskAddress, 0);
+
+                if (processData.luaVersion == 503)
+                    DebugHelpers.TryWriteIntVariable(process, state.hookMaskAddress, 0);
+                else
+                    DebugHelpers.TryWriteByteVariable(process, state.hookMaskAddress, 0);
+
                 DebugHelpers.TryWriteIntVariable(process, state.hookBaseCountAddress, 0);
                 DebugHelpers.TryWriteIntVariable(process, state.hookCountAddress, 0);
             }
