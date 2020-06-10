@@ -912,9 +912,11 @@ namespace LuaDkmDebuggerComponent
             if (filePath == null)
             {
                 // If we have source data, write it to the temp directory and return it
-                if (content?.Length != 0)
+                if (content != null && content.Length != 0)
                 {
                     string tempPath = $"{Path.GetTempPath()}{winSourcePath.Replace('\\', '+')}";
+
+                    log.Debug($"Writing {source} content (length {content.Length}) to temp path {tempPath}");
 
                     try
                     {
@@ -1825,7 +1827,7 @@ namespace LuaDkmDebuggerComponent
                             source = source.Value
                         };
 
-                        log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments success (known source)");
+                        log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments success (known source '{source}')");
 
                         return new DkmResolvedDocument[1] { DkmResolvedDocument.Create(module, sourceFileId.DocumentName, null, DkmDocumentMatchStrength.FullPath, DkmResolvedDocumentWarning.None, false, dataItem) };
                     }
@@ -1874,7 +1876,7 @@ namespace LuaDkmDebuggerComponent
                             script = script.Value
                         };
 
-                        log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments success (known script)");
+                        log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments success (known script '{script}')");
 
                         return new DkmResolvedDocument[1] { DkmResolvedDocument.Create(module, sourceFileId.DocumentName, null, DkmDocumentMatchStrength.FullPath, DkmResolvedDocumentWarning.None, false, dataItem) };
                     }
@@ -1977,7 +1979,7 @@ namespace LuaDkmDebuggerComponent
                         var entityDataBytes = entityData.Encode();
                         var additionalDataBytes = additionalData.Encode();
 
-                        log.Debug($"IDkmSymbolDocumentSpanQuery.FindSymbols success");
+                        log.Debug($"IDkmSymbolDocumentSpanQuery.FindSymbols success (strong match '{entityData.source}' Line {entityData.line})");
 
                         return new DkmInstructionSymbol[1] { DkmCustomInstructionSymbol.Create(resolvedDocument.Module, Guids.luaRuntimeGuid, entityDataBytes, (ulong)((line << 16) + instructionPointer), additionalDataBytes) };
                     }
@@ -2010,7 +2012,7 @@ namespace LuaDkmDebuggerComponent
                 var entityDataBytes = entityData.Encode();
                 var additionalDataBytes = additionalData.Encode();
 
-                log.Debug($"IDkmSymbolDocumentSpanQuery.FindSymbols success (weak match)");
+                log.Debug($"IDkmSymbolDocumentSpanQuery.FindSymbols success (weak match '{entityData.source}' Line {entityData.line})");
 
                 return new DkmInstructionSymbol[1] { DkmCustomInstructionSymbol.Create(resolvedDocument.Module, Guids.luaRuntimeGuid, entityDataBytes, (ulong)((textSpan.StartLine << 16) + 0), additionalDataBytes) };
             }
