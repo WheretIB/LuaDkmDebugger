@@ -96,6 +96,9 @@ namespace LuaDkmDebuggerComponent
 
         public ulong executionStartAddress = 0;
         public ulong executionEndAddress = 0;
+
+        public bool canAccessBasicSymbolInfo = true;
+        public Dictionary<ulong, string> knownStackFilterMethodNames = new Dictionary<ulong, string>();
     }
 
     internal class LuaStackContextData : DkmDataItem
@@ -206,6 +209,57 @@ namespace LuaDkmDebuggerComponent
             processData.configurationMissing = true;
         }
 
+        string GetInstructionMethodNameFromBasicSymbolInfo(DkmStackWalkFrame input)
+        {
+            if (input.BasicSymbolInfo != null)
+                return input.BasicSymbolInfo.MethodName;
+
+            return null;
+        }
+
+        string GetFrameMethodName(LuaLocalProcessData processData, DkmStackWalkFrame input)
+        {
+            string methodName = null;
+
+            if (processData.canAccessBasicSymbolInfo)
+            {
+                try
+                {
+                    // Only available from VS 2019
+                    methodName = GetInstructionMethodNameFromBasicSymbolInfo(input);
+                }
+                catch (Exception)
+                {
+                    processData.canAccessBasicSymbolInfo = false;
+                }
+            }
+
+            if (!processData.canAccessBasicSymbolInfo)
+            {
+                if (processData.knownStackFilterMethodNames.ContainsKey(input.InstructionAddress.CPUInstructionPart.InstructionPointer))
+                {
+                    methodName = processData.knownStackFilterMethodNames[input.InstructionAddress.CPUInstructionPart.InstructionPointer];
+                }
+                else
+                {
+                    var languageInstructionAddress = DkmLanguageInstructionAddress.Create(DkmLanguage.Create("C++", new DkmCompilerId(DkmVendorId.Microsoft, DkmLanguageId.Cpp)), input.InstructionAddress);
+
+                    try
+                    {
+                        methodName = languageInstructionAddress.GetMethodName(DkmVariableInfoFlags.None);
+
+                        processData.knownStackFilterMethodNames.Add(input.InstructionAddress.CPUInstructionPart.InstructionPointer, methodName);
+                    }
+                    catch (Exception)
+                    {
+                        processData.knownStackFilterMethodNames.Add(input.InstructionAddress.CPUInstructionPart.InstructionPointer, null);
+                    }
+                }
+            }
+
+            return methodName;
+        }
+
         DkmStackWalkFrame[] IDkmCallStackFilter.FilterNextFrame(DkmStackContext stackContext, DkmStackWalkFrame input)
         {
             // null input frame indicates the end of the call stack
@@ -227,19 +281,21 @@ namespace LuaDkmDebuggerComponent
                 return new DkmStackWalkFrame[1] { DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, DkmStackWalkFrameFlags.NonuserCode | DkmStackWalkFrameFlags.Hidden, "[Lua Debugger Helper]", input.Registers, input.Annotations) };
             }
 
-            if (input.BasicSymbolInfo == null)
-                return new DkmStackWalkFrame[1] { input };
-
             var process = stackContext.InspectionSession.Process;
 
             var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
+
+            string methodName = GetFrameMethodName(processData, input);
+
+            if (methodName == null)
+                return new DkmStackWalkFrame[1] { input };
 
             if (input.InstructionAddress.CPUInstructionPart.InstructionPointer == processData.breakpointLuaThrowAddress)
             {
                 stackContextData.hideTopLuaLibraryFrames = true;
             }
 
-            if (input.BasicSymbolInfo.MethodName == "luaV_execute")
+            if (methodName == "luaV_execute")
             {
                 log.Verbose($"Filtering 'luaV_execute' stack frame");
 
@@ -766,7 +822,7 @@ namespace LuaDkmDebuggerComponent
             }
 
             // Mark lua functions as non-user code
-            if (input.BasicSymbolInfo.MethodName.StartsWith("luaD_") || input.BasicSymbolInfo.MethodName.StartsWith("luaV_") || input.BasicSymbolInfo.MethodName.StartsWith("luaG_") || input.BasicSymbolInfo.MethodName.StartsWith("luaF_") || input.BasicSymbolInfo.MethodName.StartsWith("luaB_") || input.BasicSymbolInfo.MethodName.StartsWith("luaH_") || input.BasicSymbolInfo.MethodName.StartsWith("luaT_"))
+            if (methodName.StartsWith("luaD_") || methodName.StartsWith("luaV_") || methodName.StartsWith("luaG_") || methodName.StartsWith("luaF_") || methodName.StartsWith("luaB_") || methodName.StartsWith("luaH_") || methodName.StartsWith("luaT_"))
             {
                 var flags = (input.Flags & ~DkmStackWalkFrameFlags.UserStatusNotDetermined) | DkmStackWalkFrameFlags.NonuserCode;
 
@@ -776,7 +832,7 @@ namespace LuaDkmDebuggerComponent
                 return new DkmStackWalkFrame[1] { DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, flags, input.Description, input.Registers, input.Annotations) };
             }
 
-            if (stackContextData.hideTopLuaLibraryFrames && (input.BasicSymbolInfo.MethodName == "callhook" || input.BasicSymbolInfo.MethodName == "traceexec" || input.BasicSymbolInfo.MethodName == "lua_error") && !showHiddenFrames)
+            if (stackContextData.hideTopLuaLibraryFrames && (methodName == "callhook" || methodName == "traceexec" || methodName == "lua_error") && !showHiddenFrames)
             {
                 var flags = (input.Flags & ~DkmStackWalkFrameFlags.UserStatusNotDetermined) | DkmStackWalkFrameFlags.NonuserCode | DkmStackWalkFrameFlags.Hidden;
 
