@@ -27,6 +27,7 @@ namespace LuaDkmDebuggerComponent
         public Dictionary<string, LuaSourceSymbols> knownSources = new Dictionary<string, LuaSourceSymbols>();
         public Dictionary<ulong, string> functionNames = new Dictionary<ulong, string>();
         public Dictionary<string, LuaScriptSymbols> knownScripts = new Dictionary<string, LuaScriptSymbols>();
+        public Dictionary<string, string> unnamedScriptMapping = new Dictionary<string, string>();
 
         public void AddSourceFromFunction(DkmProcess process, LuaFunctionData function)
         {

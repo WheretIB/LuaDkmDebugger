@@ -112,6 +112,9 @@ namespace LuaDkmDebuggerComponent
 
         public bool canAccessBasicSymbolInfo = true;
         public Dictionary<ulong, string> knownStackFilterMethodNames = new Dictionary<ulong, string>();
+
+        // Increasing number for scripts without a name
+        public int unnamedScriptId = 1;
     }
 
     internal class LuaStackContextData : DkmDataItem
@@ -456,6 +459,14 @@ namespace LuaDkmDebuggerComponent
                     int currLine = currFunctionData.ReadLineInfoFor(process, prevInstructionPointer);
 
                     string sourceName = currFunctionData.ReadSource(process);
+
+                    lock (processData.symbolStore)
+                    {
+                        LuaStateSymbols stateSymbols = processData.symbolStore.FetchOrCreate(stateAddress.Value);
+
+                        if (stateSymbols.unnamedScriptMapping.ContainsKey(sourceName))
+                            sourceName = stateSymbols.unnamedScriptMapping[sourceName];
+                    }
 
                     if (sourceName != null)
                     {
@@ -2827,7 +2838,28 @@ namespace LuaDkmDebuggerComponent
                         {
                             string scriptContent = Encoding.UTF8.GetString(rawScriptContent, 0, rawScriptContent.Length);
 
-                            string scriptName = DebugHelpers.ReadStringVariable(process, scriptNameAddress.Value, 1024);
+                            string scriptName;
+
+                            if (scriptBufferAddress == scriptNameAddress)
+                            {
+                                string badScriptName = scriptContent;
+
+                                if (badScriptName.Length > 1023)
+                                    badScriptName = badScriptName.Substring(0, 1023);
+
+                                lock (processData.symbolStore)
+                                {
+                                    LuaStateSymbols stateSymbols = processData.symbolStore.FetchOrCreate(stateAddress.Value);
+
+                                    scriptName = $"unnamed_{processData.unnamedScriptId++}";
+
+                                    stateSymbols.unnamedScriptMapping.Add(badScriptName, scriptName);
+                                }
+                            }
+                            else
+                            {
+                                scriptName = DebugHelpers.ReadStringVariable(process, scriptNameAddress.Value, 1024);
+                            }
 
                             if (scriptName != null)
                             {
