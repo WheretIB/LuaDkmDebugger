@@ -90,6 +90,9 @@ namespace LuaDkmDebuggerComponent
         public Guid breakpointLuaFileLoadedSolCompat;
         public Guid breakpointLuaBufferLoaded;
 
+        public bool skipNextRawLoad = false;
+        public Guid breakpointLuaLoad;
+
         // Two-stage Lua exception handling
         public bool captureNextThrow = false;
         public Guid breakpointLuaBreakError;
@@ -2425,6 +2428,8 @@ namespace LuaDkmDebuggerComponent
                         processData.breakpointLuaFileLoadedSolCompat = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "kp_compat53L_loadfilex", "Lua script load from file", out _).GetValueOrDefault(Guid.Empty);
                     }
 
+                    processData.breakpointLuaLoad = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "lua_load", "Lua script load", out _).GetValueOrDefault(Guid.Empty);
+
                     // Track Lua scripts loaded from buffers
                     processData.breakpointLuaBufferLoaded = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadbufferx", "Lua script load from buffer", out _).GetValueOrDefault(Guid.Empty);
 
@@ -2557,6 +2562,68 @@ namespace LuaDkmDebuggerComponent
             Schema.LuaDebugData.LoadSchema(inspectionSession, thread, frame);
 
             processData.schemaLoaded = true;
+        }
+
+        void RegisterScriptBuffer(DkmProcess process, LuaLocalProcessData processData, ulong stateAddress, ulong scriptBufferAddress, long scriptSize, ulong scriptNameAddress)
+        {
+            byte[] rawScriptContent = DebugHelpers.ReadRawStringVariable(process, scriptBufferAddress, (int)scriptSize);
+
+            if (rawScriptContent != null)
+            {
+                string scriptContent = Encoding.UTF8.GetString(rawScriptContent, 0, rawScriptContent.Length);
+
+                string scriptName;
+
+                if (scriptBufferAddress == scriptNameAddress)
+                {
+                    string badScriptName = scriptContent;
+
+                    if (badScriptName.Length > 1023)
+                        badScriptName = badScriptName.Substring(0, 1023);
+
+                    lock (processData.symbolStore)
+                    {
+                        LuaStateSymbols stateSymbols = processData.symbolStore.FetchOrCreate(stateAddress);
+
+                        scriptName = $"unnamed_{processData.unnamedScriptId++}";
+
+                        stateSymbols.unnamedScriptMapping.Add(badScriptName, scriptName);
+                    }
+                }
+                else
+                {
+                    scriptName = DebugHelpers.ReadStringVariable(process, scriptNameAddress, 1024);
+                }
+
+                if (scriptName != null)
+                {
+                    var sha1Hash = new SHA1Managed().ComputeHash(rawScriptContent);
+
+                    lock (processData.symbolStore)
+                    {
+                        processData.symbolStore.FetchOrCreate(stateAddress).AddScriptSource(scriptName, scriptContent, sha1Hash);
+                    }
+
+                    log.Debug($"Adding script {scriptName} to symbol store of Lua state {stateAddress} (with content)");
+
+                    string resolvedPath = TryFindSourcePath(process.Path, processData, scriptName, null);
+
+                    if (resolvedPath != null)
+                    {
+                        var message = DkmCustomMessage.Create(process.Connection, process, Guid.Empty, MessageToVsService.reloadBreakpoints, Encoding.UTF8.GetBytes(resolvedPath), null);
+
+                        message.SendToVsService(Guids.luaVsPackageComponentGuid, false);
+                    }
+                }
+                else
+                {
+                    log.Error("Failed to load script name from process");
+                }
+            }
+            else
+            {
+                log.Error("Failed to load script content from process");
+            }
         }
 
         DkmCustomMessage IDkmCustomMessageCallbackReceiver.SendHigher(DkmCustomMessage customMessage)
@@ -2775,6 +2842,8 @@ namespace LuaDkmDebuggerComponent
                 {
                     log.Debug("Detected Lua script file load");
 
+                    processData.skipNextRawLoad = true;
+
                     var inspectionSession = EvaluationHelpers.CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
 
                     ulong? stateAddress = EvaluationHelpers.TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
@@ -2822,6 +2891,8 @@ namespace LuaDkmDebuggerComponent
                 {
                     log.Debug("Detected Lua script buffer load");
 
+                    processData.skipNextRawLoad = true;
+
                     var inspectionSession = EvaluationHelpers.CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
 
                     ulong? stateAddress = EvaluationHelpers.TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
@@ -2832,68 +2903,50 @@ namespace LuaDkmDebuggerComponent
 
                     if (stateAddress.HasValue && scriptBufferAddress.HasValue && scriptSize.HasValue && scriptNameAddress.HasValue)
                     {
-                        byte[] rawScriptContent = DebugHelpers.ReadRawStringVariable(process, scriptBufferAddress.Value, (int)scriptSize.Value);
-
-                        if (rawScriptContent != null)
-                        {
-                            string scriptContent = Encoding.UTF8.GetString(rawScriptContent, 0, rawScriptContent.Length);
-
-                            string scriptName;
-
-                            if (scriptBufferAddress == scriptNameAddress)
-                            {
-                                string badScriptName = scriptContent;
-
-                                if (badScriptName.Length > 1023)
-                                    badScriptName = badScriptName.Substring(0, 1023);
-
-                                lock (processData.symbolStore)
-                                {
-                                    LuaStateSymbols stateSymbols = processData.symbolStore.FetchOrCreate(stateAddress.Value);
-
-                                    scriptName = $"unnamed_{processData.unnamedScriptId++}";
-
-                                    stateSymbols.unnamedScriptMapping.Add(badScriptName, scriptName);
-                                }
-                            }
-                            else
-                            {
-                                scriptName = DebugHelpers.ReadStringVariable(process, scriptNameAddress.Value, 1024);
-                            }
-
-                            if (scriptName != null)
-                            {
-                                var sha1Hash = new SHA1Managed().ComputeHash(rawScriptContent);
-
-                                lock (processData.symbolStore)
-                                {
-                                    processData.symbolStore.FetchOrCreate(stateAddress.Value).AddScriptSource(scriptName, scriptContent, sha1Hash);
-                                }
-
-                                log.Debug($"Adding script {scriptName} to symbol store of Lua state {stateAddress.Value} (with content)");
-
-                                string resolvedPath = TryFindSourcePath(process.Path, processData, scriptName, null);
-
-                                if (resolvedPath != null)
-                                {
-                                    var message = DkmCustomMessage.Create(process.Connection, process, Guid.Empty, MessageToVsService.reloadBreakpoints, Encoding.UTF8.GetBytes(resolvedPath), null);
-
-                                    message.SendToVsService(Guids.luaVsPackageComponentGuid, false);
-                                }
-                            }
-                            else
-                            {
-                                log.Error("Failed to load script name from process");
-                            }
-                        }
-                        else
-                        {
-                            log.Error("Failed to load script content from process");
-                        }
+                        RegisterScriptBuffer(process, processData, stateAddress.Value, scriptBufferAddress.Value, scriptSize.Value, scriptNameAddress.Value);
                     }
                     else
                     {
                         log.Error("Failed to evaluate Lua buffer data");
+                    }
+
+                    inspectionSession.Close();
+                }
+                else if (data.breakpointId == processData.breakpointLuaLoad)
+                {
+                    if (processData.skipNextRawLoad)
+                    {
+                        processData.skipNextRawLoad = false;
+
+                        return null;
+                    }
+
+                    log.Debug("Detected raw Lua script load");
+
+                    var inspectionSession = EvaluationHelpers.CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
+
+                    ulong? isStringReader = EvaluationHelpers.TryEvaluateAddressExpression($"reader == getS", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+
+                    if (isStringReader.GetValueOrDefault(0) != 0)
+                    {
+                        ulong? stateAddress = EvaluationHelpers.TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+
+                        ulong? scriptBufferAddress = EvaluationHelpers.TryEvaluateAddressExpression($"*(char**)data", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                        long? scriptSize = EvaluationHelpers.TryEvaluateNumberExpression($"*(size_t*)((char*)data+sizeof(void*))", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                        ulong? scriptNameAddress = EvaluationHelpers.TryEvaluateAddressExpression($"chunkname", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+
+                        if (stateAddress.HasValue && scriptBufferAddress.HasValue && scriptSize.HasValue && scriptNameAddress.HasValue)
+                        {
+                            RegisterScriptBuffer(process, processData, stateAddress.Value, scriptBufferAddress.Value, scriptSize.Value, scriptNameAddress.Value);
+                        }
+                        else
+                        {
+                            log.Error("Failed to evaluate Lua buffer data");
+                        }
+                    }
+                    else
+                    {
+                        log.Warning("Not a string loader");
                     }
 
                     inspectionSession.Close();
