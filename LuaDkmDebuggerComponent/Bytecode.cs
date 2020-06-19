@@ -728,7 +728,7 @@ namespace LuaDkmDebuggerComponent
 
         public byte argumentCount;
         public byte isVarargs;
-        public byte maxStackSize;
+        public byte maxStackSize_opt;
         // 3 byte padding!
         public int upvalueSize;
         public int constantSize;
@@ -803,7 +803,9 @@ namespace LuaDkmDebuggerComponent
 
                 argumentCount = DebugHelpers.ReadByteVariable(process, address + Schema.LuaFunctionData.argumentCount.GetValueOrDefault(0)).GetValueOrDefault(0);
                 isVarargs = DebugHelpers.ReadByteVariable(process, address + Schema.LuaFunctionData.isVarargs.GetValueOrDefault(0)).GetValueOrDefault(0);
-                maxStackSize = DebugHelpers.ReadByteVariable(process, address + Schema.LuaFunctionData.maxStackSize.GetValueOrDefault(0)).GetValueOrDefault(0);
+
+                if (Schema.LuaFunctionData.maxStackSize_opt.HasValue)
+                    maxStackSize_opt = DebugHelpers.ReadByteVariable(process, address + Schema.LuaFunctionData.maxStackSize_opt.GetValueOrDefault(0)).GetValueOrDefault(0);
 
                 hasDefinitionLineInfo = Schema.LuaFunctionData.definitionStartLine_opt.HasValue && Schema.LuaFunctionData.definitionEndLine_opt.HasValue;
             }
@@ -836,7 +838,7 @@ namespace LuaDkmDebuggerComponent
                 DebugHelpers.SkipStructByte(process, ref address); // nups
                 argumentCount = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
                 isVarargs = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
-                maxStackSize = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
+                maxStackSize_opt = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
 
                 hasDefinitionLineInfo = true;
             }
@@ -869,7 +871,7 @@ namespace LuaDkmDebuggerComponent
 
                 argumentCount = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
                 isVarargs = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
-                maxStackSize = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
+                maxStackSize_opt = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
 
                 hasDefinitionLineInfo = true;
             }
@@ -882,7 +884,7 @@ namespace LuaDkmDebuggerComponent
                 address += sizeof(byte);
                 isVarargs = DebugHelpers.ReadByteVariable(process, address).GetValueOrDefault(0);
                 address += sizeof(byte);
-                maxStackSize = DebugHelpers.ReadByteVariable(process, address).GetValueOrDefault(0);
+                maxStackSize_opt = DebugHelpers.ReadByteVariable(process, address).GetValueOrDefault(0);
                 address += sizeof(byte);
                 address += 3; // Padding
 
@@ -936,7 +938,7 @@ namespace LuaDkmDebuggerComponent
 
                 argumentCount = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
                 isVarargs = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
-                maxStackSize = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
+                maxStackSize_opt = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
 
                 upvalueSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
                 constantSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);

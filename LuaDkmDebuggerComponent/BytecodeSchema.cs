@@ -240,7 +240,7 @@ namespace LuaDkmDebuggerComponent
 
             public static ulong? argumentCount;
             public static ulong? isVarargs;
-            public static ulong? maxStackSize;
+            public static ulong? maxStackSize_opt;
             public static ulong? upvalueSize;
             public static ulong? constantSize;
             public static ulong? codeSize;
@@ -268,7 +268,7 @@ namespace LuaDkmDebuggerComponent
 
                 argumentCount = Helper.Read(inspectionSession, thread, frame, "Proto", "numparams", ref available, ref success, ref failure);
                 isVarargs = Helper.Read(inspectionSession, thread, frame, "Proto", "is_vararg", ref available, ref success, ref failure);
-                maxStackSize = Helper.Read(inspectionSession, thread, frame, "Proto", "maxstacksize", ref available, ref success, ref failure);
+                maxStackSize_opt = Helper.ReadOptional(inspectionSession, thread, frame, "Proto", "maxstacksize", "not used", ref optional);
                 upvalueSize = Helper.Read(inspectionSession, thread, frame, "Proto", "sizeupvalues", ref available, ref success, ref failure);
                 constantSize = Helper.Read(inspectionSession, thread, frame, "Proto", "sizek", ref available, ref success, ref failure);
                 codeSize = Helper.Read(inspectionSession, thread, frame, "Proto", "sizecode", ref available, ref success, ref failure);
