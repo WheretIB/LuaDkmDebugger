@@ -833,3 +833,42 @@ extern "C" __declspec(dllexport) void LuaHelperHook_5_1(Lua_5_1::lua_State *L, L
         }
     }
 }
+
+extern "C" __declspec(dllexport) unsigned luaHelperCompatLuaDebugEventOffset = 0;
+extern "C" __declspec(dllexport) unsigned luaHelperCompatLuaDebugCurrentLineOffset = 0;
+extern "C" __declspec(dllexport) unsigned luaHelperCompatLuaStateCallInfoOffset = 0;
+extern "C" __declspec(dllexport) unsigned luaHelperCompatCallInfoFunctionOffset = 0;
+extern "C" __declspec(dllexport) unsigned luaHelperCompatTaggedValueTypeTagOffset = 0;
+extern "C" __declspec(dllexport) unsigned luaHelperCompatTaggedValueValueOffset = 0;
+extern "C" __declspec(dllexport) unsigned luaHelperCompatLuaClosureProtoOffset = 0;
+extern "C" __declspec(dllexport) unsigned luaHelperCompatLuaFunctionSourceOffset = 0;
+extern "C" __declspec(dllexport) unsigned luaHelperCompatStringContentOffset = 0;
+
+extern "C" __declspec(dllexport) void LuaHelperHook_5_234_compat(char *L, char *ar)
+{
+    int eventType = *(int*)(ar + luaHelperCompatLuaDebugEventOffset);
+    int currentLine = *(int*)(ar + luaHelperCompatLuaDebugCurrentLineOffset);
+
+    LuaHelperStepHook(eventType);
+
+    if(char *callInfo = *(char**)(L + luaHelperCompatLuaStateCallInfoOffset))
+    {
+        if(char *function = *(char**)(callInfo + luaHelperCompatCallInfoFunctionOffset))
+        {
+            int typeTag = *(int*)(function + luaHelperCompatTaggedValueTypeTagOffset);
+
+            if((typeTag & 0x3f) == 6)
+            {
+                char *luaClosureValue = *(char**)(function + luaHelperCompatTaggedValueValueOffset);
+
+                char *proto = *(char**)(luaClosureValue + luaHelperCompatLuaClosureProtoOffset);
+
+                char *source = *(char**)(proto + luaHelperCompatLuaFunctionSourceOffset);
+
+                const char *sourceName = source + luaHelperCompatStringContentOffset;
+
+                LuaHelperBreakpointHook(L, currentLine, uintptr_t(proto), sourceName);
+            }
+        }
+    }
+}

@@ -64,6 +64,18 @@ namespace LuaDkmDebuggerComponent
         public ulong helperBreakHitLuaStateAddress = 0;
         public ulong helperBreakSourcesAddress = 0;
 
+        public ulong helperHookFunctionAddress_5_234_compat = 0;
+
+        public ulong helperCompatLuaDebugEventOffset = 0;
+        public ulong helperCompatLuaDebugCurrentLineOffset = 0;
+        public ulong helperCompatLuaStateCallInfoOffset = 0;
+        public ulong helperCompatCallInfoFunctionOffset = 0;
+        public ulong helperCompatTaggedValueTypeTagOffset = 0;
+        public ulong helperCompatTaggedValueValueOffset = 0;
+        public ulong helperCompatLuaClosureProtoOffset = 0;
+        public ulong helperCompatLuaFunctionSourceOffset = 0;
+        public ulong helperCompatStringContentOffset = 0;
+
         public ulong helperStepOverAddress = 0;
         public ulong helperStepIntoAddress = 0;
         public ulong helperStepOutAddress = 0;
@@ -2242,6 +2254,20 @@ namespace LuaDkmDebuggerComponent
                         processData.helperStepOutAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperStepOut");
                         processData.helperSkipDepthAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperSkipDepth");
 
+                        // Hooks for compatibility mode
+                        processData.helperHookFunctionAddress_5_234_compat = AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "LuaHelperHook_5_234_compat");
+
+                        processData.helperCompatLuaDebugEventOffset = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperCompatLuaDebugEventOffset");
+                        processData.helperCompatLuaDebugCurrentLineOffset = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperCompatLuaDebugCurrentLineOffset");
+                        processData.helperCompatLuaStateCallInfoOffset = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperCompatLuaStateCallInfoOffset");
+                        processData.helperCompatCallInfoFunctionOffset = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperCompatCallInfoFunctionOffset");
+                        processData.helperCompatTaggedValueTypeTagOffset = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperCompatTaggedValueTypeTagOffset");
+                        processData.helperCompatTaggedValueValueOffset = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperCompatTaggedValueValueOffset");
+                        processData.helperCompatLuaClosureProtoOffset = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperCompatLuaClosureProtoOffset");
+                        processData.helperCompatLuaFunctionSourceOffset = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperCompatLuaFunctionSourceOffset");
+                        processData.helperCompatStringContentOffset = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperCompatStringContentOffset");
+
+                        // Breakpoints for calls into debugger
                         processData.breakpointLuaHelperBreakpointHit = AttachmentHelpers.CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperBreakpointHit").GetValueOrDefault(Guid.Empty);
                         processData.breakpointLuaHelperStepComplete = AttachmentHelpers.CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperStepComplete").GetValueOrDefault(Guid.Empty);
                         processData.breakpointLuaHelperStepInto = AttachmentHelpers.CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperStepInto").GetValueOrDefault(Guid.Empty);
@@ -2650,14 +2676,41 @@ namespace LuaDkmDebuggerComponent
                                     setTrapCallInfoTrapOffset = setTrapCallInfoTrapOffset.GetValueOrDefault(0),
                                 };
 
-                                if (LuaHelpers.luaVersion == 501)
+                                bool hasSchemaForHook = false;
+
+                                if (processData.schemaLoaded)
+                                    hasSchemaForHook = Schema.LuaDebugData.available && Schema.LuaStateData.available && Schema.LuaFunctionCallInfoData.available && Schema.LuaValueData.available && Schema.LuaClosureData.available && Schema.LuaFunctionData.available;
+
+                                if (hasSchemaForHook && LuaHelpers.luaVersion != 501)
+                                {
+                                    message.helperHookFunctionAddress = processData.helperHookFunctionAddress_5_234_compat;
+
+                                    DebugHelpers.TryWriteUintVariable(process, processData.helperCompatLuaDebugEventOffset, (uint)Schema.LuaDebugData.eventType.GetValueOrDefault(0));
+                                    DebugHelpers.TryWriteUintVariable(process, processData.helperCompatLuaDebugCurrentLineOffset, (uint)Schema.LuaDebugData.currentLine.GetValueOrDefault(0));
+                                    DebugHelpers.TryWriteUintVariable(process, processData.helperCompatLuaStateCallInfoOffset, (uint)Schema.LuaStateData.callInfoAddress.GetValueOrDefault(0));
+                                    DebugHelpers.TryWriteUintVariable(process, processData.helperCompatCallInfoFunctionOffset, (uint)Schema.LuaFunctionCallInfoData.funcAddress.GetValueOrDefault(0));
+                                    DebugHelpers.TryWriteUintVariable(process, processData.helperCompatTaggedValueTypeTagOffset, (uint)Schema.LuaValueData.typeAddress.GetValueOrDefault(0));
+                                    DebugHelpers.TryWriteUintVariable(process, processData.helperCompatTaggedValueValueOffset, (uint)Schema.LuaValueData.valueAddress.GetValueOrDefault(0));
+                                    DebugHelpers.TryWriteUintVariable(process, processData.helperCompatLuaClosureProtoOffset, (uint)Schema.LuaClosureData.functionAddress.GetValueOrDefault(0));
+                                    DebugHelpers.TryWriteUintVariable(process, processData.helperCompatLuaFunctionSourceOffset, (uint)Schema.LuaFunctionData.sourceAddress.GetValueOrDefault(0));
+                                    DebugHelpers.TryWriteUintVariable(process, processData.helperCompatStringContentOffset, (uint)LuaHelpers.GetStringDataOffset(process));
+                                }
+                                else if (LuaHelpers.luaVersion == 501)
+                                {
                                     message.helperHookFunctionAddress = processData.helperHookFunctionAddress_5_1;
+                                }
                                 else if (LuaHelpers.luaVersion == 502)
+                                {
                                     message.helperHookFunctionAddress = processData.helperHookFunctionAddress_5_2;
+                                }
                                 else if (LuaHelpers.luaVersion == 503)
+                                {
                                     message.helperHookFunctionAddress = processData.helperHookFunctionAddress_5_3;
+                                }
                                 else if (LuaHelpers.luaVersion == 504)
+                                {
                                     message.helperHookFunctionAddress = processData.helperHookFunctionAddress_5_4;
+                                }
 
                                 DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.registerLuaState, message.Encode(), null).SendLower();
 
