@@ -84,7 +84,10 @@ namespace LuaDkmDebuggerComponent
         public Guid breakpointLuaInitialization;
 
         public Guid breakpointLuaThreadCreate;
+
+        public bool skipNextInternalDestroy = false;
         public Guid breakpointLuaThreadDestroy;
+        public Guid breakpointLuaThreadDestroyInternal;
 
         public Guid breakpointLuaFileLoaded;
         public Guid breakpointLuaFileLoadedSolCompat;
@@ -2418,6 +2421,8 @@ namespace LuaDkmDebuggerComponent
                     // Track Lua state destruction (breakpoint at the start of the function)
                     processData.breakpointLuaThreadDestroy = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "lua_close", "Lua thread destruction", out _).GetValueOrDefault(Guid.Empty);
 
+                    processData.breakpointLuaThreadDestroyInternal = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "close_state", "Lua thread destruction (internal)", out _).GetValueOrDefault(Guid.Empty);
+
                     // Track Lua scripts loaded from files
                     processData.breakpointLuaFileLoaded = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadfilex", "Lua script load from file", out _).GetValueOrDefault(Guid.Empty);
 
@@ -2811,9 +2816,25 @@ namespace LuaDkmDebuggerComponent
 
                     inspectionSession.Close();
                 }
-                else if (data.breakpointId == processData.breakpointLuaThreadDestroy)
+                else if (data.breakpointId == processData.breakpointLuaThreadDestroy || data.breakpointId == processData.breakpointLuaThreadDestroyInternal)
                 {
-                    log.Debug("Detected Lua thread destruction");
+                    if (data.breakpointId == processData.breakpointLuaThreadDestroy)
+                    {
+                        log.Debug("Detected Lua thread destruction");
+
+                        processData.skipNextInternalDestroy = true;
+                    }
+                    else
+                    {
+                        if (processData.skipNextInternalDestroy)
+                        {
+                            processData.skipNextInternalDestroy = false;
+
+                            return null;
+                        }
+
+                        log.Debug("Detected raw Lua thread destruction");
+                    }
 
                     var inspectionSession = EvaluationHelpers.CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
 
