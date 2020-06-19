@@ -986,11 +986,13 @@ namespace LuaDkmDebuggerComponent
 
             Debug.Assert(instructionSymbol != null);
 
-            var frameData = new LuaFrameData();
-
-            if (frameData.ReadFrom(instructionSymbol.AdditionalData.ToArray()))
+            if (instructionSymbol.EntityId != null)
             {
-                var scriptSource = processData.symbolStore.FetchScriptSource(frameData.source);
+                var addressEntityData = new LuaAddressEntityData();
+
+                addressEntityData.ReadFrom(instructionSymbol.EntityId.ToArray());
+
+                LuaScriptSymbols scriptSource = processData.symbolStore.FetchScriptSource(addressEntityData.source);
 
                 string filePath = null;
 
@@ -1000,7 +1002,7 @@ namespace LuaDkmDebuggerComponent
                 }
                 else
                 {
-                    filePath = TryFindSourcePath(process.Path, processData, frameData.source, scriptSource?.scriptContent);
+                    filePath = TryFindSourcePath(process.Path, processData, addressEntityData.source, scriptSource?.scriptContent);
 
                     if (scriptSource != null)
                         scriptSource.resolvedFileName = filePath;
@@ -1009,7 +1011,7 @@ namespace LuaDkmDebuggerComponent
                 log.Debug($"IDkmSymbolQuery.GetSourcePosition success");
 
                 startOfLine = true;
-                return DkmSourcePosition.Create(DkmSourceFileId.Create(filePath, null, null, null), new DkmTextSpan(frameData.instructionLine, frameData.instructionLine, 0, 0));
+                return DkmSourcePosition.Create(DkmSourceFileId.Create(filePath, null, null, null), new DkmTextSpan(addressEntityData.line, addressEntityData.line, 0, 0));
             }
 
             log.Error($"IDkmSymbolQuery.GetSourcePosition failure");
@@ -1211,6 +1213,8 @@ namespace LuaDkmDebuggerComponent
 
             var process = result.StackFrame.Process;
 
+            var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
+
             var nativeTypeEnumData = result.GetDataItem<LuaNativeTypeEnumData>();
 
             if (nativeTypeEnumData != null)
@@ -1269,6 +1273,25 @@ namespace LuaDkmDebuggerComponent
                 completionRoutine(new DkmGetChildrenAsyncResult(initialResults, enumerator));
 
                 log.Debug($"IDkmLanguageExpressionEvaluator.GetChildren success (table)");
+                return;
+            }
+
+            if (evalData.luaValueData as LuaValueDataLuaFunction != null)
+            {
+                var value = evalData.luaValueData as LuaValueDataLuaFunction;
+
+                int finalInitialSize = initialRequestSize < 1 ? initialRequestSize : 1;
+
+                DkmEvaluationResult[] initialResults = new DkmEvaluationResult[finalInitialSize];
+
+                if (initialResults.Length != 0)
+                    initialResults[0] = EvaluationHelpers.GetLuaFunctionChildAtIndex(inspectionContext, result.StackFrame, result.FullName, value.value, 0);
+
+                var enumerator = DkmEvaluationResultEnumContext.Create(1, result.StackFrame, inspectionContext, evalData);
+
+                completionRoutine(new DkmGetChildrenAsyncResult(initialResults, enumerator));
+
+                log.Debug($"IDkmLanguageExpressionEvaluator.GetChildren success (lua_function)");
                 return;
             }
 
@@ -1543,6 +1566,24 @@ namespace LuaDkmDebuggerComponent
                 completionRoutine(new DkmEvaluationEnumAsyncResult(results));
 
                 log.Debug($"IDkmLanguageExpressionEvaluator.GetItems success (table)");
+                return;
+            }
+
+            if (evalData.luaValueData as LuaValueDataLuaFunction != null)
+            {
+                var value = evalData.luaValueData as LuaValueDataLuaFunction;
+
+                var results = new DkmEvaluationResult[count];
+
+                for (int i = startIndex; i < startIndex + count; i++)
+                {
+                    if (i == 0)
+                        results[i - startIndex] = EvaluationHelpers.GetLuaFunctionChildAtIndex(enumContext.InspectionContext, enumContext.StackFrame, evalData.fullName, value.value, 0);
+                }
+
+                completionRoutine(new DkmEvaluationEnumAsyncResult(results));
+
+                log.Debug($"IDkmLanguageExpressionEvaluator.GetItems success (lua_function)");
                 return;
             }
 

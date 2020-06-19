@@ -1,5 +1,6 @@
 using Microsoft.VisualStudio.Debugger;
 using Microsoft.VisualStudio.Debugger.CallStack;
+using Microsoft.VisualStudio.Debugger.CustomRuntimes;
 using Microsoft.VisualStudio.Debugger.Evaluation;
 using System;
 using System.Collections.ObjectModel;
@@ -235,7 +236,7 @@ namespace LuaDkmDebuggerComponent
 
                 type = "lua_function";
 
-                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
+                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly | DkmEvaluationResultFlags.Expandable;
                 return $"0x{value.targetAddress:x}";
             }
 
@@ -447,6 +448,53 @@ namespace LuaDkmDebuggerComponent
                 };
 
                 return EvaluateDataAtLuaValue(inspectionContext, stackFrame, "!metatable", $"{fullName}.!metatable", metaTableValue, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+            }
+
+            Debug.Assert(false, "Invalid child index");
+
+            return null;
+        }
+
+        internal static DkmEvaluationResult GetLuaFunctionChildAtIndex(DkmInspectionContext inspectionContext, DkmStackWalkFrame stackFrame, string fullName, LuaClosureData value, int index)
+        {
+            var process = stackFrame.Process;
+
+            var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
+
+            if (index == 0)
+            {
+                if (value == null)
+                    return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, "[function]", $"{fullName}.!function", "null", DkmEvaluationResultFlags.Invalid, null);
+
+                var functionData = value.ReadFunction(process);
+
+                if (functionData == null)
+                    return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, "[function]", $"{fullName}.!function", "[internal error: failed to read Proto]", DkmEvaluationResultFlags.Invalid, null);
+
+                string source = functionData.ReadSource(process);
+                int line = functionData.definitionStartLine_opt;
+
+                DkmEvaluationResultCategory category = DkmEvaluationResultCategory.Method;
+                DkmEvaluationResultTypeModifierFlags typeModifiers = DkmEvaluationResultTypeModifierFlags.None;
+                DkmEvaluationResultAccessType access = DkmEvaluationResultAccessType.Public;
+                DkmEvaluationResultStorageType storage = DkmEvaluationResultStorageType.Global;
+
+                LuaAddressEntityData entityData = new LuaAddressEntityData
+                {
+                    source = source,
+                    line = line,
+
+                    functionAddress = 0,
+                    functionInstructionPointer = 0,
+                };
+
+                var entityDataBytes = entityData.Encode();
+
+                DkmInstructionAddress instructionAddress = DkmCustomInstructionAddress.Create(processData.runtimeInstance, processData.moduleInstance, entityDataBytes, (ulong)((line << 16) + 0), null, null);
+
+                DkmDataAddress dataAddress = DkmDataAddress.Create(processData.runtimeInstance, value.functionAddress, instructionAddress);
+
+                return DkmSuccessEvaluationResult.Create(inspectionContext, stackFrame, "[function]", $"{fullName}.!function", DkmEvaluationResultFlags.ReadOnly | DkmEvaluationResultFlags.Address, $"{source}:{line}", null, "Proto*", category, access, storage, typeModifiers, dataAddress, null, null, null);
             }
 
             Debug.Assert(false, "Invalid child index");
