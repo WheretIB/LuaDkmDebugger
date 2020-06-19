@@ -211,22 +211,22 @@ namespace LuaDkmDebuggerComponent
                 flags |= DkmEvaluationResultFlags.ReadOnly | DkmEvaluationResultFlags.Expandable;
 
                 if (value.value.arrayElements.Count != 0 && value.value.nodeElements.Count != 0)
-                    return $"table [{value.value.arrayElements.Count} element(s) and {value.value.nodeElements.Count} key(s)]";
+                    return $"0x{value.targetAddress:x} table [{value.value.arrayElements.Count} element(s) and {value.value.nodeElements.Count} key(s)]";
 
                 if (value.value.arrayElements.Count != 0)
-                    return $"table [{value.value.arrayElements.Count} element(s)]";
+                    return $"0x{value.targetAddress:x} table [{value.value.arrayElements.Count} element(s)]";
 
                 if (value.value.nodeElements.Count != 0)
-                    return $"table [{value.value.nodeElements.Count} key(s)]";
+                    return $"0x{value.targetAddress:x} table [{value.value.nodeElements.Count} key(s)]";
 
                 if (value.value.metaTable == null)
                 {
                     flags &= ~DkmEvaluationResultFlags.Expandable;
 
-                    return "table [empty]";
+                    return $"0x{value.targetAddress:x} table [empty]";
                 }
 
-                return "table";
+                return $"0x{value.targetAddress:x} table";
             }
 
             if (valueBase as LuaValueDataLuaFunction != null)
