@@ -860,7 +860,7 @@ namespace LuaDkmDebuggerComponent
             return new DkmStackWalkFrame[1] { input };
         }
 
-        string CheckConfigPaths(string processPath, LuaLocalProcessData processData, string winSourcePath)
+        string CheckConfigPaths(string processPath, LuaLocalProcessData processData, string winSourcePath, int skipDepth)
         {
             log.Verbose($"Checking for file in configuration paths");
 
@@ -913,6 +913,14 @@ namespace LuaDkmDebuggerComponent
                     return test;
             }
 
+            if (skipDepth < 2)
+            {
+                int folderPos = winSourcePath.IndexOf('\\');
+
+                if (folderPos != -1)
+                    return CheckConfigPaths(processPath, processData, winSourcePath.Substring(folderPos + 1), skipDepth + 1);
+            }
+
             return null;
         }
 
@@ -927,7 +935,7 @@ namespace LuaDkmDebuggerComponent
 
             try
             {
-                filePath = CheckConfigPaths(processPath, processData, winSourcePath);
+                filePath = CheckConfigPaths(processPath, processData, winSourcePath, 0);
             }
             catch (Exception)
             {
