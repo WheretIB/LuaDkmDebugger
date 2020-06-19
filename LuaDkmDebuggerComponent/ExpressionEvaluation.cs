@@ -151,6 +151,27 @@ namespace LuaDkmDebuggerComponent
                     return element.LoadValue(process);
             }
 
+            table.LoadMetaTableKeys(process);
+
+            if (table.metaTable != null)
+            {
+                foreach (var element in table.metaTable.nodeKeys)
+                {
+                    var keyAsString = element.key as LuaValueDataString;
+
+                    if (keyAsString == null)
+                        continue;
+
+                    if (keyAsString.value == "__index")
+                    {
+                        var indexMetaTableValue = element.LoadValue(process);
+
+                        if (indexMetaTableValue is LuaValueDataTable indexMetaTableValueTable)
+                            return LookupTableMember(indexMetaTableValueTable.value, name);
+                    }
+                }
+            }
+
             return Report($"Failed to find key '{name}' in table");
         }
 

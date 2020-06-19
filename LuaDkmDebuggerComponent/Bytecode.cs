@@ -1573,6 +1573,21 @@ namespace LuaDkmDebuggerComponent
             metaTable.LoadValues(process);
         }
 
+        public void LoadMetaTableKeys(DkmProcess process)
+        {
+            // Check if already loaded
+            if (metaTable != null)
+                return;
+
+            if (metaTableDataAddress == 0)
+                return;
+
+            metaTable = new LuaTableData();
+
+            metaTable.ReadFrom(process, metaTableDataAddress);
+            metaTable.LoadKeys(process);
+        }
+
         public LuaValueDataBase FetchMember(DkmProcess process, string name)
         {
             foreach (var element in nodeElements)
