@@ -382,17 +382,33 @@ namespace LuaDkmDebuggerComponent
                     LuaHelpers.luaVersion = (int)version.GetValueOrDefault(501); // Lua 5.1 doesn't have version field
                 }
 
-                string GetLuaFunctionName(ulong callInfoAddress)
+                string GetLuaFunctionName(ulong currCallInfoAddress, ulong prevCallInfoAddress, ulong closureAddress)
                 {
                     string functionNameType = null;
 
                     DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.pauseBreakpoints, null, null).SendLower();
 
                     // Note that in Lua 5.1 call info address if for current call info as opposed to previous call info in future versions
-                    if (LuaHelpers.luaVersion == 501 || LuaHelpers.luaVersion == 502)
-                        functionNameType = EvaluationHelpers.TryEvaluateStringExpression($"getfuncname(L, ((CallInfo*){callInfoAddress}), (const char**){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
+                    if (LuaHelpers.luaVersion == 501)
+                        functionNameType = EvaluationHelpers.TryEvaluateStringExpression($"getfuncname(L, ((CallInfo*){currCallInfoAddress}), (const char**){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
+                    else if (LuaHelpers.luaVersion == 502)
+                        functionNameType = EvaluationHelpers.TryEvaluateStringExpression($"getfuncname(L, ((CallInfo*){prevCallInfoAddress}), (const char**){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
                     else
-                        functionNameType = EvaluationHelpers.TryEvaluateStringExpression($"funcnamefromcode(L, ((CallInfo*){callInfoAddress}), (const char**){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
+                        functionNameType = EvaluationHelpers.TryEvaluateStringExpression($"funcnamefromcode(L, ((CallInfo*){prevCallInfoAddress}), (const char**){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
+
+                    if (functionNameType == null && closureAddress != 0)
+                    {
+                        long? result = EvaluationHelpers.TryEvaluateNumberExpression($"auxgetinfo(L, \"n\", {processData.scratchMemory}, {closureAddress}, {currCallInfoAddress})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
+
+                        if (result.GetValueOrDefault(0) == 1)
+                        {
+                            string functionName = EvaluationHelpers.TryEvaluateStringExpression($"((lua_Debug*){processData.scratchMemory})->name", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
+
+                            DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.resumeBreakpoints, null, null).SendLower();
+
+                            return functionName;
+                        }
+                    }
 
                     DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.resumeBreakpoints, null, null).SendLower();
 
@@ -594,7 +610,7 @@ namespace LuaDkmDebuggerComponent
                         }
                         else
                         {
-                            string functionName = GetLuaFunctionName(currCallInfoAddress);
+                            string functionName = GetLuaFunctionName(currCallInfoAddress, prevCallInfoDataAddress, currCallLuaFunction.targetAddress);
 
                             if (functionName != null)
                                 currFunctionName = functionName;
@@ -716,7 +732,7 @@ namespace LuaDkmDebuggerComponent
 
                                     if (functionName == null)
                                     {
-                                        functionName = GetLuaFunctionName(currCallInfoData.previousAddress);
+                                        functionName = GetLuaFunctionName(currCallInfoAddress.Value, currCallInfoData.previousAddress, currCallLuaFunction.targetAddress);
 
                                         if (functionName != null)
                                             stateSumbols.AddFunctionName(currCallLuaFunction.value.functionAddress, functionName);
@@ -731,7 +747,7 @@ namespace LuaDkmDebuggerComponent
 
                                     if (functionName == null)
                                     {
-                                        functionName = GetLuaFunctionName(currCallInfoData.previousAddress);
+                                        functionName = GetLuaFunctionName(currCallInfoAddress.Value, currCallInfoData.previousAddress, 0);
 
                                         if (functionName != null)
                                             stateSumbols.AddFunctionName(currCallExternalFunction.targetAddress, functionName);
@@ -746,7 +762,7 @@ namespace LuaDkmDebuggerComponent
 
                                     if (functionName == null)
                                     {
-                                        functionName = GetLuaFunctionName(currCallInfoData.previousAddress);
+                                        functionName = GetLuaFunctionName(currCallInfoAddress.Value, currCallInfoData.previousAddress, currCallExternalClosure.targetAddress);
 
                                         if (functionName != null)
                                             stateSumbols.AddFunctionName(currCallExternalClosure.value.functionAddress, functionName);
