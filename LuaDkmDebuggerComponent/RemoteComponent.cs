@@ -661,6 +661,15 @@ namespace LuaDkmDebuggerComponent
 
             callInfoData.ReadFunction(process);
 
+            if (callInfoData.func == null)
+            {
+                inspectionSession.Close();
+
+                stop = true;
+                errorText = $"Failed to evaluate current Lua call frame function (Lua version {processData.luaVersion})";
+                return;
+            }
+
             if (callInfoData.func.extendedType != LuaExtendedType.LuaFunction)
             {
                 inspectionSession.Close();
