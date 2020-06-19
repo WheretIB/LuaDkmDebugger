@@ -2949,7 +2949,7 @@ namespace LuaDkmDebuggerComponent
                 }
                 else
                 {
-                    log.Warning("Recevied unknown breakpoint hit");
+                    log.Warning("Received unknown breakpoint hit");
                 }
             }
 
