@@ -11,8 +11,6 @@ namespace LuaDkmDebuggerComponent
     {
         public static class Helper
         {
-            public static bool looksLike_5_1 = false;
-
             public static long GetSize(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame, string type, ref bool available)
             {
                 long? result = EvaluationHelpers.TryEvaluateNumberExpression($"sizeof({type})", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).GetValueOrDefault(0);
@@ -510,9 +508,6 @@ namespace LuaDkmDebuggerComponent
                 callInfoAddress = Helper.Read(inspectionSession, thread, frame, "lua_State", "ci", ref available, ref success, ref failure);
                 savedProgramCounterAddress_5_1_opt = Helper.ReadOptional(inspectionSession, thread, frame, "lua_State", "savedpc", "used in 5.1 (*)", ref optional);
                 baseCallInfoAddress_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "lua_State", "base_ci", "used in 5.1", ref optional);
-
-                if (savedProgramCounterAddress_5_1_opt.HasValue && baseCallInfoAddress_5_1.HasValue)
-                    Helper.looksLike_5_1 = true;
 
                 if (Log.instance != null)
                     Log.instance.Debug($"LuaStateData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
