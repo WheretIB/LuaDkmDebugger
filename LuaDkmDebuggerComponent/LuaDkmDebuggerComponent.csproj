@@ -48,6 +48,7 @@
   </ItemGroup>
   <ItemGroup>
     <VsdConfigXmlFiles Include="LocalComponent.vsdconfigxml" />
+    <VsdConfigXmlFiles Include="LocalWorkerComponent.vsdconfigxml" />
     <VsdConfigXmlFiles Include="RemoteComponent.vsdconfigxml" />
   </ItemGroup>
   <ItemGroup>
@@ -56,6 +57,7 @@
     <Compile Include="BytecodeSchema.cs" />
     <Compile Include="EvaluationHelpers.cs" />
     <Compile Include="ExpressionEvaluation.cs" />
+    <Compile Include="LocalWorkerComponent.cs" />
     <Compile Include="Log.cs" />
     <Compile Include="LuaConstants.cs" />
     <Compile Include="DebugHelpers.cs" />

@@ -36,6 +36,14 @@ namespace LuaDkmDebuggerComponent
         public static readonly Guid guid = new Guid("40C433F5-7EB9-400F-8DAC-DC4CAC739BE4");
 
         public static readonly int luaSupportBreakpointHit = 1;
+        public static readonly int luaSymbols = 2;
+    }
+
+    static class MessageToLocalWorker
+    {
+        public static readonly Guid guid = new Guid("CD3A296C-3C54-4B5E-AF46-8B72F528E4B5");
+
+        public static readonly int fetchLuaSymbols = 1;
     }
 
     static class MessageToVsService

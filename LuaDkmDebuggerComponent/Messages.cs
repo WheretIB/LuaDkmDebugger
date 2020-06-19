@@ -247,4 +247,85 @@ namespace LuaDkmDebuggerComponent
             return true;
         }
     }
+
+    public class LuaLocationsMessage
+    {
+        public ulong luaExecuteAtStart = 0;
+        public ulong luaExecuteAtEnd = 0;
+
+        public ulong luaNewStateAtStart = 0;
+        public ulong luaNewStateAtEnd = 0;
+
+        public ulong luaClose = 0;
+        public ulong closeState = 0;
+
+        public ulong luaLoadFileEx = 0;
+        public ulong luaLoadFile = 0;
+        public ulong solCompatLoadFileEx = 0;
+
+        public ulong luaLoadBufferEx = 0;
+        public ulong luaLoadBuffer = 0;
+
+        public ulong luaLoad = 0;
+
+        public ulong luaError = 0;
+        public ulong luaRunError = 0;
+        public ulong luaThrow = 0;
+
+        public byte[] Encode()
+        {
+            using (var stream = new MemoryStream())
+            {
+                using (var writer = new BinaryWriter(stream))
+                {
+                    writer.Write(luaExecuteAtStart);
+                    writer.Write(luaExecuteAtEnd);
+                    writer.Write(luaNewStateAtStart);
+                    writer.Write(luaNewStateAtEnd);
+                    writer.Write(luaClose);
+                    writer.Write(closeState);
+                    writer.Write(luaLoadFileEx);
+                    writer.Write(luaLoadFile);
+                    writer.Write(solCompatLoadFileEx);
+                    writer.Write(luaLoadBufferEx);
+                    writer.Write(luaLoadBuffer);
+                    writer.Write(luaLoad);
+                    writer.Write(luaError);
+                    writer.Write(luaRunError);
+                    writer.Write(luaThrow);
+
+                    writer.Flush();
+
+                    return stream.ToArray();
+                }
+            }
+        }
+
+        public bool ReadFrom(byte[] data)
+        {
+            using (var stream = new MemoryStream(data))
+            {
+                using (var reader = new BinaryReader(stream))
+                {
+                    luaExecuteAtStart = reader.ReadUInt64();
+                    luaExecuteAtEnd = reader.ReadUInt64();
+                    luaNewStateAtStart = reader.ReadUInt64();
+                    luaNewStateAtEnd = reader.ReadUInt64();
+                    luaClose = reader.ReadUInt64();
+                    closeState = reader.ReadUInt64();
+                    luaLoadFileEx = reader.ReadUInt64();
+                    luaLoadFile = reader.ReadUInt64();
+                    solCompatLoadFileEx = reader.ReadUInt64();
+                    luaLoadBufferEx = reader.ReadUInt64();
+                    luaLoadBuffer = reader.ReadUInt64();
+                    luaLoad = reader.ReadUInt64();
+                    luaError = reader.ReadUInt64();
+                    luaRunError = reader.ReadUInt64();
+                    luaThrow = reader.ReadUInt64();
+                }
+            }
+
+            return true;
+        }
+    }
 }
