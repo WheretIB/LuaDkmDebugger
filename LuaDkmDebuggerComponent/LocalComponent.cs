@@ -957,6 +957,9 @@ namespace LuaDkmDebuggerComponent
                 {
                     string tempPath = $"{Path.GetTempPath()}{winSourcePath.Replace('\\', '+')}";
 
+                    if (!tempPath.EndsWith(".lua"))
+                        tempPath += ".lua";
+
                     log.Debug($"Writing {source} content (length {content.Length}) to temp path {tempPath}");
 
                     try
