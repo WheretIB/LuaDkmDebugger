@@ -120,10 +120,17 @@ namespace LuaDkmDebuggerComponent
 
                 Debug.Assert(processData.knownStates.ContainsKey(data.stateAddress) == false);
 
-                processData.knownStates.Add(data.stateAddress, data);
+                if (processData.knownStates.ContainsKey(data.stateAddress))
+                {
+                    Debug.WriteLine("IDkmCustomMessageForwardReceiver.SendLower() Duplicate Lua state registration, destruction was probably missed!");
+                }
+                else
+                {
+                    processData.knownStates.Add(data.stateAddress, data);
 
-                if (processData.hooksEnabled)
-                    SetupHooks(process, processData);
+                    if (processData.hooksEnabled)
+                        SetupHooks(process, processData);
+                }
             }
             else if (customMessage.MessageCode == MessageToRemote.unregisterLuaState)
             {
