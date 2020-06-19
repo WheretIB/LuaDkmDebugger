@@ -1975,7 +1975,7 @@ namespace LuaDkmDebuggerComponent
 
                                 if (sourceFileId.SHA1HashPart.Value.Value0 == value0 && sourceFileId.SHA1HashPart.Value.Value1 == value1 && sourceFileId.SHA1HashPart.Value.Value2 == value2 && sourceFileId.SHA1HashPart.Value.Value3 == value3 && sourceFileId.SHA1HashPart.Value.Value4 == value4)
                                 {
-                                    log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments Resolved {script.Value.sourceFileName} to {script.Value.resolvedFileName} based on SHA-1 hash");
+                                    log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments Resolved {script.Value.sourceFileName} to {sourceFileId.DocumentName} based on SHA-1 hash");
 
                                     script.Value.resolvedFileName = sourceFileId.DocumentName;
                                 }
