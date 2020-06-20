@@ -424,6 +424,28 @@ namespace LuaDkmDebuggerComponent
             return 0;
         }
 
+        internal static Guid? CreateTargetFunctionBreakpointAtAddress(DkmProcess process, DkmNativeModuleInstance moduleWithLoadedLua, string name, string desc, ulong address)
+        {
+            if (address != 0)
+            {
+                LocalComponent.log.Debug($"Hooking Lua '{desc}' ({name}) function (address 0x{address:x})");
+
+                var nativeAddress = process.CreateNativeInstructionAddress(address);
+
+                var breakpoint = DkmRuntimeInstructionBreakpoint.Create(Guids.luaSupportBreakpointGuid, null, nativeAddress, false, null);
+
+                breakpoint.Enable();
+
+                return breakpoint.UniqueId;
+            }
+            else
+            {
+                LocalComponent.log.Warning($"Failed to create breakpoint in '{name}' with missing address");
+            }
+
+            return null;
+        }
+
         internal static Guid? CreateTargetFunctionBreakpointAtDebugStart(DkmProcess process, DkmNativeModuleInstance moduleWithLoadedLua, string name, string desc, out ulong breakAddress)
         {
             var address = TryGetFunctionAddressAtDebugStart(moduleWithLoadedLua, name, out string error);

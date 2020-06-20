@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Configuration xmlns="http://schemas.microsoft.com/vstudio/vsdconfig/2008">
+	<DefineGuid Name="guidLuaLocalWorkerDebuggerComponent" Value="7EA4B490-BDF9-42AD-8A5B-BCA60741E5D6"/>
+	<DefineGuid Name="guidLuaMessageToLocalWorker" Value="CD3A296C-3C54-4B5E-AF46-8B72F528E4B5"/>
+
+	<ManagedComponent ComponentId="guidLuaLocalWorkerDebuggerComponent" ComponentLevel="1999100" AssemblyName="LuaDkmDebuggerComponent">
+		<Class Name="LuaDkmDebuggerComponent.LocalWorkerComponent" WorkerProcessSupported="true">
+			<Implements>
+				<InterfaceGroup>
+					<Filter>
+						<SourceId RequiredValue="guidLuaMessageToLocalWorker"/>
+					</Filter>
+					<Interface Name="IDkmCustomMessageForwardReceiver"/>
+				</InterfaceGroup>
+			</Implements>
+		</Class>
+	</ManagedComponent>
+</Configuration>
