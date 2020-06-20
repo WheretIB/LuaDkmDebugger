@@ -126,6 +126,8 @@ namespace LuaDkmDebuggerComponent
 
         // Increasing number for scripts without a name
         public int unnamedScriptId = 1;
+
+        public Dictionary<string, string> filePathResolveMap = new Dictionary<string, string>();
     }
 
     internal class LuaStackContextData : DkmDataItem
@@ -993,7 +995,16 @@ namespace LuaDkmDebuggerComponent
 
             try
             {
-                filePath = CheckConfigPaths(processPath, processData, winSourcePath, 0);
+                if (processData.filePathResolveMap.ContainsKey(winSourcePath))
+                {
+                    filePath = processData.filePathResolveMap[winSourcePath];
+                }
+                else
+                {
+                    filePath = CheckConfigPaths(processPath, processData, winSourcePath, 0);
+
+                    processData.filePathResolveMap.Add(winSourcePath, filePath);
+                }
             }
             catch (Exception)
             {
