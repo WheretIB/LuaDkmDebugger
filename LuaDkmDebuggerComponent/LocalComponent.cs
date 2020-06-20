@@ -40,6 +40,8 @@ namespace LuaDkmDebuggerComponent
 
         public LuaSymbolStore symbolStore = new LuaSymbolStore();
 
+        public DkmWorkerProcessConnection workerConnection = null;
+
         public DkmNativeModuleInstance moduleWithLoadedLua = null;
         public ulong loadLibraryAddress = 0;
 
@@ -2226,13 +2228,20 @@ namespace LuaDkmDebuggerComponent
 
                     log.Debug("Check if Lua library is loaded");
 
-                    var workerConnection = DkmWorkerProcessConnection.Current();
+                    DkmCustomMessage luaLocations = null;
 
-                    if (workerConnection == null)
-                        workerConnection = DkmWorkerProcessConnection.Open(null);
+                    if (DebugHelpers.Is64Bit(process))
+                    {
+                        if (processData.workerConnection == null)
+                        {
+                            processData.workerConnection = DkmWorkerProcessConnection.Current();
 
-                    // Check if Lua library is loaded
-                    var luaLocations = DkmCustomMessage.Create(process.Connection, process, MessageToLocalWorker.guid, MessageToLocalWorker.fetchLuaSymbols, nativeModuleInstance.UniqueId.ToByteArray(), null, null, workerConnection).SendLower();
+                            if (processData.workerConnection == null)
+                                processData.workerConnection = DkmWorkerProcessConnection.Open(null);
+                        }
+
+                        luaLocations = DkmCustomMessage.Create(process.Connection, process, MessageToLocalWorker.guid, MessageToLocalWorker.fetchLuaSymbols, nativeModuleInstance.UniqueId.ToByteArray(), null, null, processData.workerConnection).SendLower();
+                    }
 
                     if (luaLocations != null)
                     {
