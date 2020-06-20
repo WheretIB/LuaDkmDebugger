@@ -1,6 +1,7 @@
 using Microsoft.VisualStudio.Debugger;
 using Microsoft.VisualStudio.Debugger.CallStack;
 using Microsoft.VisualStudio.Debugger.CustomRuntimes;
+using Microsoft.VisualStudio.Debugger.DefaultPort;
 using Microsoft.VisualStudio.Debugger.Evaluation;
 using System;
 using System.Collections.ObjectModel;
@@ -10,13 +11,15 @@ namespace LuaDkmDebuggerComponent
 {
     internal class EvaluationHelpers
     {
+        public static DkmWorkerProcessConnection workerConnection = null;
+
         internal static DkmEvaluationResult ExecuteRawExpression(string expression, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame input, DkmRuntimeInstance runtimeInstance, DkmEvaluationFlags flags)
         {
             var compilerId = new DkmCompilerId(DkmVendorId.Microsoft, DkmLanguageId.Cpp);
             var language = DkmLanguage.Create("C++", compilerId);
             var languageExpression = DkmLanguageExpression.Create(language, DkmEvaluationFlags.None, expression, null);
 
-            var inspectionContext = DkmInspectionContext.Create(inspectionSession, runtimeInstance, thread, 200, flags, DkmFuncEvalFlags.None, 10, language, null);
+            var inspectionContext = DkmInspectionContext.Create(inspectionSession, runtimeInstance, thread, 200, flags, DkmFuncEvalFlags.None, 10, language, null, null, DkmCompiledVisualizationDataPriority.None, null, workerConnection);
 
             var workList = DkmWorkList.Create(null);
 
@@ -49,7 +52,7 @@ namespace LuaDkmDebuggerComponent
             var language = DkmLanguage.Create("C++", compilerId);
             var languageExpression = DkmLanguageExpression.Create(language, DkmEvaluationFlags.None, expression, null);
 
-            var inspectionContext = DkmInspectionContext.Create(inspectionSession, input.RuntimeInstance, thread, 200, flags, DkmFuncEvalFlags.None, 10, language, null);
+            var inspectionContext = DkmInspectionContext.Create(inspectionSession, input.RuntimeInstance, thread, 200, flags, DkmFuncEvalFlags.None, 10, language, null, null, DkmCompiledVisualizationDataPriority.None, null, workerConnection);
 
             var workList = DkmWorkList.Create(null);
 

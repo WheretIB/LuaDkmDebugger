@@ -2238,6 +2238,8 @@ namespace LuaDkmDebuggerComponent
                         if (processData.workerConnection != null)
                         {
                             luaLocations = DkmCustomMessage.Create(process.Connection, process, MessageToLocalWorker.guid, MessageToLocalWorker.fetchLuaSymbols, nativeModuleInstance.UniqueId.ToByteArray(), null, null, processData.workerConnection).SendLower();
+
+                            EvaluationHelpers.workerConnection = processData.workerConnection;
                         }
                     }
 
