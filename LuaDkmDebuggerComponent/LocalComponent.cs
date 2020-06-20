@@ -371,6 +371,10 @@ namespace LuaDkmDebuggerComponent
 
                 LoadConfigurationFile(process, processData);
 
+                // If we haven't attached at launch, prepare Compatibility Mode data here
+                if (useSchema && !processData.schemaLoaded)
+                    LoadSchema(processData, stackContext.InspectionSession, stackContext.Thread, input);
+
                 bool isTopFrame = (input.Flags & DkmStackWalkFrameFlags.TopFrame) != 0;
 
                 List<DkmStackWalkFrame> luaFrames = new List<DkmStackWalkFrame>();
