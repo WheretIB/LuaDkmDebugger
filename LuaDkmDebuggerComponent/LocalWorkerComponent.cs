@@ -1,21 +1,12 @@
-using Dia2Lib;
 using Microsoft.VisualStudio.Debugger;
 using Microsoft.VisualStudio.Debugger.ComponentInterfaces;
 using System;
-using System.Diagnostics;
 using System.Linq;
-using System.Runtime.InteropServices;
 
 namespace LuaDkmDebuggerComponent
 {
     public class LocalWorkerComponent : IDkmCustomMessageForwardReceiver
     {
-        internal static void ReleaseComObject(object obj)
-        {
-            if (obj != null && Marshal.IsComObject(obj))
-                Marshal.ReleaseComObject(obj);
-        }
-
         DkmCustomMessage IDkmCustomMessageForwardReceiver.SendLower(DkmCustomMessage customMessage)
         {
             var process = customMessage.Process;
