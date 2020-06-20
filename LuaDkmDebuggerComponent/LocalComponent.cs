@@ -357,6 +357,10 @@ namespace LuaDkmDebuggerComponent
                 {
                     processData.workingDirectoryRequested = true;
 
+                    // If available and haven't been set yet, use local symbols worker connection for faster expression evaluation
+                    if (EvaluationHelpers.workerConnection == null)
+                        EvaluationHelpers.workerConnection = DkmWorkerProcessConnection.GetLocalSymbolsConnection();
+
                     // Jumping through hoops, kernel32.dll should be loaded
                     ulong callAddress = DebugHelpers.FindFunctionAddress(process.GetNativeRuntimeInstance(), "GetCurrentDirectoryA");
 
