@@ -326,7 +326,7 @@ namespace LuaDkmDebuggerComponent
 
             if (methodName == "luaV_execute")
             {
-                log.Verbose($"Filtering 'luaV_execute' stack frame");
+                log.Verbose($"IDkmCallStackFilter.FilterNextFrame Got 'luaV_execute' stack frame");
 
                 bool fromHook = stackContextData.hideTopLuaLibraryFrames;
 
@@ -455,10 +455,12 @@ namespace LuaDkmDebuggerComponent
                 {
                     var currFunctionData = callLuaFunction.value.ReadFunction(process);
 
-                    Debug.Assert(currFunctionData != null);
-
                     if (currFunctionData == null)
+                    {
+                        log.Error("IDkmCallStackFilter.FilterNextFrame Failed to read Lua function data (Proto)");
+
                         return null;
+                    }
 
                     long currInstructionPointer = 0;
 
@@ -894,7 +896,7 @@ namespace LuaDkmDebuggerComponent
                 if (!stackContextData.hideInternalLuaLibraryFrames)
                     luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, null, input.FrameBase, input.FrameSize, DkmStackWalkFrameFlags.NonuserCode, "[Transition to Lua]", input.Registers, input.Annotations));
 
-                log.Verbose($"Completed 'luaV_execute' stack frame");
+                log.Verbose($"IDkmCallStackFilter.FilterNextFrame Completed 'luaV_execute' stack frame");
 
                 return luaFrames.ToArray();
             }
