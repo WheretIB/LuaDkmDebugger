@@ -2233,14 +2233,12 @@ namespace LuaDkmDebuggerComponent
                     if (DebugHelpers.Is64Bit(process))
                     {
                         if (processData.workerConnection == null)
+                            processData.workerConnection = DkmWorkerProcessConnection.GetLocalSymbolsConnection();
+
+                        if (processData.workerConnection != null)
                         {
-                            processData.workerConnection = DkmWorkerProcessConnection.Current();
-
-                            if (processData.workerConnection == null)
-                                processData.workerConnection = DkmWorkerProcessConnection.Open(null);
+                            luaLocations = DkmCustomMessage.Create(process.Connection, process, MessageToLocalWorker.guid, MessageToLocalWorker.fetchLuaSymbols, nativeModuleInstance.UniqueId.ToByteArray(), null, null, processData.workerConnection).SendLower();
                         }
-
-                        luaLocations = DkmCustomMessage.Create(process.Connection, process, MessageToLocalWorker.guid, MessageToLocalWorker.fetchLuaSymbols, nativeModuleInstance.UniqueId.ToByteArray(), null, null, processData.workerConnection).SendLower();
                     }
 
                     if (luaLocations != null)
