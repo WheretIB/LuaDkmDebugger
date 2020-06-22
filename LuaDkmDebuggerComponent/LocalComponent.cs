@@ -40,8 +40,6 @@ namespace LuaDkmDebuggerComponent
 
         public LuaSymbolStore symbolStore = new LuaSymbolStore();
 
-        public DkmWorkerProcessConnection workerConnection = null;
-
         public DkmNativeModuleInstance moduleWithLoadedLua = null;
         public ulong loadLibraryAddress = 0;
 
@@ -289,6 +287,21 @@ namespace LuaDkmDebuggerComponent
             return methodName;
         }
 
+        void UpdateEvaluationHelperWorkerConnection()
+        {
+            // If available and haven't been set yet, use local symbols worker connection for faster expression evaluation
+            if (EvaluationHelpers.workerConnectionWrapper == null)
+            {
+                DkmWorkerProcessConnection workerConnection = DkmWorkerProcessConnection.GetLocalSymbolsConnection();
+
+                if (workerConnection != null)
+                {
+                    EvaluationHelpers.workerConnectionWrapper = new WorkerConnectionWrapper();
+                    EvaluationHelpers.workerConnectionWrapper.workerConnection = workerConnection;
+                }
+            }
+        }
+
         DkmStackWalkFrame[] IDkmCallStackFilter.FilterNextFrame(DkmStackContext stackContext, DkmStackWalkFrame input)
         {
             // null input frame indicates the end of the call stack
@@ -357,9 +370,15 @@ namespace LuaDkmDebuggerComponent
                 {
                     processData.workingDirectoryRequested = true;
 
-                    // If available and haven't been set yet, use local symbols worker connection for faster expression evaluation
-                    if (EvaluationHelpers.workerConnection == null)
-                        EvaluationHelpers.workerConnection = DkmWorkerProcessConnection.GetLocalSymbolsConnection();
+                    try
+                    {
+                        // Only available from VS 2019
+                        UpdateEvaluationHelperWorkerConnection();
+                    }
+                    catch (Exception)
+                    {
+                        log.Debug("IDkmCallStackFilter.FilterNextFrame Local symbols connection is not available");
+                    }
 
                     // Jumping through hoops, kernel32.dll should be loaded
                     ulong callAddress = DebugHelpers.FindFunctionAddress(process.GetNativeRuntimeInstance(), "GetCurrentDirectoryA");
@@ -2203,6 +2222,16 @@ namespace LuaDkmDebuggerComponent
             return resolvedDocument.FindSymbols(textSpan, text, out symbolLocation);
         }
 
+        DkmCustomMessage GetLuaLocations(DkmProcess process, DkmNativeModuleInstance nativeModuleInstance)
+        {
+            DkmWorkerProcessConnection workerConnection = DkmWorkerProcessConnection.GetLocalSymbolsConnection();
+
+            if (workerConnection != null)
+                return DkmCustomMessage.Create(process.Connection, process, MessageToLocalWorker.guid, MessageToLocalWorker.fetchLuaSymbols, nativeModuleInstance.UniqueId.ToByteArray(), null, null, workerConnection).SendLower();
+
+            return null;
+        }
+
         void IDkmModuleInstanceLoadNotification.OnModuleInstanceLoad(DkmModuleInstance moduleInstance, DkmWorkList workList, DkmEventDescriptorS eventDescriptor)
         {
             log.Debug($"IDkmModuleInstanceLoadNotification.OnModuleInstanceLoad begin");
@@ -2251,14 +2280,16 @@ namespace LuaDkmDebuggerComponent
 
                     DkmCustomMessage luaLocations = null;
 
-                    if (processData.workerConnection == null)
-                        processData.workerConnection = DkmWorkerProcessConnection.GetLocalSymbolsConnection();
-
-                    if (processData.workerConnection != null)
+                    try
                     {
-                        luaLocations = DkmCustomMessage.Create(process.Connection, process, MessageToLocalWorker.guid, MessageToLocalWorker.fetchLuaSymbols, nativeModuleInstance.UniqueId.ToByteArray(), null, null, processData.workerConnection).SendLower();
+                        // Only available from VS 2019
+                        GetLuaLocations(process, nativeModuleInstance);
 
-                        EvaluationHelpers.workerConnection = processData.workerConnection;
+                        UpdateEvaluationHelperWorkerConnection();
+                    }
+                    catch (Exception)
+                    {
+                        log.Debug("Local symbols connection is not available");
                     }
 
                     if (luaLocations != null)
