@@ -2699,6 +2699,24 @@ namespace LuaDkmDebuggerComponent
             log.Debug($"IDkmModuleInstanceLoadNotification.OnModuleInstanceLoad finished");
         }
 
+        void ClearSchema()
+        {
+            Schema.LuaStringData.available = false;
+            Schema.LuaValueData.available = false;
+            Schema.LuaLocalVariableData.available = false;
+            Schema.LuaUpvalueDescriptionData.available = false;
+            Schema.LuaUpvalueData.available = false;
+            Schema.LuaFunctionData.available = false;
+            Schema.LuaFunctionCallInfoData.available = false;
+            Schema.LuaNodeData.available = false;
+            Schema.LuaTableData.available = false;
+            Schema.LuaClosureData.available = false;
+            Schema.LuaExternalClosureData.available = false;
+            Schema.LuaUserDataData.available = false;
+            Schema.LuaStateData.available = false;
+            Schema.LuaDebugData.available = false;
+        }
+
         void LoadSchema(LuaLocalProcessData processData, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
         {
             if (processData.schemaLoaded)
@@ -2838,8 +2856,15 @@ namespace LuaDkmDebuggerComponent
 
                     var inspectionSession = EvaluationHelpers.CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
 
-                    if (useSchema && !processData.schemaLoaded)
-                        LoadSchema(processData, inspectionSession, thread, frame);
+                    if (useSchema)
+                    {
+                        if (!processData.schemaLoaded)
+                            LoadSchema(processData, inspectionSession, thread, frame);
+                    }
+                    else
+                    {
+                        ClearSchema();
+                    }
 
                     ulong? stateAddress = EvaluationHelpers.TryEvaluateAddressExpression($"L", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 

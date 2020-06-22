@@ -113,6 +113,9 @@ namespace LuaDkmDebuggerComponent
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
             {
                 available = true;
+                success = 0;
+                failure = 0;
+                optional = 0;
 
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "TString", ref available);
 
@@ -139,6 +142,9 @@ namespace LuaDkmDebuggerComponent
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
             {
                 available = true;
+                success = 0;
+                failure = 0;
+                optional = 0;
 
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "TValue", ref available);
 
@@ -167,6 +173,9 @@ namespace LuaDkmDebuggerComponent
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
             {
                 available = true;
+                success = 0;
+                failure = 0;
+                optional = 0;
 
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "LocVar", ref available);
 
@@ -193,6 +202,9 @@ namespace LuaDkmDebuggerComponent
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
             {
                 available = true;
+                success = 0;
+                failure = 0;
+                optional = 0;
 
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "Upvaldesc", ref available);
 
@@ -217,6 +229,9 @@ namespace LuaDkmDebuggerComponent
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
             {
                 available = true;
+                success = 0;
+                failure = 0;
+                optional = 0;
 
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "UpVal", ref available);
 
@@ -261,6 +276,9 @@ namespace LuaDkmDebuggerComponent
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
             {
                 available = true;
+                success = 0;
+                failure = 0;
+                optional = 0;
 
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "Proto", ref available);
 
@@ -311,6 +329,9 @@ namespace LuaDkmDebuggerComponent
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
             {
                 available = true;
+                success = 0;
+                failure = 0;
+                optional = 0;
 
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "CallInfo", ref available);
 
@@ -350,6 +371,9 @@ namespace LuaDkmDebuggerComponent
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
             {
                 available = true;
+                success = 0;
+                failure = 0;
+                optional = 0;
 
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "Node", ref available);
 
@@ -387,6 +411,9 @@ namespace LuaDkmDebuggerComponent
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
             {
                 available = true;
+                success = 0;
+                failure = 0;
+                optional = 0;
 
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "Table", ref available);
 
@@ -422,6 +449,9 @@ namespace LuaDkmDebuggerComponent
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
             {
                 available = true;
+                success = 0;
+                failure = 0;
+                optional = 0;
 
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "LClosure", ref available);
 
@@ -450,6 +480,9 @@ namespace LuaDkmDebuggerComponent
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
             {
                 available = true;
+                success = 0;
+                failure = 0;
+                optional = 0;
 
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "CClosure", ref available);
 
@@ -474,6 +507,9 @@ namespace LuaDkmDebuggerComponent
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
             {
                 available = true;
+                success = 0;
+                failure = 0;
+                optional = 0;
 
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "Udata", ref available);
 
@@ -501,6 +537,9 @@ namespace LuaDkmDebuggerComponent
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
             {
                 available = true;
+                success = 0;
+                failure = 0;
+                optional = 0;
 
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "lua_State", ref available);
 
@@ -536,6 +575,9 @@ namespace LuaDkmDebuggerComponent
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
             {
                 available = true;
+                success = 0;
+                failure = 0;
+                optional = 0;
 
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "lua_Debug", ref available);
 
