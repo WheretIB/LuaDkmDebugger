@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.9.0] - 2020-06-22
+
+### Added
+
+- Support for Lua 5.4
+- Lookup in __index metadata table in expression evaluation
+- Location display for Lua function values and Jump to Source context menu option
+- Alternative name is generated for unnamed scripts
+
+### Changed
+
+- Fixes for Lua libraries built with optimizations
+- Fix for Lua sources without a valid name
+- Compatibility Mode improvements
+- Lua table address is now displayed in Watch
+- Stability fixes
+- Additional source file search locations
+- '.lua' is added to temporary file names if the Lua source name doesn't contain it already
+- Fixed long debugger startup when application is linked with /DEBUG:FULL and symbol file is large
+
 ## [0.8.8] - 2020-06-10
 
 ### Added

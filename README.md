@@ -25,6 +25,7 @@ Supported Lua versions:
  * Quick Info tooltip display with variable value evaluation on mouse over in the code window
  * External C function/closure pointer display with 'Go To Source' provided by Visual Studio
  * Assertion failure, 'error' call and runtime errors are displayed as unhandled exceptions ('Break on Error' option)
+ * Location display and Jump to Source context menu option for Lua function values
  * When Lua library is used together with sol library, C++ object in user data is available
 
 ![Example debug session](https://github.com/WheretIB/LuaDkmDebugger/blob/master/resource/front_image_2.png?raw=true)
