@@ -341,6 +341,8 @@ namespace LuaDkmDebuggerComponent
                 // Try to guess if we have Lua 5.4 using new field
                 if (!Helper.ReadOptional(inspectionSession, thread, frame, "CallInfo", "u.l.trap", "used to detect 5.4", ref optional).HasValue)
                     stackBaseAddress_5_123 = Helper.Read(inspectionSession, thread, frame, "CallInfo", new[] { "u.l.base", "base" }, ref available, ref success, ref failure);
+                else
+                    stackBaseAddress_5_123 = null;
 
                 savedInstructionPointerAddress = Helper.Read(inspectionSession, thread, frame, "CallInfo", new[] { "u.l.savedpc", "savedpc" }, ref available, ref success, ref failure);
                 tailCallCount_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "CallInfo", "tailcalls", "used in 5.1", ref optional);
@@ -384,6 +386,8 @@ namespace LuaDkmDebuggerComponent
 
                 if (!keyDataTypeAddress_5_4.HasValue || !keyDataValueAddress_5_4.HasValue)
                     keyDataAddress_5_123 = Helper.Read(inspectionSession, thread, frame, "Node", "i_key", ref available, ref success, ref failure);
+                else
+                    keyDataAddress_5_123 = null;
 
                 if (Log.instance != null)
                     Log.instance.Debug($"LuaNodeData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
