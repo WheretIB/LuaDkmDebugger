@@ -473,9 +473,12 @@ namespace LuaDkmDebuggerComponent
                         {
                             string functionName = EvaluationHelpers.TryEvaluateStringExpression($"((lua_Debug*){processData.scratchMemory})->name", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
 
-                            DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.resumeBreakpoints, null, null).SendLower();
+                            if (functionName != null && functionName != "?")
+                            {
+                                DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.resumeBreakpoints, null, null).SendLower();
 
-                            return functionName;
+                                return functionName;
+                            }
                         }
                     }
 
