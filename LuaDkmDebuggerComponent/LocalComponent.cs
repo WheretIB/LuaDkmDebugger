@@ -2297,7 +2297,7 @@ namespace LuaDkmDebuggerComponent
                     try
                     {
                         // Only available from VS 2019
-                        GetLuaLocations(process, nativeModuleInstance);
+                        luaLocations = GetLuaLocations(process, nativeModuleInstance);
 
                         UpdateEvaluationHelperWorkerConnection(process);
                     }
