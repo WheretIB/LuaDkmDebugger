@@ -128,6 +128,17 @@ namespace LuaDkmDebuggerComponent
         public Dictionary<string, string> filePathResolveMap = new Dictionary<string, string>();
     }
 
+    // DkmWorkerProcessConnection is only available from VS 2019, so we need an indirection to avoid the type load error
+    internal class LuaWorkerConnectionWrapper : DkmDataItem
+    {
+        public DkmWorkerProcessConnection workerConnection = null;
+
+        public DkmInspectionContext CreateInspectionSession(DkmInspectionSession inspectionSession, DkmRuntimeInstance runtimeInstance, DkmThread thread, DkmEvaluationFlags flags, DkmLanguage language)
+        {
+            return DkmInspectionContext.Create(inspectionSession, runtimeInstance, thread, 200, flags, DkmFuncEvalFlags.None, 10, language, null, null, DkmCompiledVisualizationDataPriority.None, null, workerConnection);
+        }
+    }
+
     internal class LuaStackContextData : DkmDataItem
     {
         // Stack walk data for multiple switches between Lua and C++
@@ -287,17 +298,20 @@ namespace LuaDkmDebuggerComponent
             return methodName;
         }
 
-        void UpdateEvaluationHelperWorkerConnection()
+        void UpdateEvaluationHelperWorkerConnection(DkmProcess process)
         {
+            LuaWorkerConnectionWrapper wrapper = process.GetDataItem<LuaWorkerConnectionWrapper>();
+
             // If available and haven't been set yet, use local symbols worker connection for faster expression evaluation
-            if (EvaluationHelpers.workerConnectionWrapper == null)
+            if (wrapper == null)
             {
                 DkmWorkerProcessConnection workerConnection = DkmWorkerProcessConnection.GetLocalSymbolsConnection();
 
                 if (workerConnection != null)
                 {
-                    EvaluationHelpers.workerConnectionWrapper = new WorkerConnectionWrapper();
-                    EvaluationHelpers.workerConnectionWrapper.workerConnection = workerConnection;
+                    wrapper = DebugHelpers.GetOrCreateDataItem<LuaWorkerConnectionWrapper>(process);
+
+                    wrapper.workerConnection = workerConnection;
                 }
             }
         }
@@ -373,7 +387,7 @@ namespace LuaDkmDebuggerComponent
                     try
                     {
                         // Only available from VS 2019
-                        UpdateEvaluationHelperWorkerConnection();
+                        UpdateEvaluationHelperWorkerConnection(process);
                     }
                     catch (Exception)
                     {
@@ -2285,7 +2299,7 @@ namespace LuaDkmDebuggerComponent
                         // Only available from VS 2019
                         GetLuaLocations(process, nativeModuleInstance);
 
-                        UpdateEvaluationHelperWorkerConnection();
+                        UpdateEvaluationHelperWorkerConnection(process);
                     }
                     catch (Exception)
                     {

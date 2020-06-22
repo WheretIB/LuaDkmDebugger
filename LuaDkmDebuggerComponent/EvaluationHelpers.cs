@@ -9,21 +9,8 @@ using System.Diagnostics;
 
 namespace LuaDkmDebuggerComponent
 {
-    // DkmWorkerProcessConnection is only available from VS 2019, so we need an indirection to avoid the type load error
-    internal class WorkerConnectionWrapper
-    {
-        public DkmWorkerProcessConnection workerConnection = null;
-
-        public DkmInspectionContext CreateInspectionSession(DkmInspectionSession inspectionSession, DkmRuntimeInstance runtimeInstance, DkmThread thread, DkmEvaluationFlags flags, DkmLanguage language)
-        {
-            return DkmInspectionContext.Create(inspectionSession, runtimeInstance, thread, 200, flags, DkmFuncEvalFlags.None, 10, language, null, null, DkmCompiledVisualizationDataPriority.None, null, workerConnection);
-        }
-    }
-
     internal class EvaluationHelpers
     {
-        public static WorkerConnectionWrapper workerConnectionWrapper = null;
-
         internal static DkmEvaluationResult ExecuteRawExpression(string expression, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame input, DkmRuntimeInstance runtimeInstance, DkmEvaluationFlags flags)
         {
             var compilerId = new DkmCompilerId(DkmVendorId.Microsoft, DkmLanguageId.Cpp);
@@ -31,6 +18,8 @@ namespace LuaDkmDebuggerComponent
             var languageExpression = DkmLanguageExpression.Create(language, DkmEvaluationFlags.None, expression, null);
 
             DkmInspectionContext inspectionContext;
+
+            LuaWorkerConnectionWrapper workerConnectionWrapper = inspectionSession.Process.GetDataItem<LuaWorkerConnectionWrapper>();
 
             if (workerConnectionWrapper != null)
                 inspectionContext = workerConnectionWrapper.CreateInspectionSession(inspectionSession, runtimeInstance, thread, flags, language);
@@ -69,6 +58,8 @@ namespace LuaDkmDebuggerComponent
             var languageExpression = DkmLanguageExpression.Create(language, DkmEvaluationFlags.None, expression, null);
 
             DkmInspectionContext inspectionContext;
+
+            LuaWorkerConnectionWrapper workerConnectionWrapper = inspectionSession.Process.GetDataItem<LuaWorkerConnectionWrapper>();
 
             if (workerConnectionWrapper != null)
                 inspectionContext = workerConnectionWrapper.CreateInspectionSession(inspectionSession, input.RuntimeInstance, thread, flags, language);
