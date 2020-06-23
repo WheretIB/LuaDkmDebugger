@@ -373,11 +373,14 @@ namespace LuaDkmDebuggerComponent
                         return new DkmStackWalkFrame[1] { input };
                 }
 
-                if (processData.scratchMemory == 0)
-                    processData.scratchMemory = process.AllocateVirtualMemory(0, 4096, 0x3000, 0x04);
+                if (process.LivePart != null)
+                {
+                    if (processData.scratchMemory == 0)
+                        processData.scratchMemory = process.AllocateVirtualMemory(0, 4096, 0x3000, 0x04);
 
-                if (processData.scratchMemory == 0)
-                    return new DkmStackWalkFrame[1] { input };
+                    if (processData.scratchMemory == 0)
+                        return new DkmStackWalkFrame[1] { input };
+                }
 
                 // Find out the current process working directory (Lua script files will be resolved from that location)
                 if (processData.workingDirectory == null && !processData.workingDirectoryRequested)
@@ -397,7 +400,7 @@ namespace LuaDkmDebuggerComponent
                     // Jumping through hoops, kernel32.dll should be loaded
                     ulong callAddress = DebugHelpers.FindFunctionAddress(process.GetNativeRuntimeInstance(), "GetCurrentDirectoryA");
 
-                    if (callAddress != 0)
+                    if (callAddress != 0 && processData.scratchMemory != 0)
                     {
                         long? length = EvaluationHelpers.TryEvaluateNumberExpression($"((int(*)(int, char*))0x{callAddress:x})(4095, (char*){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
 
@@ -453,6 +456,9 @@ namespace LuaDkmDebuggerComponent
 
                 string GetLuaFunctionName(ulong currCallInfoAddress, ulong prevCallInfoAddress, ulong closureAddress)
                 {
+                    if (processData.scratchMemory == 0)
+                        return null;
+
                     string functionNameType = null;
 
                     DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.pauseBreakpoints, null, null).SendLower();
@@ -2270,12 +2276,6 @@ namespace LuaDkmDebuggerComponent
                 }
 #endif
 
-                if (process.LivePart == null)
-                {
-                    log.Debug($"Process is not live, do not attach to Lua");
-                    return;
-                }
-
                 var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
 
                 var moduleName = nativeModuleInstance.FullName;
@@ -2285,6 +2285,13 @@ namespace LuaDkmDebuggerComponent
                 {
                     // Request the RemoteComponent to create the runtime and a module
                     DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.createRuntime, null, null).SendLower();
+
+                    if (process.LivePart == null)
+                    {
+                        log.Debug($"Process is not live, do not attach to Lua");
+
+                        return;
+                    }
 
                     if (!attachOnLaunch)
                     {
