@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.1] - 2020-06-23
+
+### Added
+
+- Support for full process dump debug
+
 ## [0.9.0] - 2020-06-22
 
 ### Added
