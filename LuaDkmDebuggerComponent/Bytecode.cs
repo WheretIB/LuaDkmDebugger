@@ -115,10 +115,10 @@ namespace LuaDkmDebuggerComponent
             return (LuaExtendedType)(LuaBaseType.Number + 16);
         }
 
-        internal static LuaValueDataBase ReadValue(DkmProcess process, ulong address, BatchRead batch = null)
+        internal static int? ReadTypeTag(DkmProcess process, ulong address, out ulong valueAddress, BatchRead batch = null)
         {
             int? typeTag;
-            ulong valueAddress = address;
+            valueAddress = address;
 
             if (Schema.LuaValueData.available)
             {
@@ -161,6 +161,13 @@ namespace LuaDkmDebuggerComponent
                 // struct { Value value_; int tt_; }
                 typeTag = DebugHelpers.ReadIntVariable(process, address + 8, batch);
             }
+
+            return typeTag;
+        }
+
+        internal static LuaValueDataBase ReadValue(DkmProcess process, ulong address, BatchRead batch = null)
+        {
+            int? typeTag = ReadTypeTag(process, address, out ulong valueAddress, batch);
 
             if (typeTag == null)
                 return null;
@@ -1441,6 +1448,7 @@ namespace LuaDkmDebuggerComponent
         protected BatchRead batchNodeElementData = null;
         protected List<LuaNodeData> nodeElements;
         protected List<LuaNodeData> nodeKeys;
+        protected int? nodeCount = null;
         protected LuaTableData metaTable;
 
         public void ReadFrom(DkmProcess process, ulong address)
@@ -1513,7 +1521,8 @@ namespace LuaDkmDebuggerComponent
 
             if (arrayDataAddress != 0)
             {
-                batchArrayElementData = BatchRead.Create(process, arrayDataAddress, arraySize * (int)LuaHelpers.GetValueSize(process));
+                if (batchArrayElementData == null)
+                    batchArrayElementData = BatchRead.Create(process, arrayDataAddress, arraySize * (int)LuaHelpers.GetValueSize(process));
 
                 for (int i = 0; i < arraySize; i++)
                 {
@@ -1535,7 +1544,8 @@ namespace LuaDkmDebuggerComponent
 
             if (nodeDataAddress != 0)
             {
-                batchNodeElementData = BatchRead.Create(process, nodeDataAddress, (1 << nodeArraySizeLog2) * (int)LuaHelpers.GetNodeSize(process));
+                if (batchNodeElementData == null)
+                    batchNodeElementData = BatchRead.Create(process, nodeDataAddress, (1 << nodeArraySizeLog2) * (int)LuaHelpers.GetNodeSize(process));
 
                 for (int i = 0; i < (1 << nodeArraySizeLog2); i++)
                 {
@@ -1565,11 +1575,66 @@ namespace LuaDkmDebuggerComponent
 
         public int GetNodeElementCount(DkmProcess process)
         {
-            // Since some element might be nil, we need to load elements to know for sure
-            // TODO: maybe we can add a separate 'approximate' function of a function with an upper limit?
-            LoadNodeElements(process);
+            if (nodeKeys != null)
+                return nodeKeys.Count;
 
-            return nodeElements.Count;
+            if (nodeElements != null)
+                return nodeElements.Count;
+
+            if (nodeCount.HasValue)
+                return nodeCount.Value;
+
+            if (nodeDataAddress == 0)
+                return 0;
+
+            if (batchNodeElementData == null)
+                batchNodeElementData = BatchRead.Create(process, nodeDataAddress, (1 << nodeArraySizeLog2) * (int)LuaHelpers.GetNodeSize(process));
+
+            // To count the nodes we don't have to load the keys, we just need to know that a key is not 'nil'
+            nodeCount = 0;
+
+            for (int i = 0; i < (1 << nodeArraySizeLog2); i++)
+            {
+                ulong address = nodeDataAddress + (ulong)i * LuaHelpers.GetNodeSize(process);
+
+                if (Schema.LuaNodeData.available)
+                {
+                    if (Schema.LuaNodeData.keyDataAddress_5_123.HasValue)
+                    {
+                        var typeTag = LuaHelpers.ReadTypeTag(process, address + Schema.LuaNodeData.keyDataAddress_5_123.GetValueOrDefault(0), out _, batchNodeElementData);
+
+                        if (typeTag.GetValueOrDefault(0) != (int)LuaBaseType.Nil)
+                            nodeCount++;
+                    }
+                    else
+                    {
+                        var typeTag = DebugHelpers.ReadIntVariable(process, address + Schema.LuaNodeData.keyDataTypeAddress_5_4.GetValueOrDefault(0), batchNodeElementData);
+
+                        if (typeTag != (int)LuaBaseType.Nil)
+                            nodeCount++;
+                    }
+                }
+                else if (LuaHelpers.luaVersion == 501 || LuaHelpers.luaVersion == 502 || LuaHelpers.luaVersion == 503)
+                {
+                    // Same in Lua 5.1, 5.2 and 5.3
+                    var typeTag = LuaHelpers.ReadTypeTag(process, address + LuaHelpers.GetValueSize(process), out _, batchNodeElementData);
+
+                    if (typeTag.GetValueOrDefault(0) != (int)LuaBaseType.Nil)
+                        nodeCount++;
+                }
+                else
+                {
+                    DebugHelpers.SkipStructUlong(process, ref address); // value_
+                    DebugHelpers.SkipStructByte(process, ref address); // tt_
+
+                    var typeTag = DebugHelpers.ReadStructByte(process, ref address, batchNodeElementData);
+
+                    if (typeTag != (int)LuaBaseType.Nil)
+                        nodeCount++;
+                }
+            }
+
+            return nodeCount.Value;
         }
 
         public List<LuaNodeData> GetNodeElements(DkmProcess process)
@@ -1595,7 +1660,8 @@ namespace LuaDkmDebuggerComponent
 
             if (nodeDataAddress != 0)
             {
-                batchNodeElementData = BatchRead.Create(process, nodeDataAddress, (1 << nodeArraySizeLog2) * (int)LuaHelpers.GetNodeSize(process));
+                if (batchNodeElementData == null)
+                    batchNodeElementData = BatchRead.Create(process, nodeDataAddress, (1 << nodeArraySizeLog2) * (int)LuaHelpers.GetNodeSize(process));
 
                 for (int i = 0; i < (1 << nodeArraySizeLog2); i++)
                 {
