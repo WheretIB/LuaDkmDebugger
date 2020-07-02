@@ -138,9 +138,7 @@ namespace LuaDkmDebuggerComponent
             if (process == null)
                 return Report("Can't load table - process memory is not available");
 
-            table.LoadKeys(process);
-
-            foreach (var element in table.nodeKeys)
+            foreach (var element in table.GetNodeKeys(process))
             {
                 var keyAsString = element.key as LuaValueDataString;
 
@@ -151,11 +149,9 @@ namespace LuaDkmDebuggerComponent
                     return element.LoadValue(process);
             }
 
-            table.LoadMetaTableKeys(process);
-
-            if (table.metaTable != null)
+            if (table.HasMetaTable())
             {
-                foreach (var element in table.metaTable.nodeKeys)
+                foreach (var element in table.GetMetaTableKeys(process))
                 {
                     var keyAsString = element.key as LuaValueDataString;
 
@@ -387,8 +383,6 @@ namespace LuaDkmDebuggerComponent
                 if (process == null)
                     return Report("Can't load table - process memory is not available");
 
-                table.value.LoadValues(process);
-
                 // Check array index
                 var indexAsNumber = index as LuaValueDataNumber;
 
@@ -396,16 +390,18 @@ namespace LuaDkmDebuggerComponent
                 {
                     int result = (int)indexAsNumber.value;
 
-                    if (result > 0 && result - 1 < table.value.arrayElements.Count)
+                    if (result > 0 && result - 1 < table.value.GetArrayElementCount(process))
                     {
                         if (!TryTakeToken("]"))
                             return Report("Failed to find ']' after '['");
 
-                        return table.value.arrayElements[result - 1];
+                        var arrayElements = table.value.GetArrayElements(process);
+
+                        return arrayElements[result - 1];
                     }
                 }
 
-                foreach (var element in table.value.nodeElements)
+                foreach (var element in table.value.GetNodeKeys(process))
                 {
                     if (element.key.GetType() != index.GetType())
                         continue;

@@ -1292,19 +1292,19 @@ namespace LuaDkmDebuggerComponent
             {
                 var resultAsTable = result as LuaValueDataTable;
 
-                resultAsTable.value.LoadValues(process);
-                resultAsTable.value.LoadMetaTable(process);
+                var arrayElementCount = resultAsTable.value.GetArrayElementCount(process);
+                var nodeElementCount = resultAsTable.value.GetNodeElementCount(process);
 
-                if (resultAsTable.value.arrayElements.Count == 0 && resultAsTable.value.nodeElements.Count == 0 && resultAsTable.value.metaTable == null)
+                if (arrayElementCount == 0 && nodeElementCount == 0 && !resultAsTable.value.HasMetaTable())
                     result.evaluationFlags &= ~DkmEvaluationResultFlags.Expandable;
 
-                if (resultAsTable.value.arrayElements.Count != 0 && resultAsTable.value.nodeElements.Count != 0)
-                    resultStr = $"[{resultAsTable.value.arrayElements.Count} element(s) and {resultAsTable.value.nodeElements.Count} key(s)]";
-                else if (resultAsTable.value.arrayElements.Count != 0)
-                    resultStr = $"[{resultAsTable.value.arrayElements.Count} element(s)]";
-                else if (resultAsTable.value.nodeElements.Count != 0)
-                    resultStr = $"[{resultAsTable.value.nodeElements.Count} key(s)]";
-                else if (resultAsTable.value.metaTable != null)
+                if (arrayElementCount != 0 && nodeElementCount != 0)
+                    resultStr = $"[{arrayElementCount} element(s) and {nodeElementCount} key(s)]";
+                else if (arrayElementCount != 0)
+                    resultStr = $"[{arrayElementCount} element(s)]";
+                else if (nodeElementCount != 0)
+                    resultStr = $"[{nodeElementCount} key(s)]";
+                else if (resultAsTable.value.HasMetaTable())
                     resultStr = "[metatable]";
                 else
                     resultStr = "[]";
@@ -1390,12 +1390,9 @@ namespace LuaDkmDebuggerComponent
             {
                 var value = evalData.luaValueData as LuaValueDataTable;
 
-                value.value.LoadValues(process);
-                value.value.LoadMetaTable(process);
+                int actualSize = value.value.GetArrayElementCount(process) + value.value.GetNodeElementCount(process);
 
-                int actualSize = value.value.arrayElements.Count + value.value.nodeElements.Count;
-
-                if (value.value.metaTable != null)
+                if (value.value.HasMetaTable())
                     actualSize += 1;
 
                 int finalInitialSize = initialRequestSize < actualSize ? initialRequestSize : actualSize;
@@ -1491,7 +1488,7 @@ namespace LuaDkmDebuggerComponent
                 if (parentFrameData != null)
                     nativeTypeName = value.value.GetNativeType(process);
 
-                int actualSize = value.value.metaTable.arrayElements.Count + value.value.metaTable.nodeElements.Count + (nativeTypeName != null ? 1 : 0);
+                int actualSize = value.value.metaTable.GetArrayElementCount(process) + value.value.metaTable.GetNodeElementCount(process) + (nativeTypeName != null ? 1 : 0);
 
                 int finalInitialSize = initialRequestSize < actualSize ? initialRequestSize : actualSize;
 
@@ -1691,9 +1688,6 @@ namespace LuaDkmDebuggerComponent
             if (evalData.luaValueData as LuaValueDataTable != null)
             {
                 var value = evalData.luaValueData as LuaValueDataTable;
-
-                value.value.LoadValues(process);
-                value.value.LoadMetaTable(process);
 
                 var results = new DkmEvaluationResult[count];
 

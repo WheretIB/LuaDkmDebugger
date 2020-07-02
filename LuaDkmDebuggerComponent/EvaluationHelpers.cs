@@ -221,21 +221,21 @@ namespace LuaDkmDebuggerComponent
 
                 type = "table";
 
-                value.value.LoadValues(process);
-                value.value.LoadMetaTable(process);
-
                 flags |= DkmEvaluationResultFlags.ReadOnly | DkmEvaluationResultFlags.Expandable;
 
-                if (value.value.arrayElements.Count != 0 && value.value.nodeElements.Count != 0)
-                    return $"0x{value.targetAddress:x} table [{value.value.arrayElements.Count} element(s) and {value.value.nodeElements.Count} key(s)]";
+                var arrayElementCount = value.value.GetArrayElementCount(process);
+                var nodeElementCount = value.value.GetNodeElementCount(process);
 
-                if (value.value.arrayElements.Count != 0)
-                    return $"0x{value.targetAddress:x} table [{value.value.arrayElements.Count} element(s)]";
+                if (arrayElementCount != 0 && nodeElementCount != 0)
+                    return $"0x{value.targetAddress:x} table [{arrayElementCount} element(s) and {nodeElementCount} key(s)]";
 
-                if (value.value.nodeElements.Count != 0)
-                    return $"0x{value.targetAddress:x} table [{value.value.nodeElements.Count} key(s)]";
+                if (arrayElementCount != 0)
+                    return $"0x{value.targetAddress:x} table [{arrayElementCount} element(s)]";
 
-                if (value.value.metaTable == null)
+                if (nodeElementCount != 0)
+                    return $"0x{value.targetAddress:x} table [{nodeElementCount} key(s)]";
+
+                if (!value.value.HasMetaTable())
                 {
                     flags &= ~DkmEvaluationResultFlags.Expandable;
 
@@ -405,18 +405,26 @@ namespace LuaDkmDebuggerComponent
 
             var process = stackFrame.Process;
 
-            if (index < value.arrayElements.Count)
+            var arrayElementCount = value.GetArrayElementCount(process);
+
+            if (index < arrayElementCount)
             {
-                var element = value.arrayElements[index];
+                var arrayElements = value.GetArrayElements(process);
+
+                var element = arrayElements[index];
 
                 return EvaluateDataAtLuaValue(inspectionContext, stackFrame, $"[{index + 1}]", $"{fullName}[{index + 1}]", element, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
             }
 
-            index = index - value.arrayElements.Count;
+            index = index - arrayElementCount;
 
-            if (index < value.nodeElements.Count)
+            var nodeElementCount = value.GetNodeElementCount(process);
+
+            if (index < nodeElementCount)
             {
-                var node = value.nodeElements[index];
+                var nodeElements = value.GetNodeElements(process);
+
+                var node = nodeElements[index];
 
                 DkmEvaluationResultFlags flags = DkmEvaluationResultFlags.None;
                 string name = EvaluateValueAtLuaValue(process, node.key, 10, out _, ref flags, out _, out _);
@@ -448,9 +456,9 @@ namespace LuaDkmDebuggerComponent
                 return EvaluateDataAtLuaValue(inspectionContext, stackFrame, $"\"{name}\"", $"{fullName}[\"{name}\"]", node.LoadValue(process), DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
             }
 
-            index = index - value.nodeElements.Count;
+            index = index - nodeElementCount;
 
-            if (index == 0)
+            if (index == 0 && value.HasMetaTable())
             {
                 var metaTableValue = new LuaValueDataTable
                 {
@@ -458,7 +466,7 @@ namespace LuaDkmDebuggerComponent
                     extendedType = LuaExtendedType.Table,
                     evaluationFlags = DkmEvaluationResultFlags.ReadOnly,
                     originalAddress = 0, // Not available as TValue
-                    value = value.metaTable,
+                    value = value.GetMetaTable(process),
                     targetAddress = value.metaTableDataAddress
                 };
 

@@ -1433,10 +1433,10 @@ namespace LuaDkmDebuggerComponent
         public ulong metaTableDataAddress; // Table
         public ulong gclistAddress; // GCObject
 
-        public List<LuaValueDataBase> arrayElements;
-        public List<LuaNodeData> nodeElements;
-        public List<LuaNodeData> nodeKeys;
-        public LuaTableData metaTable;
+        protected List<LuaValueDataBase> arrayElements;
+        protected List<LuaNodeData> nodeElements;
+        protected List<LuaNodeData> nodeKeys;
+        protected LuaTableData metaTable;
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
@@ -1491,7 +1491,7 @@ namespace LuaDkmDebuggerComponent
             }
         }
 
-        public void LoadValues(DkmProcess process)
+        public void LoadArrayElements(DkmProcess process)
         {
             // Check if already loaded
             if (arrayElements != null)
@@ -1509,7 +1509,15 @@ namespace LuaDkmDebuggerComponent
                     arrayElements.Add(LuaHelpers.ReadValue(process, address));
                 }
             }
+        }
 
+        public void LoadNodeElements(DkmProcess process)
+        {
+            // Check if already loaded
+            if (nodeElements != null)
+                return;
+
+            // Create even if it's empty
             nodeElements = new List<LuaNodeData>();
 
             if (nodeDataAddress != 0)
@@ -1528,7 +1536,35 @@ namespace LuaDkmDebuggerComponent
             }
         }
 
-        public void LoadKeys(DkmProcess process)
+        public int GetArrayElementCount(DkmProcess process)
+        {
+            return arrayDataAddress != 0 ? arraySize : 0;
+        }
+
+        public List<LuaValueDataBase> GetArrayElements(DkmProcess process)
+        {
+            LoadArrayElements(process);
+
+            return arrayElements;
+        }
+
+        public int GetNodeElementCount(DkmProcess process)
+        {
+            // Since some element might be nil, we need to load elements to know for sure
+            // TODO: maybe we can add a separate 'approximate' function of a function with an upper limit?
+            LoadNodeElements(process);
+
+            return nodeElements.Count;
+        }
+
+        public List<LuaNodeData> GetNodeElements(DkmProcess process)
+        {
+            LoadNodeElements(process);
+
+            return nodeElements;
+        }
+
+        public void LoadNodeKeys(DkmProcess process)
         {
             if (nodeKeys != null)
                 return;
@@ -1558,6 +1594,13 @@ namespace LuaDkmDebuggerComponent
             }
         }
 
+        public List<LuaNodeData> GetNodeKeys(DkmProcess process)
+        {
+            LoadNodeKeys(process);
+
+            return nodeKeys;
+        }
+
         public void LoadMetaTable(DkmProcess process)
         {
             // Check if already loaded
@@ -1570,7 +1613,18 @@ namespace LuaDkmDebuggerComponent
             metaTable = new LuaTableData();
 
             metaTable.ReadFrom(process, metaTableDataAddress);
-            metaTable.LoadValues(process);
+        }
+
+        public bool HasMetaTable()
+        {
+            return metaTableDataAddress != 0;
+        }
+
+        public LuaTableData GetMetaTable(DkmProcess process)
+        {
+            LoadMetaTable(process);
+
+            return metaTable;
         }
 
         public void LoadMetaTableKeys(DkmProcess process)
@@ -1585,12 +1639,24 @@ namespace LuaDkmDebuggerComponent
             metaTable = new LuaTableData();
 
             metaTable.ReadFrom(process, metaTableDataAddress);
-            metaTable.LoadKeys(process);
+            metaTable.LoadNodeKeys(process);
+        }
+
+        public List<LuaNodeData> GetMetaTableKeys(DkmProcess process)
+        {
+            LoadMetaTableKeys(process);
+
+            if (metaTable == null)
+                return null;
+
+            return metaTable.GetNodeKeys(process);
         }
 
         public LuaValueDataBase FetchMember(DkmProcess process, string name)
         {
-            foreach (var element in nodeElements)
+            LoadNodeKeys(process);
+
+            foreach (var element in nodeKeys)
             {
                 var keyAsString = element.key as LuaValueDataString;
 
@@ -1853,7 +1919,6 @@ namespace LuaDkmDebuggerComponent
             metaTable = new LuaTableData();
 
             metaTable.ReadFrom(process, metaTableDataAddress);
-            metaTable.LoadValues(process);
 
             return metaTable;
         }
@@ -1866,8 +1931,6 @@ namespace LuaDkmDebuggerComponent
 
             if (nativeTypeContext is LuaValueDataTable nativeTypeContextTable)
             {
-                nativeTypeContextTable.value.LoadValues(process);
-
                 if (nativeTypeContextTable.value.FetchMember(process, "name") is LuaValueDataString nativeTypeContextName)
                 {
                     if (pointerAtValueStart != 0)
