@@ -140,20 +140,20 @@ namespace LuaDkmDebuggerComponent
 
             foreach (var element in table.GetNodeKeys(process))
             {
-                var keyAsString = element.key as LuaValueDataString;
+                var keyAsString = element.LoadKey(process, table.batchNodeElementData) as LuaValueDataString;
 
                 if (keyAsString == null)
                     continue;
 
                 if (keyAsString.value == name)
-                    return element.LoadValue(process);
+                    return element.LoadValue(process, table.batchNodeElementData);
             }
 
             if (table.HasMetaTable())
             {
                 foreach (var element in table.GetMetaTableKeys(process))
                 {
-                    var keyAsString = element.key as LuaValueDataString;
+                    var keyAsString = element.LoadKey(process) as LuaValueDataString;
 
                     if (keyAsString == null)
                         continue;
@@ -403,15 +403,17 @@ namespace LuaDkmDebuggerComponent
 
                 foreach (var element in table.value.GetNodeKeys(process))
                 {
-                    if (element.key.GetType() != index.GetType())
+                    var elementKey = element.LoadKey(process, table.value.batchNodeElementData);
+
+                    if (elementKey.GetType() != index.GetType())
                         continue;
 
-                    if (element.key.LuaCompare(index))
+                    if (elementKey.LuaCompare(index))
                     {
                         if (!TryTakeToken("]"))
                             return Report("Failed to find ']' after '['");
 
-                        return EvaluatePostExpressions(element.LoadValue(process));
+                        return EvaluatePostExpressions(element.LoadValue(process, table.value.batchNodeElementData));
                     }
                 }
 

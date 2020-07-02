@@ -422,14 +422,16 @@ namespace LuaDkmDebuggerComponent
 
             if (index < nodeElementCount)
             {
-                var nodeElements = value.GetNodeElements(process);
+                var lazyNodeElements = value.GetNodeLazyElements(process);
 
-                var node = nodeElements[index];
+                var node = lazyNodeElements[index];
+
+                var nodeKey = node.LoadKey(process, value.batchNodeElementData);
 
                 DkmEvaluationResultFlags flags = DkmEvaluationResultFlags.None;
-                string name = EvaluateValueAtLuaValue(process, node.key, 10, out _, ref flags, out _, out _);
+                string name = EvaluateValueAtLuaValue(process, nodeKey, 10, out _, ref flags, out _, out _);
 
-                var keyString = node.key as LuaValueDataString;
+                var keyString = nodeKey as LuaValueDataString;
 
                 if (keyString != null)
                     name = keyString.value;
@@ -451,9 +453,9 @@ namespace LuaDkmDebuggerComponent
                 }
 
                 if (isIdentifierName)
-                    return EvaluateDataAtLuaValue(inspectionContext, stackFrame, name, $"{fullName}.{name}", node.LoadValue(process), DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+                    return EvaluateDataAtLuaValue(inspectionContext, stackFrame, name, $"{fullName}.{name}", node.LoadValue(process, value.batchNodeElementData), DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
 
-                return EvaluateDataAtLuaValue(inspectionContext, stackFrame, $"\"{name}\"", $"{fullName}[\"{name}\"]", node.LoadValue(process), DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+                return EvaluateDataAtLuaValue(inspectionContext, stackFrame, $"\"{name}\"", $"{fullName}[\"{name}\"]", node.LoadValue(process, value.batchNodeElementData), DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
             }
 
             index = index - nodeElementCount;

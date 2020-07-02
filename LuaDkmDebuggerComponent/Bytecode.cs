@@ -1332,7 +1332,9 @@ namespace LuaDkmDebuggerComponent
     {
         public ulong valueDataAddress;
         protected LuaValueDataBase value;
-        public LuaValueDataBase key;
+        public int? keyTypeTag = null;
+        public ulong keyValueDataAddress;
+        protected LuaValueDataBase key;
 
         public void ReadFrom(DkmProcess process, ulong address, BatchRead batch = null)
         {
@@ -1417,7 +1419,58 @@ namespace LuaDkmDebuggerComponent
             }
         }
 
-        public LuaValueDataBase LoadValue(DkmProcess process)
+        public void ReadFromMetaOnly(DkmProcess process, ulong address, BatchRead batch = null)
+        {
+            if (Schema.LuaNodeData.available)
+            {
+                valueDataAddress = address + Schema.LuaNodeData.valueDataAddress.GetValueOrDefault(0);
+
+                if (Schema.LuaNodeData.keyDataAddress_5_123.HasValue)
+                {
+                    keyTypeTag = LuaHelpers.ReadTypeTag(process, address + Schema.LuaNodeData.keyDataAddress_5_123.GetValueOrDefault(0), out keyValueDataAddress, batch);
+                }
+                else
+                {
+                    keyTypeTag = DebugHelpers.ReadIntVariable(process, address + Schema.LuaNodeData.keyDataTypeAddress_5_4.GetValueOrDefault(0), batch);
+                    keyValueDataAddress = address + Schema.LuaNodeData.keyDataValueAddress_5_4.GetValueOrDefault(0);
+                }
+            }
+            else if (LuaHelpers.luaVersion == 501 || LuaHelpers.luaVersion == 502 || LuaHelpers.luaVersion == 503)
+            {
+                valueDataAddress = address;
+
+                // Same in Lua 5.1, 5.2 and 5.3
+                keyTypeTag = LuaHelpers.ReadTypeTag(process, address + LuaHelpers.GetValueSize(process), out keyValueDataAddress, batch);
+            }
+            else
+            {
+                valueDataAddress = address;
+
+                DebugHelpers.SkipStructUlong(process, ref address); // value_
+                DebugHelpers.SkipStructByte(process, ref address); // tt_
+
+                keyTypeTag = DebugHelpers.ReadStructByte(process, ref address, batch);
+                DebugHelpers.SkipStructInt(process, ref address);
+
+                keyValueDataAddress = address;
+            }
+        }
+
+        public LuaValueDataBase LoadKey(DkmProcess process, BatchRead batch = null)
+        {
+            if (key != null)
+                return key;
+
+            if (keyValueDataAddress == 0)
+                return null;
+
+            // Same in Lua 5.1, 5.2, 5.3 and 5.4
+            key = LuaHelpers.ReadValueOfType(process, keyTypeTag.GetValueOrDefault(0), keyValueDataAddress, batch);
+
+            return key;
+        }
+
+        public LuaValueDataBase LoadValue(DkmProcess process, BatchRead batch = null)
         {
             if (value != null)
                 return value;
@@ -1426,7 +1479,7 @@ namespace LuaDkmDebuggerComponent
                 return null;
 
             // Same in Lua 5.1, 5.2, 5.3 and 5.4
-            value = LuaHelpers.ReadValue(process, valueDataAddress);
+            value = LuaHelpers.ReadValue(process, valueDataAddress, batch);
 
             return value;
         }
@@ -1443,12 +1496,12 @@ namespace LuaDkmDebuggerComponent
         public ulong metaTableDataAddress; // Table
         public ulong gclistAddress; // GCObject
 
-        protected BatchRead batchArrayElementData = null;
+        public BatchRead batchArrayElementData = null;
         protected List<LuaValueDataBase> arrayElements;
-        protected BatchRead batchNodeElementData = null;
+        public BatchRead batchNodeElementData = null;
         protected List<LuaNodeData> nodeElements;
         protected List<LuaNodeData> nodeKeys;
-        protected int? nodeCount = null;
+        protected List<LuaNodeData> nodeLazyElements;
         protected LuaTableData metaTable;
 
         public void ReadFrom(DkmProcess process, ulong address)
@@ -1555,7 +1608,7 @@ namespace LuaDkmDebuggerComponent
 
                     node.ReadFrom(process, address, batchNodeElementData);
 
-                    if (node.key as LuaValueDataNil == null)
+                    if (node.LoadKey(process, batchNodeElementData) as LuaValueDataNil == null)
                         nodeElements.Add(node);
                 }
             }
@@ -1575,66 +1628,18 @@ namespace LuaDkmDebuggerComponent
 
         public int GetNodeElementCount(DkmProcess process)
         {
+            if (nodeLazyElements != null)
+                return nodeLazyElements.Count;
+
             if (nodeKeys != null)
                 return nodeKeys.Count;
 
             if (nodeElements != null)
                 return nodeElements.Count;
 
-            if (nodeCount.HasValue)
-                return nodeCount.Value;
+            LoadNodeLazyElements(process);
 
-            if (nodeDataAddress == 0)
-                return 0;
-
-            if (batchNodeElementData == null)
-                batchNodeElementData = BatchRead.Create(process, nodeDataAddress, (1 << nodeArraySizeLog2) * (int)LuaHelpers.GetNodeSize(process));
-
-            // To count the nodes we don't have to load the keys, we just need to know that a key is not 'nil'
-            nodeCount = 0;
-
-            for (int i = 0; i < (1 << nodeArraySizeLog2); i++)
-            {
-                ulong address = nodeDataAddress + (ulong)i * LuaHelpers.GetNodeSize(process);
-
-                if (Schema.LuaNodeData.available)
-                {
-                    if (Schema.LuaNodeData.keyDataAddress_5_123.HasValue)
-                    {
-                        var typeTag = LuaHelpers.ReadTypeTag(process, address + Schema.LuaNodeData.keyDataAddress_5_123.GetValueOrDefault(0), out _, batchNodeElementData);
-
-                        if (typeTag.GetValueOrDefault(0) != (int)LuaBaseType.Nil)
-                            nodeCount++;
-                    }
-                    else
-                    {
-                        var typeTag = DebugHelpers.ReadIntVariable(process, address + Schema.LuaNodeData.keyDataTypeAddress_5_4.GetValueOrDefault(0), batchNodeElementData);
-
-                        if (typeTag != (int)LuaBaseType.Nil)
-                            nodeCount++;
-                    }
-                }
-                else if (LuaHelpers.luaVersion == 501 || LuaHelpers.luaVersion == 502 || LuaHelpers.luaVersion == 503)
-                {
-                    // Same in Lua 5.1, 5.2 and 5.3
-                    var typeTag = LuaHelpers.ReadTypeTag(process, address + LuaHelpers.GetValueSize(process), out _, batchNodeElementData);
-
-                    if (typeTag.GetValueOrDefault(0) != (int)LuaBaseType.Nil)
-                        nodeCount++;
-                }
-                else
-                {
-                    DebugHelpers.SkipStructUlong(process, ref address); // value_
-                    DebugHelpers.SkipStructByte(process, ref address); // tt_
-
-                    var typeTag = DebugHelpers.ReadStructByte(process, ref address, batchNodeElementData);
-
-                    if (typeTag != (int)LuaBaseType.Nil)
-                        nodeCount++;
-                }
-            }
-
-            return nodeCount.Value;
+            return nodeLazyElements.Count;
         }
 
         public List<LuaNodeData> GetNodeElements(DkmProcess process)
@@ -1671,7 +1676,7 @@ namespace LuaDkmDebuggerComponent
 
                     node.ReadFromKeyOnly(process, address, batchNodeElementData);
 
-                    if (node.key as LuaValueDataNil == null)
+                    if (node.LoadKey(process, batchNodeElementData) as LuaValueDataNil == null)
                         nodeKeys.Add(node);
                 }
             }
@@ -1682,6 +1687,53 @@ namespace LuaDkmDebuggerComponent
             LoadNodeKeys(process);
 
             return nodeKeys;
+        }
+
+        public void LoadNodeLazyElements(DkmProcess process)
+        {
+            if (nodeLazyElements != null)
+                return;
+
+            // Full data is already loaded, use it
+            if (nodeElements != null)
+            {
+                nodeLazyElements = nodeElements;
+                return;
+            }
+
+            // Key data is already loaded, use it
+            if (nodeKeys != null)
+            {
+                nodeLazyElements = nodeKeys;
+                return;
+            }
+
+            nodeLazyElements = new List<LuaNodeData>();
+
+            if (nodeDataAddress != 0)
+            {
+                if (batchNodeElementData == null)
+                    batchNodeElementData = BatchRead.Create(process, nodeDataAddress, (1 << nodeArraySizeLog2) * (int)LuaHelpers.GetNodeSize(process));
+
+                for (int i = 0; i < (1 << nodeArraySizeLog2); i++)
+                {
+                    ulong address = nodeDataAddress + (ulong)i * LuaHelpers.GetNodeSize(process);
+
+                    LuaNodeData node = new LuaNodeData();
+
+                    node.ReadFromMetaOnly(process, address, batchNodeElementData);
+
+                    if (node.keyTypeTag.GetValueOrDefault(0) != (int)LuaBaseType.Nil)
+                        nodeLazyElements.Add(node);
+                }
+            }
+        }
+
+        public List<LuaNodeData> GetNodeLazyElements(DkmProcess process)
+        {
+            LoadNodeLazyElements(process);
+
+            return nodeLazyElements;
         }
 
         public void LoadMetaTable(DkmProcess process)
@@ -1741,13 +1793,13 @@ namespace LuaDkmDebuggerComponent
 
             foreach (var element in nodeKeys)
             {
-                var keyAsString = element.key as LuaValueDataString;
+                var keyAsString = element.LoadKey(process, batchNodeElementData) as LuaValueDataString;
 
                 if (keyAsString == null)
                     continue;
 
                 if (keyAsString.value == name)
-                    return element.LoadValue(process);
+                    return element.LoadValue(process, batchNodeElementData);
             }
 
             return null;
