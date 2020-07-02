@@ -575,23 +575,23 @@ namespace LuaDkmDebuggerComponent
             return DebugHelpers.Is64Bit(process) ? 16 : 12;
         }
 
-        public void ReadFrom(DkmProcess process, ulong address)
+        public void ReadFrom(DkmProcess process, ulong address, BatchRead batch = null)
         {
             if (Schema.LuaLocalVariableData.available)
             {
-                nameAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaLocalVariableData.nameAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
-                lifetimeStartInstruction = DebugHelpers.ReadIntVariable(process, address + Schema.LuaLocalVariableData.lifetimeStartInstruction.GetValueOrDefault(0)).GetValueOrDefault(0);
-                lifetimeEndInstruction = DebugHelpers.ReadIntVariable(process, address + Schema.LuaLocalVariableData.lifetimeEndInstruction.GetValueOrDefault(0)).GetValueOrDefault(0);
+                nameAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaLocalVariableData.nameAddress.GetValueOrDefault(0), batch).GetValueOrDefault(0);
+                lifetimeStartInstruction = DebugHelpers.ReadIntVariable(process, address + Schema.LuaLocalVariableData.lifetimeStartInstruction.GetValueOrDefault(0), batch).GetValueOrDefault(0);
+                lifetimeEndInstruction = DebugHelpers.ReadIntVariable(process, address + Schema.LuaLocalVariableData.lifetimeEndInstruction.GetValueOrDefault(0), batch).GetValueOrDefault(0);
             }
             else
             {
                 // Same in Lua 5.1, 5.2, 5.3 and 5.4
-                nameAddress = DebugHelpers.ReadPointerVariable(process, address).GetValueOrDefault(0);
+                nameAddress = DebugHelpers.ReadPointerVariable(process, address, batch).GetValueOrDefault(0);
                 address += (ulong)DebugHelpers.GetPointerSize(process);
 
-                lifetimeStartInstruction = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+                lifetimeStartInstruction = DebugHelpers.ReadIntVariable(process, address, batch).GetValueOrDefault(0);
                 address += sizeof(int);
-                lifetimeEndInstruction = DebugHelpers.ReadIntVariable(process, address).GetValueOrDefault(0);
+                lifetimeEndInstruction = DebugHelpers.ReadIntVariable(process, address, batch).GetValueOrDefault(0);
                 address += sizeof(int);
             }
 
@@ -749,6 +749,7 @@ namespace LuaDkmDebuggerComponent
         public ulong sourceAddress; // TString
         public ulong gclistAddress; // GCObject
 
+        public BatchRead batchLocalsData = null;
         public List<LuaLocalVariableData> locals;
         public List<LuaLocalVariableData> activeLocals;
 
@@ -980,11 +981,13 @@ namespace LuaDkmDebuggerComponent
             locals = new List<LuaLocalVariableData>();
             activeLocals = new List<LuaLocalVariableData>();
 
+            batchLocalsData = BatchRead.Create(process, localVariableDataAddress, localVariableSize * LuaLocalVariableData.StructSize(process));
+
             for (int i = 0; i < localVariableSize; i++)
             {
                 LuaLocalVariableData local = new LuaLocalVariableData();
 
-                local.ReadFrom(process, localVariableDataAddress + (ulong)(i * LuaLocalVariableData.StructSize(process)));
+                local.ReadFrom(process, localVariableDataAddress + (ulong)(i * LuaLocalVariableData.StructSize(process)), batchLocalsData);
 
                 locals.Add(local);
 
