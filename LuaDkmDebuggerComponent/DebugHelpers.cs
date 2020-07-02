@@ -5,6 +5,53 @@ using Microsoft.VisualStudio.Debugger.Native;
 
 namespace LuaDkmDebuggerComponent
 {
+    public class BatchRead
+    {
+        protected ulong address = 0;
+        protected byte[] data = null;
+
+        public BatchRead(ulong address, byte[] data)
+        {
+            this.address = address;
+            this.data = data;
+        }
+
+        static public BatchRead Create(DkmProcess process, ulong address, int bytes)
+        {
+            if (bytes > 8 * 1024 * 1024)
+                return null;
+
+            byte[] data = new byte[bytes];
+
+            try
+            {
+                if (process.ReadMemory(address, DkmReadMemoryFlags.None, data) == 0)
+                    return null;
+            }
+            catch (DkmException)
+            {
+                return null;
+            }
+
+            return new BatchRead(address, data);
+        }
+
+        public bool TryRead(ulong target, int length, out byte[] result)
+        {
+            result = null;
+
+            if (target < address)
+                return false;
+
+            if (target + (ulong)length > address + (ulong)data.Length)
+                return false;
+
+            result = new byte[length];
+            Array.Copy(data, (int)(target - address), result, 0, length);
+            return true;
+        }
+    }
+
     static class DebugHelpers
     {
         internal static T GetOrCreateDataItem<T>(DkmDataContainer container) where T : DkmDataItem, new()
@@ -44,13 +91,15 @@ namespace LuaDkmDebuggerComponent
             return Is64Bit(process) ? 8 : 4;
         }
 
-        internal static byte? ReadByteVariable(DkmProcess process, ulong address)
+        internal static byte? ReadByteVariable(DkmProcess process, ulong address, BatchRead batch = null)
         {
             byte[] variableAddressData = new byte[1];
 
             try
             {
-                if (process.ReadMemory(address, DkmReadMemoryFlags.None, variableAddressData) == 0)
+                if (batch != null && batch.TryRead(address, variableAddressData.Length, out byte[] batchData))
+                    variableAddressData = batchData;
+                else if (process.ReadMemory(address, DkmReadMemoryFlags.None, variableAddressData) == 0)
                     return null;
             }
             catch (DkmException)
@@ -61,13 +110,15 @@ namespace LuaDkmDebuggerComponent
             return variableAddressData[0];
         }
 
-        internal static short? ReadShortVariable(DkmProcess process, ulong address)
+        internal static short? ReadShortVariable(DkmProcess process, ulong address, BatchRead batch = null)
         {
             byte[] variableAddressData = new byte[2];
 
             try
             {
-                if (process.ReadMemory(address, DkmReadMemoryFlags.None, variableAddressData) == 0)
+                if (batch != null && batch.TryRead(address, variableAddressData.Length, out byte[] batchData))
+                    variableAddressData = batchData;
+                else if (process.ReadMemory(address, DkmReadMemoryFlags.None, variableAddressData) == 0)
                     return null;
             }
             catch (DkmException)
@@ -78,13 +129,15 @@ namespace LuaDkmDebuggerComponent
             return BitConverter.ToInt16(variableAddressData, 0);
         }
 
-        internal static int? ReadIntVariable(DkmProcess process, ulong address)
+        internal static int? ReadIntVariable(DkmProcess process, ulong address, BatchRead batch = null)
         {
             byte[] variableAddressData = new byte[4];
 
             try
             {
-                if (process.ReadMemory(address, DkmReadMemoryFlags.None, variableAddressData) == 0)
+                if (batch != null && batch.TryRead(address, variableAddressData.Length, out byte[] batchData))
+                    variableAddressData = batchData;
+                else if (process.ReadMemory(address, DkmReadMemoryFlags.None, variableAddressData) == 0)
                     return null;
             }
             catch (DkmException)
@@ -95,13 +148,15 @@ namespace LuaDkmDebuggerComponent
             return BitConverter.ToInt32(variableAddressData, 0);
         }
 
-        internal static uint? ReadUintVariable(DkmProcess process, ulong address)
+        internal static uint? ReadUintVariable(DkmProcess process, ulong address, BatchRead batch = null)
         {
             byte[] variableAddressData = new byte[4];
 
             try
             {
-                if (process.ReadMemory(address, DkmReadMemoryFlags.None, variableAddressData) == 0)
+                if (batch != null && batch.TryRead(address, variableAddressData.Length, out byte[] batchData))
+                    variableAddressData = batchData;
+                else if (process.ReadMemory(address, DkmReadMemoryFlags.None, variableAddressData) == 0)
                     return null;
             }
             catch (DkmException)
@@ -112,13 +167,15 @@ namespace LuaDkmDebuggerComponent
             return BitConverter.ToUInt32(variableAddressData, 0);
         }
 
-        internal static long? ReadLongVariable(DkmProcess process, ulong address)
+        internal static long? ReadLongVariable(DkmProcess process, ulong address, BatchRead batch = null)
         {
             byte[] variableAddressData = new byte[8];
 
             try
             {
-                if (process.ReadMemory(address, DkmReadMemoryFlags.None, variableAddressData) == 0)
+                if (batch != null && batch.TryRead(address, variableAddressData.Length, out byte[] batchData))
+                    variableAddressData = batchData;
+                else if (process.ReadMemory(address, DkmReadMemoryFlags.None, variableAddressData) == 0)
                     return null;
             }
             catch (DkmException)
@@ -129,13 +186,15 @@ namespace LuaDkmDebuggerComponent
             return BitConverter.ToInt64(variableAddressData, 0);
         }
 
-        internal static ulong? ReadUlongVariable(DkmProcess process, ulong address)
+        internal static ulong? ReadUlongVariable(DkmProcess process, ulong address, BatchRead batch = null)
         {
             byte[] variableAddressData = new byte[8];
 
             try
             {
-                if (process.ReadMemory(address, DkmReadMemoryFlags.None, variableAddressData) == 0)
+                if (batch != null && batch.TryRead(address, variableAddressData.Length, out byte[] batchData))
+                    variableAddressData = batchData;
+                else if (process.ReadMemory(address, DkmReadMemoryFlags.None, variableAddressData) == 0)
                     return null;
             }
             catch (DkmException)
@@ -146,13 +205,15 @@ namespace LuaDkmDebuggerComponent
             return BitConverter.ToUInt64(variableAddressData, 0);
         }
 
-        internal static float? ReadFloatVariable(DkmProcess process, ulong address)
+        internal static float? ReadFloatVariable(DkmProcess process, ulong address, BatchRead batch = null)
         {
             byte[] variableAddressData = new byte[4];
 
             try
             {
-                if (process.ReadMemory(address, DkmReadMemoryFlags.None, variableAddressData) == 0)
+                if (batch != null && batch.TryRead(address, variableAddressData.Length, out byte[] batchData))
+                    variableAddressData = batchData;
+                else if (process.ReadMemory(address, DkmReadMemoryFlags.None, variableAddressData) == 0)
                     return null;
             }
             catch (DkmException)
@@ -163,13 +224,15 @@ namespace LuaDkmDebuggerComponent
             return BitConverter.ToSingle(variableAddressData, 0);
         }
 
-        internal static double? ReadDoubleVariable(DkmProcess process, ulong address)
+        internal static double? ReadDoubleVariable(DkmProcess process, ulong address, BatchRead batch = null)
         {
             byte[] variableAddressData = new byte[8];
 
             try
             {
-                if (process.ReadMemory(address, DkmReadMemoryFlags.None, variableAddressData) == 0)
+                if (batch != null && batch.TryRead(address, variableAddressData.Length, out byte[] batchData))
+                    variableAddressData = batchData;
+                else if (process.ReadMemory(address, DkmReadMemoryFlags.None, variableAddressData) == 0)
                     return null;
             }
             catch (DkmException)
@@ -180,12 +243,12 @@ namespace LuaDkmDebuggerComponent
             return BitConverter.ToDouble(variableAddressData, 0);
         }
 
-        internal static ulong? ReadPointerVariable(DkmProcess process, ulong address)
+        internal static ulong? ReadPointerVariable(DkmProcess process, ulong address, BatchRead batch = null)
         {
             if (!Is64Bit(process))
-                return ReadUintVariable(process, address);
+                return ReadUintVariable(process, address, batch);
 
-            return ReadUlongVariable(process, address);
+            return ReadUlongVariable(process, address, batch);
         }
 
         internal static byte[] ReadRawStringVariable(DkmProcess process, ulong address, int limit)
@@ -372,76 +435,76 @@ namespace LuaDkmDebuggerComponent
             return TryWriteUlongVariable(process, address, value);
         }
 
-        internal static byte? ReadStructByte(DkmProcess process, ref ulong address)
+        internal static byte? ReadStructByte(DkmProcess process, ref ulong address, BatchRead batch = null)
         {
-            var result = ReadByteVariable(process, address);
+            var result = ReadByteVariable(process, address, batch);
 
             address += 1ul;
 
             return result;
         }
 
-        internal static short? ReadStructShort(DkmProcess process, ref ulong address)
+        internal static short? ReadStructShort(DkmProcess process, ref ulong address, BatchRead batch = null)
         {
             address = (address + 1ul) & ~1ul; // Align
 
-            var result = ReadShortVariable(process, address);
+            var result = ReadShortVariable(process, address, batch);
 
             address += 2ul;
 
             return result;
         }
 
-        internal static int? ReadStructInt(DkmProcess process, ref ulong address)
+        internal static int? ReadStructInt(DkmProcess process, ref ulong address, BatchRead batch = null)
         {
             address = (address + 3ul) & ~3ul; // Align
 
-            var result = ReadIntVariable(process, address);
+            var result = ReadIntVariable(process, address, batch);
 
             address += 4ul;
 
             return result;
         }
 
-        internal static uint? ReadStructUint(DkmProcess process, ref ulong address)
+        internal static uint? ReadStructUint(DkmProcess process, ref ulong address, BatchRead batch = null)
         {
             address = (address + 3ul) & ~3ul; // Align
 
-            var result = ReadUintVariable(process, address);
+            var result = ReadUintVariable(process, address, batch);
 
             address += 4ul;
 
             return result;
         }
 
-        internal static long? ReadStructLong(DkmProcess process, ref ulong address)
+        internal static long? ReadStructLong(DkmProcess process, ref ulong address, BatchRead batch = null)
         {
             address = (address + 7ul) & ~7ul; // Align
 
-            var result = ReadLongVariable(process, address);
+            var result = ReadLongVariable(process, address, batch);
 
             address += 8ul;
 
             return result;
         }
 
-        internal static ulong? ReadStructUlong(DkmProcess process, ref ulong address)
+        internal static ulong? ReadStructUlong(DkmProcess process, ref ulong address, BatchRead batch = null)
         {
             address = (address + 7ul) & ~7ul; // Align
 
-            var result = ReadUlongVariable(process, address);
+            var result = ReadUlongVariable(process, address, batch);
 
             address += 8ul;
 
             return result;
         }
 
-        internal static ulong? ReadStructPointer(DkmProcess process, ref ulong address)
+        internal static ulong? ReadStructPointer(DkmProcess process, ref ulong address, BatchRead batch = null)
         {
             if (!Is64Bit(process))
-                return ReadStructUint(process, ref address);
+                return ReadStructUint(process, ref address, batch);
 
-            return ReadStructUlong(process, ref address);
+            return ReadStructUlong(process, ref address, batch);
         }
 
         internal static void SkipStructByte(DkmProcess process, ref ulong address)
