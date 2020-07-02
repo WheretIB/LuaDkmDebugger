@@ -2881,13 +2881,13 @@ namespace LuaDkmDebuggerComponent
                     if (!stateAddress.HasValue)
                         stateAddress = EvaluationHelpers.TryEvaluateAddressExpression(DebugHelpers.Is64Bit(process) ? "@rax" : "@eax", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
-                    long? version = EvaluationHelpers.TryEvaluateNumberExpression($"(int)*L->l_G->version", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                    long? version = EvaluationHelpers.TryEvaluateNumberExpression($"(int)*((lua_State*){stateAddress})->l_G->version", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
-                    // Sadly, version field was only added in 5.1 and was removed in 5.4
+                    // Sadly, version field was only added in 5.2 and was removed in 5.4
                     if (!version.HasValue)
                     {
                         // Warning function was added in 5.4
-                        if (EvaluationHelpers.TryEvaluateNumberExpression($"(int)L->l_G->ud_warn", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).HasValue)
+                        if (EvaluationHelpers.TryEvaluateNumberExpression($"(int)((lua_State*){stateAddress})->l_G->ud_warn", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).HasValue)
                             version = 504;
                     }
 
@@ -2909,10 +2909,10 @@ namespace LuaDkmDebuggerComponent
                         }
                         else if (LuaHelpers.luaVersion == 501 || LuaHelpers.luaVersion == 502 || LuaHelpers.luaVersion == 503 || LuaHelpers.luaVersion == 504)
                         {
-                            ulong? hookFunctionAddress = EvaluationHelpers.TryEvaluateAddressExpression($"&L->hook", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
-                            ulong? hookBaseCountAddress = EvaluationHelpers.TryEvaluateAddressExpression($"&L->basehookcount", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
-                            ulong? hookCountAddress = EvaluationHelpers.TryEvaluateAddressExpression($"&L->hookcount", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
-                            ulong? hookMaskAddress = EvaluationHelpers.TryEvaluateAddressExpression($"&L->hookmask", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                            ulong? hookFunctionAddress = EvaluationHelpers.TryEvaluateAddressExpression($"&((lua_State*){stateAddress})->hook", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                            ulong? hookBaseCountAddress = EvaluationHelpers.TryEvaluateAddressExpression($"&((lua_State*){stateAddress})->basehookcount", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                            ulong? hookCountAddress = EvaluationHelpers.TryEvaluateAddressExpression($"&((lua_State*){stateAddress})->hookcount", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                            ulong? hookMaskAddress = EvaluationHelpers.TryEvaluateAddressExpression($"&((lua_State*){stateAddress})->hookmask", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
                             ulong? setTrapStateCallInfoOffset = null;
                             ulong? setTrapCallInfoPreviousOffset = null;
