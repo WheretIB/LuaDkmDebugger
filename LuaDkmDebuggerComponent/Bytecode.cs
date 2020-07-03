@@ -988,24 +988,27 @@ namespace LuaDkmDebuggerComponent
             locals = new List<LuaLocalVariableData>();
             activeLocals = new List<LuaLocalVariableData>();
 
-            batchLocalsData = BatchRead.Create(process, localVariableDataAddress, localVariableSize * LuaLocalVariableData.StructSize(process));
-
-            for (int i = 0; i < localVariableSize; i++)
+            if (localVariableDataAddress != 0)
             {
-                LuaLocalVariableData local = new LuaLocalVariableData();
+                batchLocalsData = BatchRead.Create(process, localVariableDataAddress, localVariableSize * LuaLocalVariableData.StructSize(process));
 
-                local.ReadFrom(process, localVariableDataAddress + (ulong)(i * LuaLocalVariableData.StructSize(process)), batchLocalsData);
-
-                locals.Add(local);
-
-                if (i < argumentCount || instructionPointer == -1)
+                for (int i = 0; i < localVariableSize; i++)
                 {
-                    activeLocals.Add(local);
-                }
-                else
-                {
-                    if (instructionPointer >= local.lifetimeStartInstruction && instructionPointer < local.lifetimeEndInstruction)
+                    LuaLocalVariableData local = new LuaLocalVariableData();
+
+                    local.ReadFrom(process, localVariableDataAddress + (ulong)(i * LuaLocalVariableData.StructSize(process)), batchLocalsData);
+
+                    locals.Add(local);
+
+                    if (i < argumentCount || instructionPointer == -1)
+                    {
                         activeLocals.Add(local);
+                    }
+                    else
+                    {
+                        if (instructionPointer >= local.lifetimeStartInstruction && instructionPointer < local.lifetimeEndInstruction)
+                            activeLocals.Add(local);
+                    }
                 }
             }
         }
