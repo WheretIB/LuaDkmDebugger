@@ -698,7 +698,22 @@ namespace LuaDkmDebuggerComponent
                         }
                         else
                         {
-                            string functionName = GetLuaFunctionName(currCallInfoAddress, prevCallInfoDataAddress, currCallLuaFunction.targetAddress);
+                            LuaStateSymbols stateSymbols;
+
+                            lock (processData.symbolStore)
+                            {
+                                stateSymbols = processData.symbolStore.FetchOrCreate(stateAddress.Value);
+                            }
+
+                            string functionName = stateSymbols.FetchFunctionName(currCallLuaFunction.value.functionAddress);
+
+                            if (functionName == null)
+                            {
+                                functionName = GetLuaFunctionName(currCallInfoAddress, prevCallInfoDataAddress, currCallLuaFunction.targetAddress);
+
+                                if (functionName != null)
+                                    stateSymbols.AddFunctionName(currCallLuaFunction.value.functionAddress, functionName);
+                            }
 
                             if (functionName != null)
                                 currFunctionName = functionName;
@@ -807,23 +822,23 @@ namespace LuaDkmDebuggerComponent
                                 if (prevCallInfoData.func.extendedType != LuaExtendedType.LuaFunction)
                                     break;
 
-                                LuaStateSymbols stateSumbols;
+                                LuaStateSymbols stateSymbols;
 
                                 lock (processData.symbolStore)
                                 {
-                                    stateSumbols = processData.symbolStore.FetchOrCreate(stateAddress.Value);
+                                    stateSymbols = processData.symbolStore.FetchOrCreate(stateAddress.Value);
                                 }
 
                                 if (currCallLuaFunction != null)
                                 {
-                                    string functionName = stateSumbols.FetchFunctionName(currCallLuaFunction.value.functionAddress);
+                                    string functionName = stateSymbols.FetchFunctionName(currCallLuaFunction.value.functionAddress);
 
                                     if (functionName == null)
                                     {
                                         functionName = GetLuaFunctionName(currCallInfoAddress.Value, currCallInfoData.previousAddress, currCallLuaFunction.targetAddress);
 
                                         if (functionName != null)
-                                            stateSumbols.AddFunctionName(currCallLuaFunction.value.functionAddress, functionName);
+                                            stateSymbols.AddFunctionName(currCallLuaFunction.value.functionAddress, functionName);
                                     }
 
                                     if (functionName != null)
@@ -831,14 +846,14 @@ namespace LuaDkmDebuggerComponent
                                 }
                                 else if (currCallExternalFunction != null)
                                 {
-                                    string functionName = stateSumbols.FetchFunctionName(currCallExternalFunction.targetAddress);
+                                    string functionName = stateSymbols.FetchFunctionName(currCallExternalFunction.targetAddress);
 
                                     if (functionName == null)
                                     {
                                         functionName = GetLuaFunctionName(currCallInfoAddress.Value, currCallInfoData.previousAddress, 0);
 
                                         if (functionName != null)
-                                            stateSumbols.AddFunctionName(currCallExternalFunction.targetAddress, functionName);
+                                            stateSymbols.AddFunctionName(currCallExternalFunction.targetAddress, functionName);
                                     }
 
                                     if (functionName != null)
@@ -846,14 +861,14 @@ namespace LuaDkmDebuggerComponent
                                 }
                                 else if (currCallExternalClosure != null)
                                 {
-                                    string functionName = stateSumbols.FetchFunctionName(currCallExternalClosure.value.functionAddress);
+                                    string functionName = stateSymbols.FetchFunctionName(currCallExternalClosure.value.functionAddress);
 
                                     if (functionName == null)
                                     {
                                         functionName = GetLuaFunctionName(currCallInfoAddress.Value, currCallInfoData.previousAddress, currCallExternalClosure.targetAddress);
 
                                         if (functionName != null)
-                                            stateSumbols.AddFunctionName(currCallExternalClosure.value.functionAddress, functionName);
+                                            stateSymbols.AddFunctionName(currCallExternalClosure.value.functionAddress, functionName);
                                     }
 
                                     if (functionName != null)
