@@ -977,7 +977,7 @@ namespace LuaDkmDebuggerComponent
                 return new DkmStackWalkFrame[1] { DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, flags, input.Description, input.Registers, input.Annotations) };
             }
 
-            if (stackContextData.hideTopLuaLibraryFrames && (methodName == "callhook" || methodName == "traceexec" || methodName == "lua_error") && !showHiddenFrames)
+            if (stackContextData.hideTopLuaLibraryFrames && (methodName == "callhook" || methodName == "callrethooks" || methodName == "traceexec" || methodName == "lua_error") && !showHiddenFrames)
             {
                 var flags = (input.Flags & ~DkmStackWalkFrameFlags.UserStatusNotDetermined) | DkmStackWalkFrameFlags.NonuserCode | DkmStackWalkFrameFlags.Hidden;
 
