@@ -18,7 +18,7 @@ namespace LuaDkmDebuggerComponent
 
         static public BatchRead Create(DkmProcess process, ulong address, int bytes)
         {
-            if (bytes > 8 * 1024 * 1024)
+            if (bytes <= 0 || bytes > 8 * 1024 * 1024)
                 return null;
 
             byte[] data = new byte[bytes];
