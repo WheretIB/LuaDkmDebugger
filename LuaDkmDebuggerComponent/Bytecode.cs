@@ -1878,6 +1878,10 @@ namespace LuaDkmDebuggerComponent
             if (functionAddress == 0)
                 return null;
 
+            // This is actually a C function 
+            if (LuaHelpers.luaVersion == 501 && isC_5_1 != 0)
+                return null;
+
             function = new LuaFunctionData();
 
             function.ReadFrom(process, functionAddress);

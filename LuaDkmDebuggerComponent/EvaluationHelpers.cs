@@ -497,6 +497,10 @@ namespace LuaDkmDebuggerComponent
                     return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, "[function]", $"{fullName}.!function", "[internal error: failed to read Proto]", DkmEvaluationResultFlags.Invalid, null);
 
                 string source = functionData.ReadSource(process);
+
+                if (source == null)
+                    return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, "[function]", $"{fullName}.!function", "[internal error: failed to read source]", DkmEvaluationResultFlags.Invalid, null);
+
                 int line = functionData.definitionStartLine_opt;
 
                 DkmEvaluationResultCategory category = DkmEvaluationResultCategory.Method;
