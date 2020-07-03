@@ -2325,7 +2325,7 @@ namespace LuaDkmDebuggerComponent
                         processData.executionStartAddress = processData.luaLocations.luaExecuteAtStart;
                         processData.executionEndAddress = processData.luaLocations.luaExecuteAtEnd;
                     }
-                    else if (AttachmentHelpers.TryGetFunctionAddress(nativeModuleInstance, "lua_newstate", out _).GetValueOrDefault(0) != 0)
+                    else if (AttachmentHelpers.TryGetFunctionAddress(nativeModuleInstance, "lua_newstate", out _).GetValueOrDefault(0) != 0 || AttachmentHelpers.TryGetFunctionAddress(nativeModuleInstance, "luaL_newstate", out _).GetValueOrDefault(0) != 0)
                     {
                         log.Debug("Found Lua library (from an IDE component)");
 
@@ -2515,15 +2515,29 @@ namespace LuaDkmDebuggerComponent
 
                     // Track Lua state initialization (breakpoint at the start of the function)
                     if (processData.luaLocations != null)
+                    {
                         processData.breakpointLuaInitialization = AttachmentHelpers.CreateTargetFunctionBreakpointAtAddress(process, processData.moduleWithLoadedLua, "lua_newstate", "initialization mark", processData.luaLocations.luaNewStateAtStart).GetValueOrDefault(Guid.Empty);
+                    }
                     else
+                    {
                         processData.breakpointLuaInitialization = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "lua_newstate", "initialization mark", out _).GetValueOrDefault(Guid.Empty);
+
+                        if (processData.breakpointLuaInitialization == Guid.Empty)
+                            processData.breakpointLuaInitialization = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_newstate", "initialization mark (outer)", out _).GetValueOrDefault(Guid.Empty);
+                    }
 
                     // Track Lua state creation (breakpoint at the end of the function)
                     if (processData.luaLocations != null)
+                    {
                         processData.breakpointLuaThreadCreate = AttachmentHelpers.CreateTargetFunctionBreakpointAtAddress(process, processData.moduleWithLoadedLua, "lua_newstate", "Lua thread creation", processData.luaLocations.luaNewStateAtEnd).GetValueOrDefault(Guid.Empty);
+                    }
                     else
+                    {
                         processData.breakpointLuaThreadCreate = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugEnd(process, processData.moduleWithLoadedLua, "lua_newstate", "Lua thread creation", out _).GetValueOrDefault(Guid.Empty);
+
+                        if (processData.breakpointLuaThreadCreate == Guid.Empty)
+                            processData.breakpointLuaThreadCreate = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugEnd(process, processData.moduleWithLoadedLua, "luaL_newstate", "Lua thread creation (outer)", out _).GetValueOrDefault(Guid.Empty);
+                    }
 
                     // Track Lua state destruction (breakpoint at the start of the function)
                     if (processData.luaLocations != null)

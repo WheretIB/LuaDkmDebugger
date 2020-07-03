@@ -21,15 +21,26 @@ namespace LuaDkmDebuggerComponent
                     return null;
 
                 // Check if Lua library is loaded
-                if (AttachmentHelpers.TryGetFunctionAddress(nativeModuleInstance, "lua_newstate", out _).GetValueOrDefault(0) != 0)
+                ulong luaNewState = AttachmentHelpers.TryGetFunctionAddress(nativeModuleInstance, "lua_newstate", out _).GetValueOrDefault(0);
+                ulong luaLibNewState = AttachmentHelpers.TryGetFunctionAddress(nativeModuleInstance, "luaL_newstate", out _).GetValueOrDefault(0);
+
+                if (luaNewState != 0 || luaLibNewState != 0)
                 {
                     var locations = new LuaLocationsMessage();
 
                     locations.luaExecuteAtStart = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, "luaV_execute", out _).GetValueOrDefault(0);
                     locations.luaExecuteAtEnd = AttachmentHelpers.TryGetFunctionAddressAtDebugEnd(nativeModuleInstance, "luaV_execute", out _).GetValueOrDefault(0);
 
-                    locations.luaNewStateAtStart = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, "lua_newstate", out _).GetValueOrDefault(0);
-                    locations.luaNewStateAtEnd = AttachmentHelpers.TryGetFunctionAddressAtDebugEnd(nativeModuleInstance, "lua_newstate", out _).GetValueOrDefault(0);
+                    if (luaNewState != 0)
+                    {
+                        locations.luaNewStateAtStart = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, "lua_newstate", out _).GetValueOrDefault(0);
+                        locations.luaNewStateAtEnd = AttachmentHelpers.TryGetFunctionAddressAtDebugEnd(nativeModuleInstance, "lua_newstate", out _).GetValueOrDefault(0);
+                    }
+                    else
+                    {
+                        locations.luaNewStateAtStart = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, "luaL_newstate", out _).GetValueOrDefault(0);
+                        locations.luaNewStateAtEnd = AttachmentHelpers.TryGetFunctionAddressAtDebugEnd(nativeModuleInstance, "luaL_newstate", out _).GetValueOrDefault(0);
+                    }
 
                     locations.luaClose = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, "lua_close", out _).GetValueOrDefault(0);
                     locations.closeState = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, "close_state", out _).GetValueOrDefault(0);
