@@ -432,6 +432,24 @@ namespace LuaDkmDebuggerComponent
 
                     target.ReadFrom(process, value.Value);
 
+                    // In Lua 5.1, all function have the same type tag, but C closures are marked in closure data
+                    if (LuaHelpers.luaVersion == 501 && target.isC_5_1 != 0)
+                    {
+                        LuaExternalClosureData newTarget = new LuaExternalClosureData();
+
+                        newTarget.ReadFrom(process, value.Value);
+
+                        return new LuaValueDataExternalClosure()
+                        {
+                            baseType = GetBaseType(typeTag),
+                            extendedType = LuaExtendedType.ExternalClosure,
+                            evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
+                            originalAddress = address,
+                            value = newTarget,
+                            targetAddress = value.Value
+                        };
+                    }
+
                     return new LuaValueDataLuaFunction()
                     {
                         baseType = GetBaseType(typeTag),
