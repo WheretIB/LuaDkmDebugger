@@ -617,6 +617,8 @@ namespace LuaDkmDebuggerComponent
             // Read lua_State
             ulong temp = stateAddress;
 
+            ulong? savedProgramCounterAddress = null;
+
             // CommonHeader
             DebugHelpers.SkipStructPointer(process, ref temp);
             DebugHelpers.SkipStructByte(process, ref temp);
@@ -629,6 +631,7 @@ namespace LuaDkmDebuggerComponent
                 DebugHelpers.SkipStructPointer(process, ref temp); // base
                 DebugHelpers.SkipStructPointer(process, ref temp); // l_G
                 callInfoAddress = DebugHelpers.ReadStructPointer(process, ref temp).GetValueOrDefault(0);
+                savedProgramCounterAddress = DebugHelpers.ReadStructPointer(process, ref temp).GetValueOrDefault(0);
             }
             else if (processData.luaVersion == 502)
             {
@@ -701,8 +704,11 @@ namespace LuaDkmDebuggerComponent
                 processData.functionDataCache.Add(closureData.functionAddress, functionData);
             }
 
+            if (!savedProgramCounterAddress.HasValue)
+                savedProgramCounterAddress = callInfoData.savedInstructionPointerAddress;
+
             // Possible in bad break locations
-            if (callInfoData.savedInstructionPointerAddress < functionData.codeDataAddress)
+            if (savedProgramCounterAddress < functionData.codeDataAddress)
             {
                 inspectionSession.Close();
 
@@ -711,7 +717,7 @@ namespace LuaDkmDebuggerComponent
                 return;
             }
 
-            long currInstructionPointer = ((long)callInfoData.savedInstructionPointerAddress - (long)functionData.codeDataAddress) / 4; // unsigned size instructions
+            long currInstructionPointer = ((long)savedProgramCounterAddress - (long)functionData.codeDataAddress) / 4; // unsigned size instructions
 
             // If the call was already made, savedpc will be offset by 1 (return location)
             int prevInstructionPointer = currInstructionPointer == 0 ? 0 : (int)currInstructionPointer - 1;
