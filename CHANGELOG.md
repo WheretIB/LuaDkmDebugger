@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.9.2] - 2020-07-07
+
+### Added
+
+- Optimization for table summary and element lookups using batched memory reads and lazy evaluation
+- Optimization for function locals list using batched memory reads
+- Function location display now works with Lua 5.1
+- Function name caching for Lua 5.1 stack frames
+- Conditional breakpoint support for Lua 5.4
+
+### Changed
+
+- Fixed Lua version lookup and hook setup when Lua library is built with optimization
+- Fixed crash on function data lookup when debugging Lua 5.1
+- Fix for Lua state creation hook when library is built with optimization
+- Fix for internal Lua function display on 'Step Out' when debugging Lua 5.1
+- Fixed conditional breakpoints
+
 ## [0.9.1] - 2020-06-23
 
 ### Added
@@ -112,7 +130,7 @@
 ### Changed
 
 - Fixed hook crash when application Lua library is compiled with a different LUA_IDSIZE
-- Fixed conditional breakpoints in Lua 5.3 build for x64
+- Fixed conditional breakpoints in Lua 5.3 built for x64
 - Some documents can be linked to known scripts using content comparison even when script source name doesn't match any file on disk
 
 ## [0.6.0] - 2020-05-30
