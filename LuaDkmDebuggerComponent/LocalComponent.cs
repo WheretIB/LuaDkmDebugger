@@ -677,10 +677,11 @@ namespace LuaDkmDebuggerComponent
                             break;
 
                         var currCallLuaFunction = currCallInfoData.func as LuaValueDataLuaFunction;
+                        var currCallExternalClosure = currCallInfoData.func as LuaValueDataExternalClosure;
 
-                        Debug.Assert(currCallLuaFunction != null);
+                        Debug.Assert(currCallLuaFunction != null || currCallExternalClosure != null);
 
-                        if (currCallLuaFunction == null)
+                        if (currCallLuaFunction == null && currCallExternalClosure == null)
                             break;
 
                         var prevCallLuaFunction = prevCallInfoData.func as LuaValueDataLuaFunction;
@@ -688,11 +689,11 @@ namespace LuaDkmDebuggerComponent
                         string currFunctionName = "[name unavailable]";
 
                         // Can't get function name if calling function is unknown because of a tail call or if call was not from Lua
-                        if (currCallLuaFunction.value.isC_5_1 == 0 && currCallInfoData.tailCallCount_5_1 > 0)
+                        if (currCallInfoData.tailCallCount_5_1 > 0)
                         {
                             currFunctionName = $"[name unavailable - tail call]";
                         }
-                        else if (prevCallLuaFunction != null && prevCallLuaFunction.value.isC_5_1 != 0)
+                        else if (prevCallLuaFunction == null)
                         {
                             currFunctionName = $"[name unavailable - not called from Lua]";
                         }
@@ -705,21 +706,39 @@ namespace LuaDkmDebuggerComponent
                                 stateSymbols = processData.symbolStore.FetchOrCreate(stateAddress.Value);
                             }
 
-                            string functionName = stateSymbols.FetchFunctionName(currCallLuaFunction.value.functionAddress);
-
-                            if (functionName == null)
+                            if (currCallLuaFunction != null)
                             {
-                                functionName = GetLuaFunctionName(currCallInfoAddress, prevCallInfoDataAddress, currCallLuaFunction.targetAddress);
+                                string functionName = stateSymbols.FetchFunctionName(currCallLuaFunction.value.functionAddress);
+
+                                if (functionName == null)
+                                {
+                                    functionName = GetLuaFunctionName(currCallInfoAddress, prevCallInfoDataAddress, currCallLuaFunction.targetAddress);
+
+                                    if (functionName != null)
+                                        stateSymbols.AddFunctionName(currCallLuaFunction.value.functionAddress, functionName);
+                                }
 
                                 if (functionName != null)
-                                    stateSymbols.AddFunctionName(currCallLuaFunction.value.functionAddress, functionName);
+                                    currFunctionName = functionName;
                             }
+                            else if (currCallExternalClosure != null)
+                            {
+                                string functionName = stateSymbols.FetchFunctionName(currCallExternalClosure.value.functionAddress);
 
-                            if (functionName != null)
-                                currFunctionName = functionName;
+                                if (functionName == null)
+                                {
+                                    functionName = GetLuaFunctionName(currCallInfoAddress, prevCallInfoDataAddress, currCallExternalClosure.targetAddress);
+
+                                    if (functionName != null)
+                                        stateSymbols.AddFunctionName(currCallExternalClosure.value.functionAddress, functionName);
+                                }
+
+                                if (functionName != null)
+                                    currFunctionName = functionName;
+                            }
                         }
 
-                        if (currCallLuaFunction.value.isC_5_1 == 0)
+                        if (currCallLuaFunction != null)
                         {
                             stackContextData.seenLuaFrame = true;
                             stackContextData.seenFrames++;
@@ -744,7 +763,7 @@ namespace LuaDkmDebuggerComponent
 
                             stackContextData.seenFrames++;
 
-                            luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[{currFunctionName} C function]", input.Registers, input.Annotations));
+                            luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[{currFunctionName} C closure]", input.Registers, input.Annotations));
 
                             luaFrameFlags &= ~DkmStackWalkFrameFlags.TopFrame;
                         }
