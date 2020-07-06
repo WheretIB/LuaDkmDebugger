@@ -111,6 +111,8 @@ namespace LuaDkmDebuggerComponent
             else if (customMessage.MessageCode == MessageToRemote.luaVersionInfo)
             {
                 processData.luaVersion = (customMessage.Parameter1 as int?).GetValueOrDefault(0);
+
+                LuaHelpers.luaVersion = processData.luaVersion;
             }
             else if (customMessage.MessageCode == MessageToRemote.registerLuaState)
             {
