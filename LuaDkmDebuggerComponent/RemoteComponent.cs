@@ -639,12 +639,20 @@ namespace LuaDkmDebuggerComponent
                 DebugHelpers.SkipStructPointer(process, ref temp); // top
                 DebugHelpers.SkipStructPointer(process, ref temp); // l_G
                 callInfoAddress = DebugHelpers.ReadStructPointer(process, ref temp).GetValueOrDefault(0);
-
             }
             else if (processData.luaVersion == 503)
             {
                 DebugHelpers.SkipStructShort(process, ref temp); // nci
                 DebugHelpers.SkipStructByte(process, ref temp); // status
+                DebugHelpers.SkipStructPointer(process, ref temp); // top
+                DebugHelpers.SkipStructPointer(process, ref temp); // l_G
+                callInfoAddress = DebugHelpers.ReadStructPointer(process, ref temp).GetValueOrDefault(0);
+            }
+            else if (processData.luaVersion == 504)
+            {
+                DebugHelpers.SkipStructByte(process, ref temp); // status
+                DebugHelpers.SkipStructByte(process, ref temp); // allowhook
+                DebugHelpers.SkipStructShort(process, ref temp); // nci
                 DebugHelpers.SkipStructPointer(process, ref temp); // top
                 DebugHelpers.SkipStructPointer(process, ref temp); // l_G
                 callInfoAddress = DebugHelpers.ReadStructPointer(process, ref temp).GetValueOrDefault(0);
