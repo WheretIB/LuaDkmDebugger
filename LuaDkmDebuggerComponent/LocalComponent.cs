@@ -100,11 +100,10 @@ namespace LuaDkmDebuggerComponent
         public Guid breakpointLuaLoad;
 
         // Two-stage Lua exception handling
-        public bool captureNextThrow = false;
         public Guid breakpointLuaBreakError;
         public Guid breakpointLuaRuntimeError;
         public ulong breakpointLuaThrowAddress = 0;
-        public Guid breakpointLuaThrow;
+        public DkmRuntimeInstructionBreakpoint breakpointLuaThrow;
 
         public Guid breakpointLuaHelperInitialized;
 
@@ -2645,11 +2644,11 @@ namespace LuaDkmDebuggerComponent
                     if (processData.luaLocations != null)
                     {
                         processData.breakpointLuaThrowAddress = processData.luaLocations.luaThrow;
-                        processData.breakpointLuaThrow = AttachmentHelpers.CreateTargetFunctionBreakpointAtAddress(process, processData.moduleWithLoadedLua, "luaD_throw", "Lua script error", processData.luaLocations.luaThrow).GetValueOrDefault(Guid.Empty);
+                        processData.breakpointLuaThrow = AttachmentHelpers.CreateTargetFunctionBreakpointObjectAtAddress(process, processData.moduleWithLoadedLua, "luaD_throw", "Lua script error", processData.luaLocations.luaThrow, false);
                     }
                     else
                     {
-                        processData.breakpointLuaThrow = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaD_throw", "Lua script error", out processData.breakpointLuaThrowAddress).GetValueOrDefault(Guid.Empty);
+                        processData.breakpointLuaThrow = AttachmentHelpers.CreateTargetFunctionBreakpointObjectAtDebugStart(process, processData.moduleWithLoadedLua, "luaD_throw", "Lua script error", out processData.breakpointLuaThrowAddress, false);
                     }
 
                     string assemblyFolder = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
@@ -3248,20 +3247,14 @@ namespace LuaDkmDebuggerComponent
 
                     log.Debug("Enabling a trap at next luaD_throw");
 
-                    processData.captureNextThrow = true;
+                    if (processData.breakpointLuaThrow != null)
+                        processData.breakpointLuaThrow.Enable();
                 }
-                else if (data.breakpointId == processData.breakpointLuaThrow)
+                else if (processData.breakpointLuaThrow != null && data.breakpointId == processData.breakpointLuaThrow.UniqueId)
                 {
                     log.Debug("Detected Lua exception throw");
 
-                    if (!processData.captureNextThrow)
-                    {
-                        log.Debug("Capture is not enabled");
-
-                        return null;
-                    }
-
-                    processData.captureNextThrow = false;
+                    processData.breakpointLuaThrow.Disable();
 
                     var inspectionSession = EvaluationHelpers.CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
 

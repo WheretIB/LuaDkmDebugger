@@ -424,7 +424,7 @@ namespace LuaDkmDebuggerComponent
             return 0;
         }
 
-        internal static Guid? CreateTargetFunctionBreakpointAtAddress(DkmProcess process, DkmNativeModuleInstance moduleWithLoadedLua, string name, string desc, ulong address)
+        internal static DkmRuntimeInstructionBreakpoint CreateTargetFunctionBreakpointObjectAtAddress(DkmProcess process, DkmNativeModuleInstance moduleWithLoadedLua, string name, string desc, ulong address, bool enabled)
         {
             if (address != 0)
             {
@@ -434,9 +434,10 @@ namespace LuaDkmDebuggerComponent
 
                 var breakpoint = DkmRuntimeInstructionBreakpoint.Create(Guids.luaSupportBreakpointGuid, null, nativeAddress, false, null);
 
-                breakpoint.Enable();
+                if (enabled)
+                    breakpoint.Enable();
 
-                return breakpoint.UniqueId;
+                return breakpoint;
             }
             else
             {
@@ -446,7 +447,17 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
-        internal static Guid? CreateTargetFunctionBreakpointAtDebugStart(DkmProcess process, DkmNativeModuleInstance moduleWithLoadedLua, string name, string desc, out ulong breakAddress)
+        internal static Guid? CreateTargetFunctionBreakpointAtAddress(DkmProcess process, DkmNativeModuleInstance moduleWithLoadedLua, string name, string desc, ulong address)
+        {
+            DkmRuntimeInstructionBreakpoint breakpoint = CreateTargetFunctionBreakpointObjectAtAddress(process, moduleWithLoadedLua, name, desc, address, true);
+
+            if (breakpoint != null)
+                return breakpoint.UniqueId;
+
+            return null;
+        }
+
+        internal static DkmRuntimeInstructionBreakpoint CreateTargetFunctionBreakpointObjectAtDebugStart(DkmProcess process, DkmNativeModuleInstance moduleWithLoadedLua, string name, string desc, out ulong breakAddress, bool enabled)
         {
             var address = TryGetFunctionAddressAtDebugStart(moduleWithLoadedLua, name, out string error);
 
@@ -458,10 +469,11 @@ namespace LuaDkmDebuggerComponent
 
                 var breakpoint = DkmRuntimeInstructionBreakpoint.Create(Guids.luaSupportBreakpointGuid, null, nativeAddress, false, null);
 
-                breakpoint.Enable();
+                if (enabled)
+                    breakpoint.Enable();
 
                 breakAddress = address.Value;
-                return breakpoint.UniqueId;
+                return breakpoint;
             }
             else
             {
@@ -469,6 +481,16 @@ namespace LuaDkmDebuggerComponent
             }
 
             breakAddress = 0;
+            return null;
+        }
+
+        internal static Guid? CreateTargetFunctionBreakpointAtDebugStart(DkmProcess process, DkmNativeModuleInstance moduleWithLoadedLua, string name, string desc, out ulong breakAddress)
+        {
+            DkmRuntimeInstructionBreakpoint breakpoint = CreateTargetFunctionBreakpointObjectAtDebugStart(process, moduleWithLoadedLua, name, desc, out breakAddress, true);
+
+            if (breakpoint != null)
+                return breakpoint.UniqueId;
+
             return null;
         }
 
