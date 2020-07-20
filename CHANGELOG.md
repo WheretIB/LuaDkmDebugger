@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.3] - 2020-07-20
+
+### Changed
+
+- Fixed performance issue with Lua error handling
+
 ## [0.9.2] - 2020-07-07
 
 ### Added
