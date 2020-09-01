@@ -2338,9 +2338,9 @@ namespace LuaDkmDebuggerComponent
 
                         UpdateEvaluationHelperWorkerConnection(process);
                     }
-                    catch (Exception)
+                    catch (Exception ex)
                     {
-                        log.Debug("Local symbols connection is not available");
+                        log.Debug("Local symbols connection is not available: " + ex.ToString());
                     }
 
                     if (luaLocations != null)
@@ -2358,18 +2358,27 @@ namespace LuaDkmDebuggerComponent
                         processData.executionStartAddress = processData.luaLocations.luaExecuteAtStart;
                         processData.executionEndAddress = processData.luaLocations.luaExecuteAtEnd;
                     }
-                    else if (AttachmentHelpers.TryGetFunctionAddress(nativeModuleInstance, "lua_newstate", out _).GetValueOrDefault(0) != 0 || AttachmentHelpers.TryGetFunctionAddress(nativeModuleInstance, "luaL_newstate", out _).GetValueOrDefault(0) != 0)
-                    {
-                        log.Debug("Found Lua library (from an IDE component)");
-
-                        processData.moduleWithLoadedLua = nativeModuleInstance;
-
-                        processData.executionStartAddress = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(processData.moduleWithLoadedLua, "luaV_execute", out _).GetValueOrDefault(0);
-                        processData.executionEndAddress = AttachmentHelpers.TryGetFunctionAddressAtDebugEnd(processData.moduleWithLoadedLua, "luaV_execute", out _).GetValueOrDefault(0);
-                    }
                     else
                     {
-                        log.Warning("Failed to find Lua library");
+                        if (AttachmentHelpers.TryGetFunctionAddress(nativeModuleInstance, "lua_newstate", out string errorA).GetValueOrDefault(0) != 0 || AttachmentHelpers.TryGetFunctionAddress(nativeModuleInstance, "luaL_newstate", out string errorB).GetValueOrDefault(0) != 0)
+                        {
+                            log.Debug("Found Lua library (from an IDE component)");
+
+                            processData.moduleWithLoadedLua = nativeModuleInstance;
+
+                            processData.executionStartAddress = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(processData.moduleWithLoadedLua, "luaV_execute", out _).GetValueOrDefault(0);
+                            processData.executionEndAddress = AttachmentHelpers.TryGetFunctionAddressAtDebugEnd(processData.moduleWithLoadedLua, "luaV_execute", out _).GetValueOrDefault(0);
+                        }
+                        else
+                        {
+                            if (errorA != null && errorA.Length != 0)
+                                log.Error("Failed to find lua_newstate with: " + errorA);
+
+                            if (errorB != null && errorB.Length != 0)
+                                log.Error("Failed to find luaL_newstate with: " + errorB);
+
+                            log.Warning("Failed to find Lua library");
+                        }
                     }
                 }
 

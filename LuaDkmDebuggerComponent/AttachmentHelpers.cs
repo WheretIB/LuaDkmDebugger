@@ -291,64 +291,91 @@ namespace LuaDkmDebuggerComponent
 
         internal static ulong? TryGetFunctionAddress(DkmNativeModuleInstance moduleInstance, string name, out string error)
         {
-            var functionSymbol = TryGetDiaFunctionSymbol(moduleInstance, name, out error);
+            try
+            {
+                var functionSymbol = TryGetDiaFunctionSymbol(moduleInstance, name, out error);
 
-            if (functionSymbol == null)
-                return null;
+                if (functionSymbol == null)
+                    return null;
 
-            uint rva = functionSymbol.relativeVirtualAddress;
+                uint rva = functionSymbol.relativeVirtualAddress;
 
-            ReleaseComObject(functionSymbol);
+                ReleaseComObject(functionSymbol);
 
-            return moduleInstance.BaseAddress + rva;
+                return moduleInstance.BaseAddress + rva;
+            }
+            catch (Exception ex)
+            {
+                error = "TryGetFunctionAddress() Unexpected error: " + ex.ToString();
+            }
+
+            return null;
         }
 
         internal static ulong? TryGetFunctionAddressAtDebugStart(DkmNativeModuleInstance moduleInstance, string name, out string error)
         {
-            var functionSymbol = TryGetDiaFunctionSymbol(moduleInstance, name, out error);
-
-            if (functionSymbol == null)
-                return null;
-
-            var functionStartSymbol = TryGetDiaSymbol(functionSymbol, SymTagEnum.SymTagFuncDebugStart, null, out error);
-
-            if (functionStartSymbol == null)
+            try
             {
+                var functionSymbol = TryGetDiaFunctionSymbol(moduleInstance, name, out error);
+
+                if (functionSymbol == null)
+                    return null;
+
+                var functionStartSymbol = TryGetDiaSymbol(functionSymbol, SymTagEnum.SymTagFuncDebugStart, null, out error);
+
+                if (functionStartSymbol == null)
+                {
+                    ReleaseComObject(functionSymbol);
+
+                    return null;
+                }
+
+                uint rva = functionStartSymbol.relativeVirtualAddress;
+
+                ReleaseComObject(functionStartSymbol);
                 ReleaseComObject(functionSymbol);
 
-                return null;
+                return moduleInstance.BaseAddress + rva;
+            }
+            catch (Exception ex)
+            {
+                error = "TryGetFunctionAddressAtDebugStart() Unexpected error: " + ex.ToString();
             }
 
-            uint rva = functionStartSymbol.relativeVirtualAddress;
-
-            ReleaseComObject(functionStartSymbol);
-            ReleaseComObject(functionSymbol);
-
-            return moduleInstance.BaseAddress + rva;
+            return null;
         }
 
         internal static ulong? TryGetFunctionAddressAtDebugEnd(DkmNativeModuleInstance moduleInstance, string name, out string error)
         {
-            var functionSymbol = TryGetDiaFunctionSymbol(moduleInstance, name, out error);
-
-            if (functionSymbol == null)
-                return null;
-
-            var functionEndSymbol = TryGetDiaSymbol(functionSymbol, SymTagEnum.SymTagFuncDebugEnd, null, out error);
-
-            if (functionEndSymbol == null)
+            try
             {
+                var functionSymbol = TryGetDiaFunctionSymbol(moduleInstance, name, out error);
+
+                if (functionSymbol == null)
+                    return null;
+
+                var functionEndSymbol = TryGetDiaSymbol(functionSymbol, SymTagEnum.SymTagFuncDebugEnd, null, out error);
+
+                if (functionEndSymbol == null)
+                {
+                    ReleaseComObject(functionSymbol);
+
+                    return null;
+                }
+
+                uint rva = functionEndSymbol.relativeVirtualAddress;
+
+                ReleaseComObject(functionEndSymbol);
                 ReleaseComObject(functionSymbol);
 
-                return null;
+                return moduleInstance.BaseAddress + rva;
+            }
+            catch (Exception ex)
+            {
+                error = "TryGetFunctionAddressAtDebugEnd() Unexpected error: " + ex.ToString();
             }
 
-            uint rva = functionEndSymbol.relativeVirtualAddress;
-
-            ReleaseComObject(functionEndSymbol);
-            ReleaseComObject(functionSymbol);
-
-            return moduleInstance.BaseAddress + rva;
+            return null;
         }
 
         internal static Guid? CreateHelperFunctionBreakpoint(DkmNativeModuleInstance nativeModuleInstance, string functionName)
