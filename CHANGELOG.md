@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.4] - 2020-09-02
+
+### Changed
+
+- Added handler for unexpected exceptions in DIA SDK symbol load functions
+
 ## [0.9.3] - 2020-07-20
 
 ### Changed
