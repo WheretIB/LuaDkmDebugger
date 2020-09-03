@@ -1234,6 +1234,20 @@ namespace LuaDkmDebuggerComponent
                 closureData = null;
         }
 
+        void ClearEvaluationSessionData(DkmInspectionSession inspectionSession)
+        {
+            if (inspectionSession != null)
+            {
+                var evaluationSession = inspectionSession.GetDataItem<LuaEvaluationSessionData>();
+
+                if (evaluationSession != null)
+                {
+                    evaluationSession.callInfoDataMap.Clear();
+                    evaluationSession.functionDataMap.Clear();
+                }
+            }
+        }
+
         void IDkmLanguageExpressionEvaluator.EvaluateExpression(DkmInspectionContext inspectionContext, DkmWorkList workList, DkmLanguageExpression expression, DkmStackWalkFrame stackFrame, DkmCompletionRoutine<DkmEvaluateExpressionAsyncResult> completionRoutine)
         {
             log.Debug($"IDkmLanguageExpressionEvaluator.EvaluateExpression begin (session {inspectionContext.InspectionSession.UniqueId})");
@@ -1853,6 +1867,8 @@ namespace LuaDkmDebuggerComponent
 
         void IDkmLanguageExpressionEvaluator.SetValueAsString(DkmEvaluationResult result, string value, int timeout, out string errorText)
         {
+            log.Debug($"IDkmLanguageInstructionDecoder.SetValueAsString (session {result.InspectionSession.UniqueId})");
+
             var evalData = result.GetDataItem<LuaEvaluationDataItem>();
 
             if (evalData == null)
@@ -1869,6 +1885,9 @@ namespace LuaDkmDebuggerComponent
                 errorText = "Result value doesn't have an address in memory";
                 return;
             }
+
+            // Clear memory cache inside inspection session to refresh changed values
+            ClearEvaluationSessionData(result.InspectionSession);
 
             if (evalData.luaValueData as LuaValueDataBool != null)
             {
