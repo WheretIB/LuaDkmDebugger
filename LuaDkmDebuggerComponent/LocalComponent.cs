@@ -1894,6 +1894,12 @@ namespace LuaDkmDebuggerComponent
             {
                 if (value == "true")
                 {
+                    if (LuaHelpers.luaVersion == 504 && evalData.luaValueData.tagAddress != 0)
+                    {
+                        if (!DebugHelpers.TryWriteIntVariable(process, evalData.luaValueData.tagAddress, (int)LuaExtendedType.BooleanTrue))
+                            errorText = "Failed to modify target process memory";
+                    }
+
                     if (!DebugHelpers.TryWriteIntVariable(process, address, 1))
                         errorText = "Failed to modify target process memory";
                     else
@@ -1903,6 +1909,12 @@ namespace LuaDkmDebuggerComponent
                 }
                 else if (value == "false")
                 {
+                    if (LuaHelpers.luaVersion == 504 && evalData.luaValueData.tagAddress != 0)
+                    {
+                        if (!DebugHelpers.TryWriteIntVariable(process, evalData.luaValueData.tagAddress, (int)LuaExtendedType.Boolean))
+                            errorText = "Failed to modify target process memory";
+                    }
+
                     if (!DebugHelpers.TryWriteIntVariable(process, address, 0))
                         errorText = "Failed to modify target process memory";
                     else
@@ -1912,6 +1924,12 @@ namespace LuaDkmDebuggerComponent
                 }
                 else if (int.TryParse(value, out int intValue))
                 {
+                    if (LuaHelpers.luaVersion == 504 && evalData.luaValueData.tagAddress != 0)
+                    {
+                        if (!DebugHelpers.TryWriteIntVariable(process, evalData.luaValueData.tagAddress, (int)(intValue != 0 ? LuaExtendedType.BooleanTrue : LuaExtendedType.Boolean)))
+                            errorText = "Failed to modify target process memory";
+                    }
+
                     if (!DebugHelpers.TryWriteIntVariable(process, address, intValue != 0 ? 1 : 0))
                         errorText = "Failed to modify target process memory";
                     else

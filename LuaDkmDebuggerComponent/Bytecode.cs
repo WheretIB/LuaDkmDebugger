@@ -115,9 +115,10 @@ namespace LuaDkmDebuggerComponent
             return (LuaExtendedType)(LuaBaseType.Number + 16);
         }
 
-        internal static int? ReadTypeTag(DkmProcess process, ulong address, out ulong valueAddress, BatchRead batch = null)
+        internal static int? ReadTypeTag(DkmProcess process, ulong address, out ulong tagAddress, out ulong valueAddress, BatchRead batch = null)
         {
             int? typeTag;
+            tagAddress = 0;
             valueAddress = address;
 
             if (Schema.LuaValueData.available)
@@ -131,13 +132,19 @@ namespace LuaDkmDebuggerComponent
                         return null;
 
                     if (double.IsNaN(value.Value))
-                        typeTag = DebugHelpers.ReadIntVariable(process, address + Schema.LuaValueData.typeAddress.GetValueOrDefault(0), batch);
+                    {
+                        tagAddress = address + Schema.LuaValueData.typeAddress.GetValueOrDefault(0);
+                        typeTag = DebugHelpers.ReadIntVariable(process, tagAddress, batch);
+                    }
                     else
+                    {
                         typeTag = (int)GetFloatNumberExtendedType();
+                    }
                 }
                 else
                 {
-                    typeTag = DebugHelpers.ReadIntVariable(process, address + Schema.LuaValueData.typeAddress.GetValueOrDefault(0), batch);
+                    tagAddress = address + Schema.LuaValueData.typeAddress.GetValueOrDefault(0);
+                    typeTag = DebugHelpers.ReadIntVariable(process, tagAddress, batch);
                 }
 
                 valueAddress = address + Schema.LuaValueData.valueAddress.GetValueOrDefault(0);
@@ -151,15 +158,21 @@ namespace LuaDkmDebuggerComponent
                     return null;
 
                 if (double.IsNaN(value.Value))
-                    typeTag = DebugHelpers.ReadIntVariable(process, address + (ulong)DebugHelpers.GetPointerSize(process), batch);
+                {
+                    tagAddress = address + (ulong)DebugHelpers.GetPointerSize(process);
+                    typeTag = DebugHelpers.ReadIntVariable(process, tagAddress, batch);
+                }
                 else
+                {
                     typeTag = (int)GetFloatNumberExtendedType();
+                }
             }
             else
             {
                 // Same in Lua 5.1, 5.3 and 5.4
                 // struct { Value value_; int tt_; }
-                typeTag = DebugHelpers.ReadIntVariable(process, address + 8, batch);
+                tagAddress = address + 8;
+                typeTag = DebugHelpers.ReadIntVariable(process, tagAddress, batch);
             }
 
             return typeTag;
@@ -167,15 +180,15 @@ namespace LuaDkmDebuggerComponent
 
         internal static LuaValueDataBase ReadValue(DkmProcess process, ulong address, BatchRead batch = null)
         {
-            int? typeTag = ReadTypeTag(process, address, out ulong valueAddress, batch);
+            int? typeTag = ReadTypeTag(process, address, out ulong tagAddress, out ulong valueAddress, batch);
 
             if (typeTag == null)
                 return null;
 
-            return ReadValueOfType(process, typeTag.Value, valueAddress, batch);
+            return ReadValueOfType(process, typeTag.Value, tagAddress, valueAddress, batch);
         }
 
-        internal static LuaValueDataBase ReadValueOfType(DkmProcess process, int typeTag, ulong address, BatchRead batch = null)
+        internal static LuaValueDataBase ReadValueOfType(DkmProcess process, int typeTag, ulong tagAddress, ulong address, BatchRead batch = null)
         {
             var extenedType = GetExtendedType(typeTag);
 
@@ -186,6 +199,7 @@ namespace LuaDkmDebuggerComponent
                     baseType = GetBaseType(typeTag),
                     extendedType = GetExtendedType(typeTag),
                     evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
+                    tagAddress = tagAddress,
                     originalAddress = address
                 };
             }
@@ -199,6 +213,7 @@ namespace LuaDkmDebuggerComponent
                         baseType = GetBaseType(typeTag),
                         extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean | DkmEvaluationResultFlags.ReadOnly,
+                        tagAddress = tagAddress,
                         originalAddress = address,
                         value = false
                     };
@@ -213,6 +228,7 @@ namespace LuaDkmDebuggerComponent
                         baseType = GetBaseType(typeTag),
                         extendedType = GetExtendedType(typeTag),
                         evaluationFlags = value.Value != 0 ? DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean | DkmEvaluationResultFlags.BooleanTrue : DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean,
+                        tagAddress = tagAddress,
                         originalAddress = address,
                         value = value.Value != 0
                     };
@@ -223,6 +239,7 @@ namespace LuaDkmDebuggerComponent
                     baseType = GetBaseType(typeTag),
                     extendedType = GetExtendedType(typeTag),
                     evaluationFlags = DkmEvaluationResultFlags.None,
+                    tagAddress = tagAddress,
                     originalAddress = address
                 };
             }
@@ -236,6 +253,7 @@ namespace LuaDkmDebuggerComponent
                         baseType = GetBaseType(typeTag),
                         extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean | DkmEvaluationResultFlags.BooleanTrue | DkmEvaluationResultFlags.ReadOnly,
+                        tagAddress = tagAddress,
                         originalAddress = address,
                         value = true
                     };
@@ -246,6 +264,7 @@ namespace LuaDkmDebuggerComponent
                     baseType = GetBaseType(typeTag),
                     extendedType = GetExtendedType(typeTag),
                     evaluationFlags = DkmEvaluationResultFlags.None,
+                    tagAddress = tagAddress,
                     originalAddress = address
                 };
             }
@@ -261,6 +280,7 @@ namespace LuaDkmDebuggerComponent
                         baseType = GetBaseType(typeTag),
                         extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType,
+                        tagAddress = tagAddress,
                         originalAddress = address,
                         value = value.Value
                     };
@@ -271,6 +291,7 @@ namespace LuaDkmDebuggerComponent
                     baseType = GetBaseType(typeTag),
                     extendedType = GetExtendedType(typeTag),
                     evaluationFlags = DkmEvaluationResultFlags.None,
+                    tagAddress = tagAddress,
                     originalAddress = address
                 };
             }
@@ -286,6 +307,7 @@ namespace LuaDkmDebuggerComponent
                         baseType = GetBaseType(typeTag),
                         extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType,
+                        tagAddress = tagAddress,
                         originalAddress = address,
                         value = value.Value
                     };
@@ -296,6 +318,7 @@ namespace LuaDkmDebuggerComponent
                     baseType = GetBaseType(typeTag),
                     extendedType = GetExtendedType(typeTag),
                     evaluationFlags = DkmEvaluationResultFlags.None,
+                    tagAddress = tagAddress,
                     originalAddress = address
                 };
             }
@@ -311,6 +334,7 @@ namespace LuaDkmDebuggerComponent
                         baseType = GetBaseType(typeTag),
                         extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType,
+                        tagAddress = tagAddress,
                         originalAddress = address,
                         value = value.Value
                     };
@@ -321,6 +345,7 @@ namespace LuaDkmDebuggerComponent
                     baseType = GetBaseType(typeTag),
                     extendedType = GetExtendedType(typeTag),
                     evaluationFlags = DkmEvaluationResultFlags.None,
+                    tagAddress = tagAddress,
                     originalAddress = address
                 };
             }
@@ -342,6 +367,7 @@ namespace LuaDkmDebuggerComponent
                             baseType = GetBaseType(typeTag),
                             extendedType = GetExtendedType(typeTag),
                             evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.RawString,
+                            tagAddress = tagAddress,
                             originalAddress = address,
                             value = target,
                             targetAddress = value.Value + luaStringOffset
@@ -354,6 +380,7 @@ namespace LuaDkmDebuggerComponent
                     baseType = GetBaseType(typeTag),
                     extendedType = GetExtendedType(typeTag),
                     evaluationFlags = DkmEvaluationResultFlags.None,
+                    tagAddress = tagAddress,
                     originalAddress = address
                 };
             }
@@ -375,6 +402,7 @@ namespace LuaDkmDebuggerComponent
                             baseType = GetBaseType(typeTag),
                             extendedType = GetExtendedType(typeTag),
                             evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.RawString,
+                            tagAddress = tagAddress,
                             originalAddress = address,
                             value = target,
                             targetAddress = value.Value + luaStringOffset
@@ -387,6 +415,7 @@ namespace LuaDkmDebuggerComponent
                     baseType = GetBaseType(typeTag),
                     extendedType = GetExtendedType(typeTag),
                     evaluationFlags = DkmEvaluationResultFlags.None,
+                    tagAddress = tagAddress,
                     originalAddress = address
                 };
             }
@@ -406,6 +435,7 @@ namespace LuaDkmDebuggerComponent
                         baseType = GetBaseType(typeTag),
                         extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.ReadOnly | DkmEvaluationResultFlags.Expandable,
+                        tagAddress = tagAddress,
                         originalAddress = address,
                         value = target,
                         targetAddress = value.Value
@@ -417,6 +447,7 @@ namespace LuaDkmDebuggerComponent
                     baseType = GetBaseType(typeTag),
                     extendedType = GetExtendedType(typeTag),
                     evaluationFlags = DkmEvaluationResultFlags.None,
+                    tagAddress = tagAddress,
                     originalAddress = address
                 };
             }
@@ -444,6 +475,7 @@ namespace LuaDkmDebuggerComponent
                             baseType = GetBaseType(typeTag),
                             extendedType = LuaExtendedType.ExternalClosure,
                             evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
+                            tagAddress = tagAddress,
                             originalAddress = address,
                             value = newTarget,
                             targetAddress = value.Value
@@ -455,6 +487,7 @@ namespace LuaDkmDebuggerComponent
                         baseType = GetBaseType(typeTag),
                         extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
+                        tagAddress = tagAddress,
                         originalAddress = address,
                         value = target,
                         targetAddress = value.Value
@@ -466,6 +499,7 @@ namespace LuaDkmDebuggerComponent
                     baseType = GetBaseType(typeTag),
                     extendedType = GetExtendedType(typeTag),
                     evaluationFlags = DkmEvaluationResultFlags.None,
+                    tagAddress = tagAddress,
                     originalAddress = address
                 };
             }
@@ -481,6 +515,7 @@ namespace LuaDkmDebuggerComponent
                         baseType = GetBaseType(typeTag),
                         extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
+                        tagAddress = tagAddress,
                         originalAddress = address,
                         targetAddress = value.Value
                     };
@@ -491,6 +526,7 @@ namespace LuaDkmDebuggerComponent
                     baseType = GetBaseType(typeTag),
                     extendedType = GetExtendedType(typeTag),
                     evaluationFlags = DkmEvaluationResultFlags.None,
+                    tagAddress = tagAddress,
                     originalAddress = address
                 };
             }
@@ -510,6 +546,7 @@ namespace LuaDkmDebuggerComponent
                         baseType = GetBaseType(typeTag),
                         extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
+                        tagAddress = tagAddress,
                         originalAddress = address,
                         value = target,
                         targetAddress = value.Value
@@ -521,6 +558,7 @@ namespace LuaDkmDebuggerComponent
                     baseType = GetBaseType(typeTag),
                     extendedType = GetExtendedType(typeTag),
                     evaluationFlags = DkmEvaluationResultFlags.None,
+                    tagAddress = tagAddress,
                     originalAddress = address
                 };
             }
@@ -540,6 +578,7 @@ namespace LuaDkmDebuggerComponent
                         baseType = GetBaseType(typeTag),
                         extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.ReadOnly,
+                        tagAddress = tagAddress,
                         originalAddress = address,
                         value = target,
                         targetAddress = value.Value
@@ -551,6 +590,7 @@ namespace LuaDkmDebuggerComponent
                     baseType = GetBaseType(typeTag),
                     extendedType = GetExtendedType(typeTag),
                     evaluationFlags = DkmEvaluationResultFlags.None,
+                    tagAddress = tagAddress,
                     originalAddress = address
                 };
             }
@@ -566,6 +606,7 @@ namespace LuaDkmDebuggerComponent
                         baseType = GetBaseType(typeTag),
                         extendedType = GetExtendedType(typeTag),
                         evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
+                        tagAddress = tagAddress,
                         originalAddress = address,
                         targetAddress = value.Value
                     };
@@ -576,6 +617,7 @@ namespace LuaDkmDebuggerComponent
                     baseType = GetBaseType(typeTag),
                     extendedType = GetExtendedType(typeTag),
                     evaluationFlags = DkmEvaluationResultFlags.None,
+                    tagAddress = tagAddress,
                     originalAddress = address
                 };
             }
@@ -1354,6 +1396,7 @@ namespace LuaDkmDebuggerComponent
         public ulong valueDataAddress;
         protected LuaValueDataBase value;
         public int? keyTypeTag = null;
+        public ulong keyValueTagAddress;
         public ulong keyValueDataAddress;
         protected LuaValueDataBase key;
 
@@ -1371,10 +1414,11 @@ namespace LuaDkmDebuggerComponent
                 }
                 else
                 {
-                    var typeTag = DebugHelpers.ReadIntVariable(process, address + Schema.LuaNodeData.keyDataTypeAddress_5_4.GetValueOrDefault(0), batch);
+                    var tagAddress = address + Schema.LuaNodeData.keyDataTypeAddress_5_4.GetValueOrDefault(0);
+                    var typeTag = DebugHelpers.ReadIntVariable(process, tagAddress, batch);
                     var valueAddress = address + Schema.LuaNodeData.keyDataValueAddress_5_4.GetValueOrDefault(0);
 
-                    key = LuaHelpers.ReadValueOfType(process, typeTag.GetValueOrDefault(0), valueAddress, batch);
+                    key = LuaHelpers.ReadValueOfType(process, typeTag.GetValueOrDefault(0), tagAddress, valueAddress, batch);
                 }
             }
             else if (LuaHelpers.luaVersion == 501 || LuaHelpers.luaVersion == 502 || LuaHelpers.luaVersion == 503)
@@ -1394,10 +1438,11 @@ namespace LuaDkmDebuggerComponent
                 DebugHelpers.SkipStructUlong(process, ref address); // value_
                 DebugHelpers.SkipStructByte(process, ref address); // tt_
 
+                var tagAddress = address;
                 var typeTag = DebugHelpers.ReadStructByte(process, ref address, batch);
                 DebugHelpers.SkipStructInt(process, ref address);
 
-                key = LuaHelpers.ReadValueOfType(process, typeTag.GetValueOrDefault(0), address, batch);
+                key = LuaHelpers.ReadValueOfType(process, typeTag.GetValueOrDefault(0), tagAddress, address, batch);
             }
         }
 
@@ -1413,10 +1458,11 @@ namespace LuaDkmDebuggerComponent
                 }
                 else
                 {
-                    var typeTag = DebugHelpers.ReadIntVariable(process, address + Schema.LuaNodeData.keyDataTypeAddress_5_4.GetValueOrDefault(0), batch);
+                    var tagAddress = address + Schema.LuaNodeData.keyDataTypeAddress_5_4.GetValueOrDefault(0);
+                    var typeTag = DebugHelpers.ReadIntVariable(process, tagAddress, batch);
                     var valueAddress = address + Schema.LuaNodeData.keyDataValueAddress_5_4.GetValueOrDefault(0);
 
-                    key = LuaHelpers.ReadValueOfType(process, typeTag.GetValueOrDefault(0), valueAddress, batch);
+                    key = LuaHelpers.ReadValueOfType(process, typeTag.GetValueOrDefault(0), tagAddress, valueAddress, batch);
                 }
             }
             else if (LuaHelpers.luaVersion == 501 || LuaHelpers.luaVersion == 502 || LuaHelpers.luaVersion == 503)
@@ -1433,10 +1479,11 @@ namespace LuaDkmDebuggerComponent
                 DebugHelpers.SkipStructUlong(process, ref address); // value_
                 DebugHelpers.SkipStructByte(process, ref address); // tt_
 
+                var tagAddress = address;
                 var typeTag = DebugHelpers.ReadStructByte(process, ref address, batch);
                 DebugHelpers.SkipStructInt(process, ref address);
 
-                key = LuaHelpers.ReadValueOfType(process, typeTag.GetValueOrDefault(0), address, batch);
+                key = LuaHelpers.ReadValueOfType(process, typeTag.GetValueOrDefault(0), tagAddress, address, batch);
             }
         }
 
@@ -1448,7 +1495,7 @@ namespace LuaDkmDebuggerComponent
 
                 if (Schema.LuaNodeData.keyDataAddress_5_123.HasValue)
                 {
-                    keyTypeTag = LuaHelpers.ReadTypeTag(process, address + Schema.LuaNodeData.keyDataAddress_5_123.GetValueOrDefault(0), out keyValueDataAddress, batch);
+                    keyTypeTag = LuaHelpers.ReadTypeTag(process, address + Schema.LuaNodeData.keyDataAddress_5_123.GetValueOrDefault(0), out keyValueTagAddress, out keyValueDataAddress, batch);
                 }
                 else
                 {
@@ -1461,7 +1508,7 @@ namespace LuaDkmDebuggerComponent
                 valueDataAddress = address;
 
                 // Same in Lua 5.1, 5.2 and 5.3
-                keyTypeTag = LuaHelpers.ReadTypeTag(process, address + LuaHelpers.GetValueSize(process), out keyValueDataAddress, batch);
+                keyTypeTag = LuaHelpers.ReadTypeTag(process, address + LuaHelpers.GetValueSize(process), out keyValueTagAddress, out keyValueDataAddress, batch);
             }
             else
             {
@@ -1486,7 +1533,7 @@ namespace LuaDkmDebuggerComponent
                 return null;
 
             // Same in Lua 5.1, 5.2, 5.3 and 5.4
-            key = LuaHelpers.ReadValueOfType(process, keyTypeTag.GetValueOrDefault(0), keyValueDataAddress, batch);
+            key = LuaHelpers.ReadValueOfType(process, keyTypeTag.GetValueOrDefault(0), keyValueTagAddress, keyValueDataAddress, batch);
 
             return key;
         }

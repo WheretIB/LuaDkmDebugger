@@ -8,6 +8,7 @@ namespace LuaDkmDebuggerComponent
         public LuaBaseType baseType;
         public LuaExtendedType extendedType;
         public DkmEvaluationResultFlags evaluationFlags;
+        public ulong tagAddress;
         public ulong originalAddress;
 
         public abstract bool LuaCompare(LuaValueDataBase rhs);
@@ -27,6 +28,7 @@ namespace LuaDkmDebuggerComponent
             baseType = LuaBaseType.Nil;
             extendedType = LuaExtendedType.Nil;
             evaluationFlags = DkmEvaluationResultFlags.ReadOnly;
+            tagAddress = 0;
             originalAddress = 0;
             this.value = value;
         }
@@ -62,6 +64,7 @@ namespace LuaDkmDebuggerComponent
             baseType = LuaBaseType.Nil;
             extendedType = LuaExtendedType.Nil;
             evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
+            tagAddress = 0;
             originalAddress = 0;
         }
 
@@ -103,6 +106,7 @@ namespace LuaDkmDebuggerComponent
                 extendedType = LuaExtendedType.Boolean;
 
             evaluationFlags = (value ? DkmEvaluationResultFlags.BooleanTrue : DkmEvaluationResultFlags.None) | DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean | DkmEvaluationResultFlags.ReadOnly;
+            tagAddress = 0;
             originalAddress = 0;
             this.value = value;
         }
@@ -142,6 +146,7 @@ namespace LuaDkmDebuggerComponent
             baseType = LuaBaseType.LightUserData;
             extendedType = LuaExtendedType.LightUserData;
             evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
+            tagAddress = 0;
             originalAddress = 0;
             this.value = value;
         }
@@ -181,6 +186,7 @@ namespace LuaDkmDebuggerComponent
             baseType = LuaBaseType.Number;
             extendedType = LuaHelpers.GetIntegerNumberExtendedType();
             evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
+            tagAddress = 0;
             originalAddress = 0;
             this.value = value;
         }
@@ -190,6 +196,7 @@ namespace LuaDkmDebuggerComponent
             baseType = LuaBaseType.Number;
             extendedType = LuaHelpers.GetFloatNumberExtendedType();
             evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
+            tagAddress = 0;
             originalAddress = 0;
             this.value = value;
         }
@@ -237,6 +244,7 @@ namespace LuaDkmDebuggerComponent
             baseType = LuaBaseType.String;
             extendedType = LuaExtendedType.ShortString;
             evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
+            tagAddress = 0;
             originalAddress = 0;
             this.value = value;
         }
