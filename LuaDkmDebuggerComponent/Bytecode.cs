@@ -341,7 +341,7 @@ namespace LuaDkmDebuggerComponent
                         {
                             baseType = GetBaseType(typeTag),
                             extendedType = GetExtendedType(typeTag),
-                            evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.RawString | DkmEvaluationResultFlags.ReadOnly,
+                            evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.RawString,
                             originalAddress = address,
                             value = target,
                             targetAddress = value.Value + luaStringOffset
@@ -374,7 +374,7 @@ namespace LuaDkmDebuggerComponent
                         {
                             baseType = GetBaseType(typeTag),
                             extendedType = GetExtendedType(typeTag),
-                            evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.RawString | DkmEvaluationResultFlags.ReadOnly,
+                            evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.RawString,
                             originalAddress = address,
                             value = target,
                             targetAddress = value.Value + luaStringOffset

@@ -210,7 +210,8 @@ namespace LuaDkmDebuggerComponent
 
                 type = value.extendedType == LuaExtendedType.ShortString ? "short_string" : "long_string";
 
-                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.RawString | DkmEvaluationResultFlags.ReadOnly;
+                flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.RawString;
+                editableValue = $"{value.value}";
                 dataAddress = DkmDataAddress.Create(process.GetNativeRuntimeInstance(), value.targetAddress, null);
                 return $"0x{value.targetAddress:x} \"{value.value}\"";
             }

@@ -187,6 +187,7 @@ namespace LuaDkmDebuggerComponent
     internal class LuaStackWalkFrameParentData : DkmDataItem
     {
         public DkmStackWalkFrame originalFrame;
+        public ulong stateAddress;
     }
 
     public class LocalComponent : IDkmCallStackFilter, IDkmSymbolQuery, IDkmSymbolCompilerIdQuery, IDkmSymbolDocumentCollectionQuery, IDkmLanguageExpressionEvaluator, IDkmSymbolDocumentSpanQuery, IDkmModuleInstanceLoadNotification, IDkmCustomMessageCallbackReceiver, IDkmLanguageInstructionDecoder, IDkmModuleUserCodeDeterminer
@@ -589,7 +590,7 @@ namespace LuaDkmDebuggerComponent
 
                         var description = $"{sourceName} {functionName}({argumentList}) Line {currLine}";
 
-                        var parentFrameData = DkmStackWalkFrameData.Create(stackContext.InspectionSession, new LuaStackWalkFrameParentData { originalFrame = input });
+                        var parentFrameData = DkmStackWalkFrameData.Create(stackContext.InspectionSession, new LuaStackWalkFrameParentData { originalFrame = input, stateAddress = stateAddress.Value });
 
                         return DkmStackWalkFrame.Create(stackContext.Thread, instructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, description, input.Registers, input.Annotations, null, null, parentFrameData);
                     }
@@ -1969,6 +1970,50 @@ namespace LuaDkmDebuggerComponent
                     }
 
                     errorText = "Failed to convert string to double";
+                    return;
+                }
+            }
+
+            if (evalData.luaValueData as LuaValueDataString != null)
+            {
+                var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
+
+                if (processData.scratchMemory == 0)
+                    processData.scratchMemory = process.AllocateVirtualMemory(0, 4096, 0x3000, 0x04);
+
+                if (processData.scratchMemory != 0)
+                {
+                    byte[] data = Encoding.UTF8.GetBytes(value);
+
+                    if (data.Length >= 4096)
+                    {
+                        errorText = "String is too large to update";
+                        return;
+                    }
+
+                    var parentFrameData = result.StackFrame.Data.GetDataItem<LuaStackWalkFrameParentData>();
+
+                    if (!DebugHelpers.TryWriteRawBytes(process, processData.scratchMemory, data))
+                    {
+                        errorText = "Failed to write new string into the target process";
+                        return;
+                    }
+
+                    var frame = parentFrameData.originalFrame;
+
+                    ulong? registryAddress = EvaluationHelpers.TryEvaluateAddressExpression($"luaS_newlstr({parentFrameData.stateAddress}, {processData.scratchMemory}, {data.Length})", result.InspectionSession, frame.Thread, frame, DkmEvaluationFlags.None);
+
+                    if (!registryAddress.HasValue)
+                    {
+                        errorText = "Failed to create Lua string value";
+                        return;
+                    }
+
+                    if (!DebugHelpers.TryWritePointerVariable(process, evalData.luaValueData.originalAddress, registryAddress.Value))
+                        errorText = "Failed to modify target process memory";
+                    else
+                        errorText = null;
+
                     return;
                 }
             }
