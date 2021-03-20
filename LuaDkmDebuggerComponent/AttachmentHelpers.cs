@@ -268,7 +268,7 @@ namespace LuaDkmDebuggerComponent
             return enumSymbols.Item(0u);
         }
 
-        internal static IDiaSymbol TryGetDiaFunctionSymbol(DkmNativeModuleInstance moduleInstance, string name, out string error)
+        internal static IDiaSymbol TryGetDiaFunctionSymbol(DkmModuleInstance moduleInstance, string name, out string error)
         {
             var moduleSymbols = TryGetDiaSymbols(moduleInstance, out error);
 
@@ -289,7 +289,7 @@ namespace LuaDkmDebuggerComponent
             return functionSymbol;
         }
 
-        internal static ulong? TryGetFunctionAddress(DkmNativeModuleInstance moduleInstance, string name, out string error)
+        internal static ulong? TryGetFunctionAddress(DkmModuleInstance moduleInstance, string name, out string error)
         {
             try
             {
@@ -312,7 +312,7 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
-        internal static ulong? TryGetFunctionAddressAtDebugStart(DkmNativeModuleInstance moduleInstance, string name, out string error)
+        internal static ulong? TryGetFunctionAddressAtDebugStart(DkmModuleInstance moduleInstance, string name, out string error)
         {
             try
             {
@@ -345,7 +345,7 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
-        internal static ulong? TryGetFunctionAddressAtDebugEnd(DkmNativeModuleInstance moduleInstance, string name, out string error)
+        internal static ulong? TryGetFunctionAddressAtDebugEnd(DkmModuleInstance moduleInstance, string name, out string error)
         {
             try
             {
@@ -451,7 +451,7 @@ namespace LuaDkmDebuggerComponent
             return 0;
         }
 
-        internal static DkmRuntimeInstructionBreakpoint CreateTargetFunctionBreakpointObjectAtAddress(DkmProcess process, DkmNativeModuleInstance moduleWithLoadedLua, string name, string desc, ulong address, bool enabled)
+        internal static DkmRuntimeInstructionBreakpoint CreateTargetFunctionBreakpointObjectAtAddress(DkmProcess process, DkmModuleInstance moduleWithLoadedLua, string name, string desc, ulong address, bool enabled)
         {
             if (address != 0)
             {
@@ -474,7 +474,7 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
-        internal static Guid? CreateTargetFunctionBreakpointAtAddress(DkmProcess process, DkmNativeModuleInstance moduleWithLoadedLua, string name, string desc, ulong address)
+        internal static Guid? CreateTargetFunctionBreakpointAtAddress(DkmProcess process, DkmModuleInstance moduleWithLoadedLua, string name, string desc, ulong address)
         {
             DkmRuntimeInstructionBreakpoint breakpoint = CreateTargetFunctionBreakpointObjectAtAddress(process, moduleWithLoadedLua, name, desc, address, true);
 
@@ -484,7 +484,7 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
-        internal static DkmRuntimeInstructionBreakpoint CreateTargetFunctionBreakpointObjectAtDebugStart(DkmProcess process, DkmNativeModuleInstance moduleWithLoadedLua, string name, string desc, out ulong breakAddress, bool enabled)
+        internal static DkmRuntimeInstructionBreakpoint CreateTargetFunctionBreakpointObjectAtDebugStart(DkmProcess process, DkmModuleInstance moduleWithLoadedLua, string name, string desc, out ulong breakAddress, bool enabled)
         {
             var address = TryGetFunctionAddressAtDebugStart(moduleWithLoadedLua, name, out string error);
 
@@ -511,7 +511,7 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
-        internal static Guid? CreateTargetFunctionBreakpointAtDebugStart(DkmProcess process, DkmNativeModuleInstance moduleWithLoadedLua, string name, string desc, out ulong breakAddress)
+        internal static Guid? CreateTargetFunctionBreakpointAtDebugStart(DkmProcess process, DkmModuleInstance moduleWithLoadedLua, string name, string desc, out ulong breakAddress)
         {
             DkmRuntimeInstructionBreakpoint breakpoint = CreateTargetFunctionBreakpointObjectAtDebugStart(process, moduleWithLoadedLua, name, desc, out breakAddress, true);
 
@@ -521,7 +521,7 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
-        internal static Guid? CreateTargetFunctionBreakpointAtDebugEnd(DkmProcess process, DkmNativeModuleInstance moduleWithLoadedLua, string name, string desc, out ulong breakAddress)
+        internal static Guid? CreateTargetFunctionBreakpointAtDebugEnd(DkmProcess process, DkmModuleInstance moduleWithLoadedLua, string name, string desc, out ulong breakAddress)
         {
             var address = TryGetFunctionAddressAtDebugEnd(moduleWithLoadedLua, name, out string error);
 
