@@ -732,9 +732,9 @@ namespace LuaDkmDebuggerComponent
 
             functionData.UpdateLocals(process, prevInstructionPointer);
 
-            ExpressionEvaluation evaluation = new ExpressionEvaluation(process, functionData, callInfoData.stackBaseAddress, closureData);
+            ExpressionEvaluation evaluation = new ExpressionEvaluation(process, null, null, functionData, callInfoData.stackBaseAddress, closureData);
 
-            var result = evaluation.Evaluate(evaluationCondition.Source.Text);
+            var result = evaluation.Evaluate(evaluationCondition.Source.Text, false);
 
             if (result as LuaValueDataError != null)
             {

@@ -1,18 +1,24 @@
 using Microsoft.VisualStudio.Debugger;
+using Microsoft.VisualStudio.Debugger.CallStack;
+using Microsoft.VisualStudio.Debugger.Evaluation;
 
 namespace LuaDkmDebuggerComponent
 {
     public class ExpressionEvaluation
     {
-        public ExpressionEvaluation(DkmProcess process, LuaFunctionData functionData, ulong frameBaseAddress, LuaClosureData luaClosure)
+        public ExpressionEvaluation(DkmProcess process, DkmStackWalkFrame stackFrame, DkmInspectionSession inspectionSession, LuaFunctionData functionData, ulong frameBaseAddress, LuaClosureData luaClosure)
         {
             this.process = process;
+            this.stackFrame = stackFrame;
+            this.inspectionSession = inspectionSession;
             this.functionData = functionData;
             this.frameBaseAddress = frameBaseAddress;
             this.luaClosure = luaClosure;
         }
 
         DkmProcess process;
+        DkmStackWalkFrame stackFrame;
+        DkmInspectionSession inspectionSession;
         LuaFunctionData functionData;
         ulong frameBaseAddress;
         LuaClosureData luaClosure;
@@ -815,12 +821,50 @@ namespace LuaDkmDebuggerComponent
             return lhs;
         }
 
-        public LuaValueDataBase Evaluate(string expression)
+        public LuaValueDataBase EvaluateAssignment(bool allowSideEffects)
+        {
+            LuaValueDataBase lhs = EvaluateOr();
+
+            if (lhs as LuaValueDataError != null)
+                return lhs;
+
+            if (TryTakeToken("="))
+            {
+                LuaValueDataBase rhs = EvaluateOr();
+
+                if (rhs as LuaValueDataError != null)
+                    return rhs;
+
+                if (!allowSideEffects)
+                {
+                    var error = Report("Expression has side-effects");
+
+                    error.evaluationFlags |= DkmEvaluationResultFlags.UnflushedSideEffects;
+
+                    return error;
+                }
+
+                // lhs must be an l-value
+                if (lhs.tagAddress == 0 || lhs.originalAddress == 0)
+                    return Report("lhs value cannot be modified");
+
+                // Try to update the value
+                if (!LuaHelpers.TryWriteValue(process, stackFrame, inspectionSession, lhs.tagAddress, lhs.originalAddress, rhs, out string errorText))
+                    return Report(errorText);
+
+                rhs.evaluationFlags |= DkmEvaluationResultFlags.SideEffect;
+                return rhs;
+            }
+
+            return lhs;
+        }
+
+        public LuaValueDataBase Evaluate(string expression, bool allowSideEffects)
         {
             this.expression = expression;
             this.pos = 0;
 
-            LuaValueDataBase value = EvaluateOr();
+            LuaValueDataBase value = EvaluateAssignment(allowSideEffects);
 
             if (value as LuaValueDataError != null)
                 return value;
@@ -831,6 +875,11 @@ namespace LuaDkmDebuggerComponent
                 return Report(value, $"Failed to fully parse at '{expression.Substring(pos)}'");
 
             return value;
+        }
+
+        public LuaValueDataBase Evaluate(string expression)
+        {
+            return Evaluate(expression, false);
         }
     }
 }

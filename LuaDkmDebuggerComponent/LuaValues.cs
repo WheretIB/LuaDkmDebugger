@@ -23,7 +23,7 @@ namespace LuaDkmDebuggerComponent
         {
         }
 
-        public LuaValueDataError(string value)
+        public LuaValueDataError(string value, bool stoppedOnSideEffect = false)
         {
             baseType = LuaBaseType.Nil;
             extendedType = LuaExtendedType.Nil;
@@ -31,6 +31,7 @@ namespace LuaDkmDebuggerComponent
             tagAddress = 0;
             originalAddress = 0;
             this.value = value;
+            this.stoppedOnSideEffect = stoppedOnSideEffect;
         }
 
         public override bool LuaCompare(LuaValueDataBase rhs)
@@ -54,6 +55,7 @@ namespace LuaDkmDebuggerComponent
         }
 
         public string value;
+        public bool stoppedOnSideEffect;
     }
 
     [DebuggerDisplay("nil ({extendedType})")]

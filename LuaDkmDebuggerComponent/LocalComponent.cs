@@ -1272,7 +1272,7 @@ namespace LuaDkmDebuggerComponent
 
             GetEvaluationSessionData(process, inspectionContext.InspectionSession, frameData, out LuaFunctionCallInfoData callInfoData, out LuaFunctionData functionData, out LuaClosureData closureData);
 
-            ExpressionEvaluation evaluation = new ExpressionEvaluation(process, functionData, callInfoData.stackBaseAddress, closureData);
+            ExpressionEvaluation evaluation = new ExpressionEvaluation(process, stackFrame, inspectionContext.InspectionSession, functionData, callInfoData.stackBaseAddress, closureData);
 
             bool ideDisplayFormat = false;
             string expressionText = expression.Text;
@@ -1283,7 +1283,9 @@ namespace LuaDkmDebuggerComponent
                 expressionText = expressionText.Substring(3);
             }
 
-            var result = evaluation.Evaluate(expressionText);
+            bool allowSideEffects = !inspectionContext.EvaluationFlags.HasFlag(DkmEvaluationFlags.NoSideEffects);
+
+            var result = evaluation.Evaluate(expressionText, allowSideEffects);
 
             if (result as LuaValueDataError != null)
             {
@@ -1291,7 +1293,11 @@ namespace LuaDkmDebuggerComponent
 
                 log.Warning($"IDkmLanguageExpressionEvaluator.EvaluateExpression failure (error result)");
 
-                completionRoutine(new DkmEvaluateExpressionAsyncResult(DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, expressionText, expressionText, resultAsError.value, DkmEvaluationResultFlags.Invalid, null)));
+                if (resultAsError.stoppedOnSideEffect)
+                    completionRoutine(new DkmEvaluateExpressionAsyncResult(DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, expressionText, expressionText, resultAsError.value, DkmEvaluationResultFlags.UnflushedSideEffects, null)));
+                else
+                    completionRoutine(new DkmEvaluateExpressionAsyncResult(DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, expressionText, expressionText, resultAsError.value, DkmEvaluationResultFlags.Invalid, null)));
+
                 return;
             }
 
@@ -1314,7 +1320,9 @@ namespace LuaDkmDebuggerComponent
                     completionRoutine(new DkmEvaluateExpressionAsyncResult(EvaluationHelpers.EvaluateCppValueAtAddress(inspectionContext, stackFrame, expressionText, "void*", value.value.functionAddress, true)));
                 }
 
-                completionRoutine(new DkmEvaluateExpressionAsyncResult(EvaluationHelpers.EvaluateDataAtLuaValue(inspectionContext, stackFrame, expressionText, expressionText, result, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None)));
+                DkmEvaluationResultFlags resultFlags = result.evaluationFlags & (DkmEvaluationResultFlags.UnflushedSideEffects | DkmEvaluationResultFlags.SideEffect);
+
+                completionRoutine(new DkmEvaluateExpressionAsyncResult(EvaluationHelpers.EvaluateDataAtLuaValue(inspectionContext, stackFrame, expressionText, expressionText, result, resultFlags, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None)));
                 return;
             }
 

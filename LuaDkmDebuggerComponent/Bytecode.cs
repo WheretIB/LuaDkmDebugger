@@ -1,9 +1,11 @@
 using Microsoft.VisualStudio.Debugger;
+using Microsoft.VisualStudio.Debugger.CallStack;
 using Microsoft.VisualStudio.Debugger.Evaluation;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 
 namespace LuaDkmDebuggerComponent
 {
@@ -623,6 +625,169 @@ namespace LuaDkmDebuggerComponent
             }
 
             return null;
+        }
+
+        internal static bool TryWriteValue(DkmProcess process, DkmStackWalkFrame stackFrame, DkmInspectionSession inspectionSession, ulong tagAddress, ulong valueAddress, LuaValueDataBase value, out string errorText)
+        {
+            if (tagAddress == 0 || valueAddress == 0)
+            {
+                errorText = "Target address is not available";
+                return false;
+            }
+
+            bool Failed(string text, out string errorText_)
+            {
+                errorText_ = text;
+                return false;
+            }
+
+            if (value is LuaValueDataNil)
+            {
+                if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, (int)LuaExtendedType.Nil))
+                    return Failed("Failed to modify target process memory (tag)", out errorText);
+
+                if (!DebugHelpers.TryWriteIntVariable(process, valueAddress, 0))
+                    return Failed("Failed to modify target process memory (value)", out errorText);
+
+                errorText = null;
+                return true;
+            }
+            else if (value is LuaValueDataBool sourceBool)
+            {
+                if (LuaHelpers.luaVersion == 504)
+                {
+                    if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, (int)(sourceBool.value ? LuaExtendedType.BooleanTrue : LuaExtendedType.Boolean)))
+                        return Failed("Failed to modify target process memory (tag)", out errorText);
+
+                    if (!DebugHelpers.TryWriteIntVariable(process, valueAddress, 0))
+                        return Failed("Failed to modify target process memory (value)", out errorText);
+                }
+                else
+                {
+                    if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, (int)LuaExtendedType.Boolean))
+                        return Failed("Failed to modify target process memory (tag)", out errorText);
+
+                    if (!DebugHelpers.TryWriteIntVariable(process, valueAddress, sourceBool.value ? 1 : 0))
+                        return Failed("Failed to modify target process memory (value)", out errorText);
+                }
+
+                errorText = null;
+                return true;
+            }
+            else if (value is LuaValueDataNumber sourceNumber)
+            {
+                if (sourceNumber.extendedType == GetFloatNumberExtendedType())
+                {
+                    // Write tag first here, unioned value will go over it when neccessary
+                    if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, (int)GetFloatNumberExtendedType()))
+                        return Failed("Failed to modify target process memory (tag)", out errorText);
+
+                    if (!DebugHelpers.TryWriteDoubleVariable(process, valueAddress, sourceNumber.value))
+                        return Failed("Failed to modify target process memory (value)", out errorText);
+
+                    errorText = null;
+                    return true;
+                }
+
+                if (sourceNumber.extendedType == GetIntegerNumberExtendedType())
+                {
+                    if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, (int)GetIntegerNumberExtendedType()))
+                        return Failed("Failed to modify target process memory (tag)", out errorText);
+
+                    if (!DebugHelpers.TryWriteIntVariable(process, valueAddress, (int)sourceNumber.value))
+                        return Failed("Failed to modify target process memory (value)", out errorText);
+
+                    errorText = null;
+                    return true;
+                }
+            }
+            else if (value is LuaValueDataString sourceString)
+            {
+                // We have to allocate literal string
+                if (sourceString.targetAddress == 0)
+                {
+                    if (stackFrame == null)
+                        return Failed("Lua state is not accessible (no stack frame context)", out errorText);
+
+                    if (inspectionSession == null)
+                        return Failed("Lua state is not accessible (no inspection session)", out errorText);
+
+                    var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
+
+                    if (processData.scratchMemory == 0)
+                        processData.scratchMemory = process.AllocateVirtualMemory(0, 4096, 0x3000, 0x04);
+
+                    if (processData.scratchMemory == 0)
+                        return Failed("String is too large to update", out errorText);
+
+                    byte[] data = Encoding.UTF8.GetBytes(sourceString.value);
+
+                    if (data.Length >= 4096)
+                        return Failed("String is too large to update", out errorText);
+
+                    var parentFrameData = stackFrame.Data.GetDataItem<LuaStackWalkFrameParentData>();
+
+                    if (!DebugHelpers.TryWriteRawBytes(process, processData.scratchMemory, data))
+                        return Failed("Failed to write new string into the target process", out errorText);
+
+                    var frame = parentFrameData.originalFrame;
+
+                    ulong? registryAddress = EvaluationHelpers.TryEvaluateAddressExpression($"luaS_newlstr({parentFrameData.stateAddress}, {processData.scratchMemory}, {data.Length})", inspectionSession, frame.Thread, frame, DkmEvaluationFlags.None);
+
+                    if (!registryAddress.HasValue)
+                        return Failed("Failed to create Lua string value", out errorText);
+
+                    if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, (int)value.extendedType))
+                        return Failed("Failed to modify target process memory (tag)", out errorText);
+
+                    if (!DebugHelpers.TryWritePointerVariable(process, valueAddress, registryAddress.Value))
+                        return Failed("Failed to modify target process memory (value)", out errorText);
+                }
+                else
+                {
+                    if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, (int)value.extendedType))
+                        return Failed("Failed to modify target process memory (tag)", out errorText);
+
+                    ulong luaStringOffset = LuaHelpers.GetStringDataOffset(process);
+
+                    if (!DebugHelpers.TryWritePointerVariable(process, valueAddress, sourceString.targetAddress - luaStringOffset))
+                        return Failed("Failed to modify target process memory (value)", out errorText);
+                }
+
+                errorText = null;
+                return true;
+            }
+
+            // Other types are all pointers, but we need to get target pointer from all of them
+            ulong targetAddress = 0;
+
+            if (value is LuaValueDataLightUserData sourceLightUserData)
+                targetAddress = sourceLightUserData.value;
+            else if (value is LuaValueDataTable sourceTable)
+                targetAddress = sourceTable.targetAddress;
+            else if (value is LuaValueDataLuaFunction sourceLuaFunction)
+                targetAddress = sourceLuaFunction.targetAddress;
+            else if (value is LuaValueDataExternalFunction sourceExternalFunction)
+                targetAddress = sourceExternalFunction.targetAddress;
+            else if (value is LuaValueDataExternalClosure sourceExternalClosure)
+                targetAddress = sourceExternalClosure.targetAddress;
+            else if (value is LuaValueDataUserData sourceUserData)
+                targetAddress = sourceUserData.targetAddress;
+            else if (value is LuaValueDataThread sourceThread)
+                targetAddress = sourceThread.targetAddress;
+            else
+                return Failed($"Unknown value type {value.GetType()}", out errorText);
+
+            bool collectable = LuaHelpers.luaVersion == 501 ? false : (value is LuaValueDataTable || value is LuaValueDataLuaFunction || value is LuaValueDataExternalClosure || value is LuaValueDataUserData || value is LuaValueDataThread);
+
+            if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, (int)value.extendedType + (collectable ? 64 : 0)))
+                return Failed("Failed to modify target process memory (tag)", out errorText);
+
+            if (!DebugHelpers.TryWritePointerVariable(process, valueAddress, targetAddress))
+                return Failed("Failed to modify target process memory (value)", out errorText);
+
+            errorText = null;
+            return true;
         }
     }
 
