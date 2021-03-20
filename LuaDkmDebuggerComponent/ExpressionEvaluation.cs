@@ -532,7 +532,7 @@ namespace LuaDkmDebuggerComponent
             return EvaluateComplexTerminal();
         }
 
-        // not -
+        // not - #
         public LuaValueDataBase EvaluateUnary()
         {
             if (TryTakeNamedToken("not"))
@@ -561,6 +561,25 @@ namespace LuaDkmDebuggerComponent
                     return new LuaValueDataNumber(-(int)lhsAsNumber.value);
 
                 return new LuaValueDataNumber(-lhsAsNumber.value);
+            }
+
+            if (TryTakeToken("#"))
+            {
+                LuaValueDataBase lhs = EvaluateUnary();
+
+                if (lhs as LuaValueDataError != null)
+                    return lhs;
+
+                if (process == null)
+                    return Report("Can't load value - process memory is not available");
+
+                if (lhs is LuaValueDataTable table)
+                    return new LuaValueDataNumber(table.value.arraySize);
+
+                if (lhs is LuaValueDataString str)
+                    return new LuaValueDataNumber(str.value.Length);
+
+                return Report("Value is not a table or a string");
             }
 
             return EvaluateTerminal();
