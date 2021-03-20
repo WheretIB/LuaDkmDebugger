@@ -403,7 +403,7 @@ namespace LuaDkmDebuggerComponent
 
                         var arrayElements = table.value.GetArrayElements(process);
 
-                        return arrayElements[result - 1];
+                        return EvaluatePostExpressions(arrayElements[result - 1]);
                     }
                 }
 
