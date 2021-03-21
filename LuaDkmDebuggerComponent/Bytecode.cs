@@ -1994,7 +1994,7 @@ namespace LuaDkmDebuggerComponent
 
                     node.ReadFromMetaOnly(process, address, batchNodeElementData);
 
-                    if (node.keyTypeTag.GetValueOrDefault(0) != (int)LuaBaseType.Nil)
+                    if (LuaHelpers.GetBaseType(node.keyTypeTag.GetValueOrDefault(0)) != LuaBaseType.Nil)
                         nodeLazyElements.Add(node);
                 }
             }
