@@ -766,7 +766,8 @@ namespace LuaDkmDebuggerComponent
 
                             stackContextData.seenFrames++;
 
-                            luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[{currFunctionName} C closure]", input.Registers, input.Annotations));
+                            if (!fromHook)
+                                luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[{currFunctionName} C closure]", input.Registers, input.Annotations));
 
                             luaFrameFlags &= ~DkmStackWalkFrameFlags.TopFrame;
                         }
