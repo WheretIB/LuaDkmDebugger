@@ -125,6 +125,9 @@ namespace LuaDkmDebuggerComponent
         public int unnamedScriptId = 1;
 
         public Dictionary<string, string> filePathResolveMap = new Dictionary<string, string>();
+
+        public bool pendingBreakpointDocumentsReady = false;
+        public HashSet<string> pendingBreakpointDocuments = new HashSet<string>();
     }
 
     // DkmWorkerProcessConnection is only available from VS 2019, so we need an indirection to avoid the type load error
@@ -2899,6 +2902,27 @@ namespace LuaDkmDebuggerComponent
             processData.schemaLoaded = true;
         }
 
+        bool HasPendingBreakpoint(DkmProcess process, LuaLocalProcessData processData, string filePath)
+        {
+            if (!processData.pendingBreakpointDocumentsReady)
+            {
+                foreach (var pendingBreakpoint in process.GetPendingBreakpoints())
+                {
+                    if (pendingBreakpoint is DkmPendingFileLineBreakpoint pendingFileLineBreakpoint)
+                    {
+                        var sourcePosition = pendingFileLineBreakpoint.GetCurrentSourcePosition();
+
+                        if (sourcePosition != null)
+                            processData.pendingBreakpointDocuments.Add(sourcePosition.DocumentName);
+                    }
+                }
+
+                processData.pendingBreakpointDocumentsReady = true;
+            }
+
+            return processData.pendingBreakpointDocuments.Contains(filePath);
+        }
+
         void RegisterScriptBuffer(DkmProcess process, LuaLocalProcessData processData, ulong stateAddress, ulong scriptBufferAddress, long scriptSize, ulong scriptNameAddress)
         {
             byte[] rawScriptContent = DebugHelpers.ReadRawStringVariable(process, scriptBufferAddress, (int)scriptSize);
@@ -2945,9 +2969,12 @@ namespace LuaDkmDebuggerComponent
 
                     if (resolvedPath != null)
                     {
-                        var message = DkmCustomMessage.Create(process.Connection, process, Guid.Empty, MessageToVsService.reloadBreakpoints, Encoding.UTF8.GetBytes(resolvedPath), null);
+                        if (HasPendingBreakpoint(process, processData, resolvedPath))
+                        {
+                            var message = DkmCustomMessage.Create(process.Connection, process, Guid.Empty, MessageToVsService.reloadBreakpoints, Encoding.UTF8.GetBytes(resolvedPath), null);
 
-                        message.SendToVsService(Guids.luaVsPackageComponentGuid, false);
+                            message.SendToVsService(Guids.luaVsPackageComponentGuid, true);
+                        }
                     }
                 }
                 else
@@ -3228,9 +3255,12 @@ namespace LuaDkmDebuggerComponent
 
                             if (resolvedPath != null)
                             {
-                                var message = DkmCustomMessage.Create(process.Connection, process, Guid.Empty, MessageToVsService.reloadBreakpoints, Encoding.UTF8.GetBytes(resolvedPath), null);
+                                if (HasPendingBreakpoint(process, processData, resolvedPath))
+                                {
+                                    var message = DkmCustomMessage.Create(process.Connection, process, Guid.Empty, MessageToVsService.reloadBreakpoints, Encoding.UTF8.GetBytes(resolvedPath), null);
 
-                                message.SendToVsService(Guids.luaVsPackageComponentGuid, false);
+                                    message.SendToVsService(Guids.luaVsPackageComponentGuid, true);
+                                }
                             }
                         }
                         else
