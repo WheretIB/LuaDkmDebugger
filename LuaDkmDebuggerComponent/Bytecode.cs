@@ -138,9 +138,10 @@ namespace LuaDkmDebuggerComponent
                     if (value == null)
                         return null;
 
+                    tagAddress = address + Schema.LuaValueData.typeAddress.GetValueOrDefault(0);
+
                     if (double.IsNaN(value.Value))
                     {
-                        tagAddress = address + Schema.LuaValueData.typeAddress.GetValueOrDefault(0);
                         typeTag = DebugHelpers.ReadIntVariable(process, tagAddress, batch);
                     }
                     else
@@ -164,9 +165,10 @@ namespace LuaDkmDebuggerComponent
                 if (value == null)
                     return null;
 
+                tagAddress = address + (ulong)DebugHelpers.GetPointerSize(process);
+
                 if (double.IsNaN(value.Value))
                 {
-                    tagAddress = address + (ulong)DebugHelpers.GetPointerSize(process);
                     typeTag = DebugHelpers.ReadIntVariable(process, tagAddress, batch);
                 }
                 else
@@ -632,6 +634,37 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
+        internal static bool WriteTypeTag(DkmProcess process, ulong tagAddress, int tagValue)
+        {
+            if (Schema.LuaValueData.available)
+            {
+                // Handle NAN trick
+                if (Schema.LuaValueData.doubleAddress.HasValue)
+                {
+                    if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, tagValue | 0x7FF7A500))
+                        return false;
+                }
+                else
+                {
+                    if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, tagValue))
+                        return false;
+                }
+            }
+            else if (luaVersion == 502 && !DebugHelpers.Is64Bit(process))
+            {
+                // union { struct { Value v__; int tt__; } i; double d__; } u
+                if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, tagValue | 0x7FF7A500)) // Handle NAN trick
+                    return false;
+            }
+            else
+            {
+                if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, tagValue))
+                    return false;
+            }
+
+            return true;
+        }
+
         internal static bool TryWriteValue(DkmProcess process, DkmStackWalkFrame stackFrame, DkmInspectionSession inspectionSession, ulong tagAddress, ulong valueAddress, LuaValueDataBase value, out string errorText)
         {
             if (tagAddress == 0 || valueAddress == 0)
@@ -648,7 +681,7 @@ namespace LuaDkmDebuggerComponent
 
             if (value is LuaValueDataNil)
             {
-                if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, (int)LuaExtendedType.Nil))
+                if (!WriteTypeTag(process, tagAddress, (int)LuaExtendedType.Nil))
                     return Failed("Failed to modify target process memory (tag)", out errorText);
 
                 if (!DebugHelpers.TryWriteIntVariable(process, valueAddress, 0))
@@ -661,7 +694,7 @@ namespace LuaDkmDebuggerComponent
             {
                 if (LuaHelpers.luaVersion == 504)
                 {
-                    if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, (int)(sourceBool.value ? LuaExtendedType.BooleanTrue : LuaExtendedType.Boolean)))
+                    if (!WriteTypeTag(process, tagAddress, (int)(sourceBool.value ? LuaExtendedType.BooleanTrue : LuaExtendedType.Boolean)))
                         return Failed("Failed to modify target process memory (tag)", out errorText);
 
                     if (!DebugHelpers.TryWriteIntVariable(process, valueAddress, 0))
@@ -669,7 +702,7 @@ namespace LuaDkmDebuggerComponent
                 }
                 else
                 {
-                    if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, (int)LuaExtendedType.Boolean))
+                    if (!WriteTypeTag(process, tagAddress, (int)LuaExtendedType.Boolean))
                         return Failed("Failed to modify target process memory (tag)", out errorText);
 
                     if (!DebugHelpers.TryWriteIntVariable(process, valueAddress, sourceBool.value ? 1 : 0))
@@ -684,7 +717,7 @@ namespace LuaDkmDebuggerComponent
                 if (sourceNumber.extendedType == GetFloatNumberExtendedType() || !LuaHelpers.HasIntegerNumberExtendedType())
                 {
                     // Write tag first here, unioned value will go over it when neccessary
-                    if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, (int)GetFloatNumberExtendedType()))
+                    if (!WriteTypeTag(process, tagAddress, (int)GetFloatNumberExtendedType()))
                         return Failed("Failed to modify target process memory (tag)", out errorText);
 
                     if (!DebugHelpers.TryWriteDoubleVariable(process, valueAddress, sourceNumber.value))
@@ -696,7 +729,7 @@ namespace LuaDkmDebuggerComponent
 
                 if (sourceNumber.extendedType == GetIntegerNumberExtendedType() && LuaHelpers.HasIntegerNumberExtendedType())
                 {
-                    if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, (int)GetIntegerNumberExtendedType()))
+                    if (!WriteTypeTag(process, tagAddress, (int)GetIntegerNumberExtendedType()))
                         return Failed("Failed to modify target process memory (tag)", out errorText);
 
                     if (!DebugHelpers.TryWriteIntVariable(process, valueAddress, (int)sourceNumber.value))
@@ -742,7 +775,7 @@ namespace LuaDkmDebuggerComponent
                     if (!registryAddress.HasValue)
                         return Failed("Failed to create Lua string value", out errorText);
 
-                    if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, (int)value.extendedType))
+                    if (!WriteTypeTag(process, tagAddress, (int)value.extendedType))
                         return Failed("Failed to modify target process memory (tag)", out errorText);
 
                     if (!DebugHelpers.TryWritePointerVariable(process, valueAddress, registryAddress.Value))
@@ -750,7 +783,7 @@ namespace LuaDkmDebuggerComponent
                 }
                 else
                 {
-                    if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, (int)value.extendedType))
+                    if (!WriteTypeTag(process, tagAddress, (int)value.extendedType))
                         return Failed("Failed to modify target process memory (tag)", out errorText);
 
                     ulong luaStringOffset = LuaHelpers.GetStringDataOffset(process);
@@ -785,7 +818,7 @@ namespace LuaDkmDebuggerComponent
 
             bool collectable = LuaHelpers.luaVersion == 501 ? false : (value is LuaValueDataTable || value is LuaValueDataLuaFunction || value is LuaValueDataExternalClosure || value is LuaValueDataUserData || value is LuaValueDataThread);
 
-            if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, (int)value.extendedType + (collectable ? 64 : 0)))
+            if (!WriteTypeTag(process, tagAddress, (int)value.extendedType + (collectable ? 64 : 0)))
                 return Failed("Failed to modify target process memory (tag)", out errorText);
 
             if (!DebugHelpers.TryWritePointerVariable(process, valueAddress, targetAddress))
