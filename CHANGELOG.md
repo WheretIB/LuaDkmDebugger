@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.9.5] - 2021-03-21
+
+### Added
+
+- String values can be modified
+- Support for assignments in watch and immediate windows
+- Support for table and string length operator
+
+### Changed
+
+- Watch values are refreshed after modification of a related value
+- Fixed bool value modification in Lua 5.4
+- Fixed nested linear array indexing
+- Fixed breakpoints not being activated immediately after script load
+- Fixed invalid call error display location
+- Fixed error display location in Lua 5.1
+- Fixed table size and content display in Lua 5.2 (nil entries)
+
 ## [0.9.4] - 2020-09-02
 
 ### Changed
