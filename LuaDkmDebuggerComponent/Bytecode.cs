@@ -117,6 +117,11 @@ namespace LuaDkmDebuggerComponent
             return (LuaExtendedType)(LuaBaseType.Number + 16);
         }
 
+        internal static bool HasIntegerNumberExtendedType()
+        {
+            return LuaHelpers.luaVersion == 503 || LuaHelpers.luaVersion == 504;
+        }
+
         internal static int? ReadTypeTag(DkmProcess process, ulong address, out ulong tagAddress, out ulong valueAddress, BatchRead batch = null)
         {
             int? typeTag;
@@ -676,7 +681,7 @@ namespace LuaDkmDebuggerComponent
             }
             else if (value is LuaValueDataNumber sourceNumber)
             {
-                if (sourceNumber.extendedType == GetFloatNumberExtendedType())
+                if (sourceNumber.extendedType == GetFloatNumberExtendedType() || !LuaHelpers.HasIntegerNumberExtendedType())
                 {
                     // Write tag first here, unioned value will go over it when neccessary
                     if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, (int)GetFloatNumberExtendedType()))
@@ -689,7 +694,7 @@ namespace LuaDkmDebuggerComponent
                     return true;
                 }
 
-                if (sourceNumber.extendedType == GetIntegerNumberExtendedType())
+                if (sourceNumber.extendedType == GetIntegerNumberExtendedType() && LuaHelpers.HasIntegerNumberExtendedType())
                 {
                     if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, (int)GetIntegerNumberExtendedType()))
                         return Failed("Failed to modify target process memory (tag)", out errorText);
