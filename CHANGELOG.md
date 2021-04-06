@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.9.6] - 2021-04-06
+
+### Added
+
+- Lua Script List panel can be opened from menu
+
+### Changed
+
+- Improved script name mapping to potential file name
+
 ## [0.9.5] - 2021-03-21
 
 ### Added
