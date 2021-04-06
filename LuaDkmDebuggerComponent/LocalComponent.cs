@@ -15,6 +15,7 @@ using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Web.Script.Serialization;
 
 namespace LuaDkmDebuggerComponent
@@ -1019,29 +1020,36 @@ namespace LuaDkmDebuggerComponent
                 {
                     var finalPath = path.Replace('/', '\\');
 
-                    if (!Path.IsPathRooted(finalPath))
+                    try
                     {
-                        if (processData.workingDirectory != null)
+                        if (!Path.IsPathRooted(finalPath))
                         {
-                            string test = Path.GetFullPath(Path.Combine(processData.workingDirectory, finalPath)) + winSourcePath;
+                            if (processData.workingDirectory != null)
+                            {
+                                string test = Path.GetFullPath(Path.GetFullPath(Path.Combine(processData.workingDirectory, finalPath)) + winSourcePath);
 
-                            if (File.Exists(test))
-                                return test;
+                                if (File.Exists(test))
+                                    return test;
+                            }
+
+                            {
+                                string test = Path.GetFullPath(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(processPath), finalPath)) + winSourcePath);
+
+                                if (File.Exists(test))
+                                    return test;
+                            }
                         }
-
+                        else
                         {
-                            string test = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(processPath), finalPath)) + winSourcePath;
+                            string test = Path.GetFullPath(finalPath + winSourcePath);
 
                             if (File.Exists(test))
                                 return test;
                         }
                     }
-                    else
+                    catch (Exception e)
                     {
-                        string test = finalPath + winSourcePath;
-
-                        if (File.Exists(test))
-                            return test;
+                        log.Debug($"Exception while checking search path '{finalPath}': {e.Message}");
                     }
                 }
             }
@@ -1105,7 +1113,9 @@ namespace LuaDkmDebuggerComponent
                 // If we have source data, write it to the temp directory and return it
                 if (content != null && content.Length != 0)
                 {
-                    string tempPath = $"{Path.GetTempPath()}{winSourcePath.Replace('\\', '+')}";
+                    string pattern = "[<>:\"/\\\\\\|\\?\\*]";
+                    string cleanPath = Regex.Replace(winSourcePath, pattern, "+");
+                    string tempPath = $"{Path.GetTempPath()}{cleanPath}";
 
                     if (!tempPath.EndsWith(".lua"))
                         tempPath += ".lua";
