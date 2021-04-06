@@ -78,6 +78,14 @@
 					<CommandName>LuaUseSchemaCommandId</CommandName>
 				</Strings>
 			</Button>
+
+			<Button guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaShowScriptListCommandId" priority="0x0106" type="Button">
+				<Parent guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaMenuGroup" />
+				<Strings>
+					<ButtonText>Show Script List</ButtonText>
+					<CommandName>LuaShowScriptListCommandId</CommandName>
+				</Strings>
+			</Button>
 		</Buttons>
 	</Commands>
 
@@ -93,6 +101,7 @@
 			<IDSymbol name="LuaShowHiddenFramesCommandId" value="0x0140" />
 			<IDSymbol name="LuaUseSchemaCommandId" value="0x0160" />
 			<IDSymbol name="LuaInitializeCommandId" value="0x0170" />
+			<IDSymbol name="LuaShowScriptListCommandId" value="0x0180" />
 		</GuidSymbol>
 	</Symbols>
 </CommandTable>

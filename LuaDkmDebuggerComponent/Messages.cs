@@ -328,4 +328,30 @@ namespace LuaDkmDebuggerComponent
             return true;
         }
     }
+
+    public class ScriptLoadMessage
+    {
+        public string name;
+        public string path;
+        public string status;
+        public string content;
+
+        public byte[] Encode()
+        {
+            using (var stream = new MemoryStream())
+            {
+                using (var writer = new BinaryWriter(stream))
+                {
+                    writer.Write(name);
+                    writer.Write(path);
+                    writer.Write(status);
+                    writer.Write(content);
+
+                    writer.Flush();
+
+                    return stream.ToArray();
+                }
+            }
+        }
+    }
 }

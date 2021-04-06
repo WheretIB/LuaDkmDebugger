@@ -19,6 +19,8 @@ using System.ComponentModel.Composition;
 using Microsoft.VisualStudio.Text.Operations;
 using Microsoft.VisualStudio.Debugger.Interop;
 using System.Diagnostics;
+using LuaDkmDebugger.ToolWindows;
+using System.IO;
 
 namespace LuaDkmDebugger
 {
@@ -41,6 +43,7 @@ namespace LuaDkmDebugger
     /// </remarks>
     [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
     [ProvideAutoLoad(UIContextGuids80.SolutionExists, PackageAutoLoadFlags.BackgroundLoad)]
+    [ProvideToolWindow(typeof(ScriptListWindow), Style = VsDockStyle.Tabbed, Window = EnvDTE.Constants.vsWindowKindOutput, Orientation = ToolWindowOrientation.Right)]
     [Guid(LuaDkmDebuggerPackage.PackageGuidString)]
     [ProvideMenuResource("LuaDkmDebuggerMenus.ctmenu", 1)]
     public sealed class LuaDkmDebuggerPackage : AsyncPackage
@@ -56,6 +59,7 @@ namespace LuaDkmDebugger
         public const int LuaShowHiddenFramesCommandId = 0x0140;
         public const int LuaUseSchemaCommandId = 0x0160;
         public const int LuaInitializeCommandId = 0x0170;
+        public const int LuaShowScriptListCommandId = 0x0180;
 
         public static readonly Guid CommandSet = new Guid("6EB675D6-C146-4843-990E-32D43B56706C");
 
@@ -71,6 +75,8 @@ namespace LuaDkmDebugger
         public static bool useSchema = false;
 
         private WritableSettingsStore configurationSettingsStore = null;
+
+        public ScriptListWindowState scriptListWindowState = new ScriptListWindowState();
 
         /// <summary>
         /// Initialization of the package; this method is called right after the package is sited, so this is the place
@@ -233,11 +239,31 @@ namespace LuaDkmDebugger
 
                     commandService.AddCommand(menuItem);
                 }
+
+                {
+                    CommandID menuCommandID = new CommandID(CommandSet, LuaShowScriptListCommandId);
+
+                    MenuCommand menuItem = new MenuCommand((object sender, EventArgs args) =>
+                    {
+                        JoinableTaskFactory.RunAsync(async () =>
+                        {
+                            ToolWindowPane window = await ShowToolWindowAsync(
+                                typeof(ScriptListWindow),
+                                0,
+                                create: true,
+                                cancellationToken: DisposalToken);
+                        });
+                    }, menuCommandID);
+
+                    commandService.AddCommand(menuItem);
+                }
             }
 
             try
             {
                 DTE2 dte = (DTE2)ServiceProvider.GetService(typeof(SDTE));
+
+                scriptListWindowState.dte = dte;
 
                 Debugger5 debugger = dte?.Debugger as Debugger5;
 
@@ -271,6 +297,22 @@ namespace LuaDkmDebugger
 
                 command.Checked = packageFlag;
             }
+        }
+        public override IVsAsyncToolWindowFactory GetAsyncToolWindowFactory(Guid toolWindowType)
+        {
+            bool match = toolWindowType.Equals(Guid.Parse(ScriptListWindow.WindowGuidString));
+
+            return match ? this : null;
+        }
+
+        protected override string GetToolWindowTitle(Type toolWindowType, int id)
+        {
+            return toolWindowType == typeof(ScriptListWindow) ? ScriptListWindow.Title : base.GetToolWindowTitle(toolWindowType, id);
+        }
+
+        protected override async Task<object> InitializeToolWindowAsync(Type toolWindowType, int id, CancellationToken cancellationToken)
+        {
+            return scriptListWindowState;
         }
 
         #endregion
@@ -418,6 +460,36 @@ namespace LuaDkmDebugger
     [Guid("B1C83EED-ADA7-492D-8E41-D47D97315BED")]
     public class LuaDebuggerEventHandler : IVsCustomDebuggerEventHandler110
     {
+        static class MessageToVsService
+        {
+            public static readonly int reloadBreakpoints = 1;
+            public static readonly int scriptLoad = 2;
+        }
+
+        private class ScriptLoadMessage
+        {
+            public string name;
+            public string path;
+            public string status;
+            public string content;
+
+            public bool ReadFrom(byte[] data)
+            {
+                using (var stream = new MemoryStream(data))
+                {
+                    using (var reader = new BinaryReader(stream))
+                    {
+                        name = reader.ReadString();
+                        path = reader.ReadString();
+                        status = reader.ReadString();
+                        content = reader.ReadString();
+                    }
+                }
+
+                return true;
+            }
+        }
+
         private class BreakpointData
         {
             public EnvDTE90a.Breakpoint3 source;
@@ -434,12 +506,12 @@ namespace LuaDkmDebugger
             public EnvDTE.dbgHitCountType HitCountType;
         }
 
-        private readonly IServiceProvider serviceProvider;
+        private readonly LuaDkmDebuggerPackage package;
         private readonly Debugger5 debugger;
 
-        public LuaDebuggerEventHandler(IServiceProvider serviceProvider, Debugger5 debugger)
+        public LuaDebuggerEventHandler(LuaDkmDebuggerPackage package, Debugger5 debugger)
         {
-            this.serviceProvider = serviceProvider;
+            this.package = package;
             this.debugger = debugger;
         }
 
@@ -447,7 +519,7 @@ namespace LuaDkmDebugger
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            if (message.MessageCode == 1)
+            if (message.MessageCode == MessageToVsService.reloadBreakpoints)
             {
                 try
                 {
@@ -501,6 +573,43 @@ namespace LuaDkmDebugger
                 catch (Exception e)
                 {
                     Debug.WriteLine("Failed to reload breakpoints with " + e.Message);
+                }
+            }
+            else if (message.MessageCode == MessageToVsService.scriptLoad)
+            {
+                try
+                {
+                    var scriptLoadMessage = new ScriptLoadMessage();
+
+                    scriptLoadMessage.ReadFrom(message.Parameter1 as byte[]);
+
+                    bool found = false;
+
+                    foreach (var x in package.scriptListWindowState.scripts)
+                    {
+                        if (x.name == scriptLoadMessage.name)
+                        {
+                            x.path = scriptLoadMessage.path;
+                            x.status = scriptLoadMessage.status;
+                            x.content = scriptLoadMessage.content;
+                            found = true;
+                        }
+                    }
+
+                    if (!found)
+                    {
+                        package.scriptListWindowState.scripts.Add(new ScriptEntry
+                        {
+                            name = scriptLoadMessage.name,
+                            path = scriptLoadMessage.path,
+                            status = scriptLoadMessage.status,
+                            content = scriptLoadMessage.content
+                        });
+                    }
+                }
+                catch (Exception e)
+                {
+                    Debug.WriteLine("Failed to add script to the list" + e.Message);
                 }
             }
 

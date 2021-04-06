@@ -49,5 +49,6 @@ namespace LuaDkmDebuggerComponent
     static class MessageToVsService
     {
         public static readonly int reloadBreakpoints = 1;
+        public static readonly int scriptLoad = 2;
     }
 }

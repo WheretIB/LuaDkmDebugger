@@ -9,7 +9,6 @@ using Microsoft.VisualStudio.Debugger.Native;
 using Microsoft.VisualStudio.Debugger.Symbols;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -1074,7 +1073,7 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
-        string TryFindSourcePath(string processPath, LuaLocalProcessData processData, string source, string content)
+        string TryFindSourcePath(string processPath, LuaLocalProcessData processData, string source, string content, bool saveToTemp, out string status)
         {
             string filePath = null;
 
@@ -1115,7 +1114,16 @@ namespace LuaDkmDebuggerComponent
 
                     try
                     {
-                        File.WriteAllText(tempPath, content);
+                        if (saveToTemp)
+                        {
+                            File.WriteAllText(tempPath, content);
+
+                            status = "Loaded from memory";
+                        }
+                        else
+                        {
+                            status = "Stored in memory";
+                        }
 
                         return tempPath;
                     }
@@ -1129,6 +1137,12 @@ namespace LuaDkmDebuggerComponent
                     filePath = $"{processData.workingDirectory}\\{winSourcePath}";
                 else
                     filePath = winSourcePath;
+
+                status = "Failed to find";
+            }
+            else
+            {
+                status = "Loaded from file";
             }
 
             return filePath;
@@ -1177,7 +1191,7 @@ namespace LuaDkmDebuggerComponent
                 }
                 else
                 {
-                    filePath = TryFindSourcePath(process.Path, processData, addressEntityData.source, scriptSource?.scriptContent);
+                    filePath = TryFindSourcePath(process.Path, processData, addressEntityData.source, scriptSource?.scriptContent, true, out string loadStatus);
 
                     if (scriptSource != null)
                         scriptSource.resolvedFileName = filePath;
@@ -2150,7 +2164,7 @@ namespace LuaDkmDebuggerComponent
                             if (scriptSource?.resolvedFileName != null)
                                 source.Value.resolvedFileName = scriptSource.resolvedFileName;
                             else
-                                source.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, source.Key, scriptSource?.scriptContent);
+                                source.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, source.Key, scriptSource?.scriptContent, true, out string loadStatus);
 
                             if (source.Value.resolvedFileName != null)
                                 log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments Resolved {source.Value.sourceFileName} to {source.Value.resolvedFileName}");
@@ -2198,7 +2212,7 @@ namespace LuaDkmDebuggerComponent
 
                             if (script.Value.resolvedFileName == null)
                             {
-                                script.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, script.Key, script.Value.scriptContent);
+                                script.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, script.Key, script.Value.scriptContent, true, out string loadStatus);
 
                                 if (script.Value.resolvedFileName != null)
                                     log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments Resolved {script.Value.sourceFileName} to {script.Value.resolvedFileName}");
@@ -2966,7 +2980,7 @@ namespace LuaDkmDebuggerComponent
 
                     log.Debug($"Adding script {scriptName} to symbol store of Lua state {stateAddress} (with content)");
 
-                    string resolvedPath = TryFindSourcePath(process.Path, processData, scriptName, null);
+                    string resolvedPath = TryFindSourcePath(process.Path, processData, scriptName, scriptContent, false, out string loadStatus);
 
                     if (resolvedPath != null)
                     {
@@ -2975,6 +2989,19 @@ namespace LuaDkmDebuggerComponent
                             var message = DkmCustomMessage.Create(process.Connection, process, Guid.Empty, MessageToVsService.reloadBreakpoints, Encoding.UTF8.GetBytes(resolvedPath), null);
 
                             message.SendToVsService(Guids.luaVsPackageComponentGuid, true);
+                        }
+
+                        if (scriptBufferAddress != scriptNameAddress)
+                        {
+                            ScriptLoadMessage scriptLoadMessage = new ScriptLoadMessage
+                            {
+                                name = scriptName,
+                                path = resolvedPath,
+                                status = loadStatus,
+                                content = scriptContent
+                            };
+
+                            DkmCustomMessage.Create(process.Connection, process, Guid.Empty, MessageToVsService.scriptLoad, scriptLoadMessage.Encode(), null).SendToVsService(Guids.luaVsPackageComponentGuid, false);
                         }
                     }
                 }
@@ -3252,7 +3279,7 @@ namespace LuaDkmDebuggerComponent
 
                             log.Debug($"Adding script {scriptName} to symbol store of Lua state {stateAddress.Value} (without content)");
 
-                            string resolvedPath = TryFindSourcePath(process.Path, processData, scriptName, null);
+                            string resolvedPath = TryFindSourcePath(process.Path, processData, scriptName, null, false, out string loadStatus);
 
                             if (resolvedPath != null)
                             {
@@ -3262,6 +3289,16 @@ namespace LuaDkmDebuggerComponent
 
                                     message.SendToVsService(Guids.luaVsPackageComponentGuid, true);
                                 }
+
+                                ScriptLoadMessage scriptLoadMessage = new ScriptLoadMessage
+                                {
+                                    name = scriptName,
+                                    path = resolvedPath,
+                                    status = loadStatus,
+                                    content = ""
+                                };
+
+                                DkmCustomMessage.Create(process.Connection, process, Guid.Empty, MessageToVsService.scriptLoad, scriptLoadMessage.Encode(), null).SendToVsService(Guids.luaVsPackageComponentGuid, false);
                             }
                         }
                         else
