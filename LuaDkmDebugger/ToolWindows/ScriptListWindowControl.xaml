@@ -18,9 +18,9 @@
             </ListView.ItemContainerStyle>
             <ListView.View>
                 <GridView>
-                    <GridViewColumn Header="Name" Width="200"  DisplayMemberBinding="{Binding name}" />
+                    <GridViewColumn Header="Name" Width="350"  DisplayMemberBinding="{Binding name}" />
                     <GridViewColumn Header="Path" Width="350" DisplayMemberBinding="{Binding path}" />
-                    <GridViewColumn Header="Status" Width="150" DisplayMemberBinding="{Binding status}" />
+                    <GridViewColumn Header="Status" Width="100" DisplayMemberBinding="{Binding status}" />
                 </GridView>
             </ListView.View>
         </ListView>
