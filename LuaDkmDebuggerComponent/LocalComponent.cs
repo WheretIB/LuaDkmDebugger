@@ -130,6 +130,9 @@ namespace LuaDkmDebuggerComponent
         public HashSet<string> pendingBreakpointDocuments = new HashSet<string>();
 
         public bool schemaLoadedLuajit = false;
+
+        public Guid ljStackCacheInspectionContextGuid;
+        public Dictionary<ulong, List<DkmStackWalkFrame>> ljStackCache = new Dictionary<ulong, List<DkmStackWalkFrame>>();
     }
 
     // DkmWorkerProcessConnection is only available from VS 2019, so we need an indirection to avoid the type load error
@@ -1020,7 +1023,7 @@ namespace LuaDkmDebuggerComponent
             // Luajit support for x86
             if (methodName.StartsWith("_lj_") && !DebugHelpers.Is64Bit(process))
             {
-                log.Debug($"IDkmCallStackFilter.FilterNextFrame Found a Luajit frame");
+                log.Verbose($"IDkmCallStackFilter.FilterNextFrame Found a Luajit frame");
 
                 LuaHelpers.luaVersion = LuaHelpers.luaVersionLuajit;
 
@@ -1029,7 +1032,20 @@ namespace LuaDkmDebuggerComponent
 
                 LoadSchemaLuajit(processData, stackContext.InspectionSession, stackContext.Thread, input);
 
-                log.Debug($"IDkmCallStackFilter.FilterNextFrame before @ebp");
+                // Invalidate cache
+                if (processData.ljStackCacheInspectionContextGuid != stackContext.InspectionSession.UniqueId)
+                {
+                    processData.ljStackCache = new Dictionary<ulong, List<DkmStackWalkFrame>>();
+                    processData.ljStackCacheInspectionContextGuid = stackContext.InspectionSession.UniqueId;
+                }
+
+                // Check cache
+                if (processData.ljStackCache.ContainsKey(input.FrameBase))
+                {
+                    log.Verbose($"IDkmCallStackFilter.FilterNextFrame Completed Luajit stack frame (cached)");
+
+                    return processData.ljStackCache[input.FrameBase].ToArray();
+                }
 
                 ulong? stateAddress = EvaluationHelpers.TryEvaluateAddressExpression($"@ebp", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
@@ -1055,15 +1071,11 @@ namespace LuaDkmDebuggerComponent
                     luajitStateData.ReadFrom(process, stateAddress.Value);
                 }
 
-                log.Debug($"IDkmCallStackFilter.FilterNextFrame before lua_getstack");
-
                 int frameNum = 0;
                 long? status = EvaluationHelpers.TryEvaluateNumberExpression($"lua_getstack((lua_State*){stateAddress}, {frameNum}, (lua_Debug*){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
 
                 while (status.HasValue && status.Value == 1)
                 {
-                    log.Debug($"IDkmCallStackFilter.FilterNextFrame before lj_debug_frame");
-
                     ulong? frameAddress = EvaluationHelpers.TryEvaluateAddressExpression($"lj_debug_frame((lua_State*){stateAddress}, {frameNum}, (int*){processData.scratchMemory + 1024})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
                     int frameSize = DebugHelpers.ReadIntVariable(process, processData.scratchMemory + 1024).GetValueOrDefault(0);
 
@@ -1071,8 +1083,6 @@ namespace LuaDkmDebuggerComponent
 
                     if (frameAddress.HasValue)
                         callFunction = LuaHelpers.ReadValueOfType(process, (int)LuaExtendedType.LuaFunction, 0, frameAddress.Value);
-
-                    log.Debug($"IDkmCallStackFilter.FilterNextFrame before lua_getinfo");
 
                     status = EvaluationHelpers.TryEvaluateNumberExpression($"lua_getinfo((lua_State*){stateAddress}, \"Sln\", (lua_Debug*){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
 
@@ -1181,11 +1191,7 @@ namespace LuaDkmDebuggerComponent
                                 {
                                     ulong nextframe = frameSize != 0 ? frameAddress.Value + (ulong)frameSize * LuaHelpers.GetValueSize(process) : 0u;
 
-                                    log.Debug($"IDkmCallStackFilter.FilterNextFrame before FindFrameInstructionPointer");
-
                                     instructionPointer = FindFrameInstructionPointer(luajitStateData, callLuaFunction, nextframe);
-
-                                    log.Debug($"IDkmCallStackFilter.FilterNextFrame after FindFrameInstructionPointer");
                                 }
 
                                 string argumentList = "";
@@ -1235,8 +1241,6 @@ namespace LuaDkmDebuggerComponent
                         }
                     }
 
-                    log.Debug($"IDkmCallStackFilter.FilterNextFrame before lua_getstack");
-
                     frameNum++;
                     status = EvaluationHelpers.TryEvaluateNumberExpression($"lua_getstack((lua_State*){stateAddress}, {frameNum}, (lua_Debug*){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
                 }
@@ -1249,7 +1253,10 @@ namespace LuaDkmDebuggerComponent
                     luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, null, input.FrameBase, input.FrameSize, DkmStackWalkFrameFlags.NonuserCode, "[Transition to Luajit]", input.Registers, input.Annotations));
                 }
 
-                log.Debug($"IDkmCallStackFilter.FilterNextFrame Completed Luajit stack frame");
+                // Cache the result
+                processData.ljStackCache[input.FrameBase] = luaFrames;
+
+                log.Verbose($"IDkmCallStackFilter.FilterNextFrame Completed Luajit stack frame");
 
                 return luaFrames.ToArray();
             }
