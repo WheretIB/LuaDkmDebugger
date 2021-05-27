@@ -128,6 +128,8 @@ namespace LuaDkmDebuggerComponent
 
         public bool pendingBreakpointDocumentsReady = false;
         public HashSet<string> pendingBreakpointDocuments = new HashSet<string>();
+
+        public bool schemaLoadedLuajit = false;
     }
 
     // DkmWorkerProcessConnection is only available from VS 2019, so we need an indirection to avoid the type load error
@@ -319,6 +321,66 @@ namespace LuaDkmDebuggerComponent
             }
         }
 
+        bool OnFoundLuaCallStack(DkmProcess process, LuaLocalProcessData processData, DkmStackContext stackContext, DkmStackWalkFrame input)
+        {
+            if (processData.runtimeInstance == null)
+            {
+                processData.runtimeInstance = process.GetRuntimeInstances().OfType<DkmCustomRuntimeInstance>().FirstOrDefault(el => el.Id.RuntimeType == Guids.luaRuntimeGuid);
+
+                if (processData.runtimeInstance == null)
+                    return false;
+
+                processData.moduleInstance = processData.runtimeInstance.GetModuleInstances().OfType<DkmCustomModuleInstance>().FirstOrDefault(el => el.Module != null && el.Module.CompilerId.VendorId == Guids.luaCompilerGuid);
+
+                if (processData.moduleInstance == null)
+                    return false;
+            }
+
+            if (process.LivePart != null)
+            {
+                if (processData.scratchMemory == 0)
+                    processData.scratchMemory = process.AllocateVirtualMemory(0, 4096, 0x3000, 0x04);
+
+                if (processData.scratchMemory == 0)
+                    return false;
+            }
+
+            // Find out the current process working directory (Lua script files will be resolved from that location)
+            if (processData.workingDirectory == null && !processData.workingDirectoryRequested)
+            {
+                processData.workingDirectoryRequested = true;
+
+                try
+                {
+                    // Only available from VS 2019
+                    UpdateEvaluationHelperWorkerConnection(process);
+                }
+                catch (Exception)
+                {
+                    log.Debug("IDkmCallStackFilter.FilterNextFrame Local symbols connection is not available");
+                }
+
+                // Jumping through hoops, kernel32.dll should be loaded
+                ulong callAddress = DebugHelpers.FindFunctionAddress(process.GetNativeRuntimeInstance(), "GetCurrentDirectoryA");
+
+                if (callAddress != 0 && processData.scratchMemory != 0)
+                {
+                    long? length = EvaluationHelpers.TryEvaluateNumberExpression($"((int(*)(int, char*))0x{callAddress:x})(4095, (char*){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
+
+                    if (length.HasValue && length.Value != 0)
+                        processData.workingDirectory = EvaluationHelpers.TryEvaluateStringExpression($"(const char*){processData.scratchMemory}", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                }
+            }
+
+            LoadConfigurationFile(process, processData);
+
+            // If we haven't attached at launch, prepare Compatibility Mode data here
+            if (useSchema && !processData.schemaLoaded)
+                LoadSchema(processData, stackContext.InspectionSession, stackContext.Thread, input);
+
+            return true;
+        }
+
         DkmStackWalkFrame[] IDkmCallStackFilter.FilterNextFrame(DkmStackContext stackContext, DkmStackWalkFrame input)
         {
             // null input frame indicates the end of the call stack
@@ -363,60 +425,8 @@ namespace LuaDkmDebuggerComponent
                 stackContextData.hideTopLuaLibraryFrames = false;
                 stackContextData.hideInternalLuaLibraryFrames = false;
 
-                if (processData.runtimeInstance == null)
-                {
-                    processData.runtimeInstance = process.GetRuntimeInstances().OfType<DkmCustomRuntimeInstance>().FirstOrDefault(el => el.Id.RuntimeType == Guids.luaRuntimeGuid);
-
-                    if (processData.runtimeInstance == null)
-                        return new DkmStackWalkFrame[1] { input };
-
-                    processData.moduleInstance = processData.runtimeInstance.GetModuleInstances().OfType<DkmCustomModuleInstance>().FirstOrDefault(el => el.Module != null && el.Module.CompilerId.VendorId == Guids.luaCompilerGuid);
-
-                    if (processData.moduleInstance == null)
-                        return new DkmStackWalkFrame[1] { input };
-                }
-
-                if (process.LivePart != null)
-                {
-                    if (processData.scratchMemory == 0)
-                        processData.scratchMemory = process.AllocateVirtualMemory(0, 4096, 0x3000, 0x04);
-
-                    if (processData.scratchMemory == 0)
-                        return new DkmStackWalkFrame[1] { input };
-                }
-
-                // Find out the current process working directory (Lua script files will be resolved from that location)
-                if (processData.workingDirectory == null && !processData.workingDirectoryRequested)
-                {
-                    processData.workingDirectoryRequested = true;
-
-                    try
-                    {
-                        // Only available from VS 2019
-                        UpdateEvaluationHelperWorkerConnection(process);
-                    }
-                    catch (Exception)
-                    {
-                        log.Debug("IDkmCallStackFilter.FilterNextFrame Local symbols connection is not available");
-                    }
-
-                    // Jumping through hoops, kernel32.dll should be loaded
-                    ulong callAddress = DebugHelpers.FindFunctionAddress(process.GetNativeRuntimeInstance(), "GetCurrentDirectoryA");
-
-                    if (callAddress != 0 && processData.scratchMemory != 0)
-                    {
-                        long? length = EvaluationHelpers.TryEvaluateNumberExpression($"((int(*)(int, char*))0x{callAddress:x})(4095, (char*){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
-
-                        if (length.HasValue && length.Value != 0)
-                            processData.workingDirectory = EvaluationHelpers.TryEvaluateStringExpression($"(const char*){processData.scratchMemory}", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
-                    }
-                }
-
-                LoadConfigurationFile(process, processData);
-
-                // If we haven't attached at launch, prepare Compatibility Mode data here
-                if (useSchema && !processData.schemaLoaded)
-                    LoadSchema(processData, stackContext.InspectionSession, stackContext.Thread, input);
+                if (!OnFoundLuaCallStack(process, processData, stackContext, input))
+                    return new DkmStackWalkFrame[1] { input };
 
                 bool isTopFrame = (input.Flags & DkmStackWalkFrameFlags.TopFrame) != 0;
 
@@ -1005,6 +1015,243 @@ namespace LuaDkmDebuggerComponent
                 var flags = (input.Flags & ~DkmStackWalkFrameFlags.UserStatusNotDetermined) | DkmStackWalkFrameFlags.NonuserCode | DkmStackWalkFrameFlags.Hidden;
 
                 return new DkmStackWalkFrame[1] { DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, flags, input.Description, input.Registers, input.Annotations) };
+            }
+
+            // Luajit support for x86
+            if (methodName.StartsWith("_lj_") && !DebugHelpers.Is64Bit(process))
+            {
+                log.Debug($"IDkmCallStackFilter.FilterNextFrame Found a Luajit frame");
+
+                LuaHelpers.luaVersion = LuaHelpers.luaVersionLuajit;
+
+                if (!OnFoundLuaCallStack(process, processData, stackContext, input))
+                    return new DkmStackWalkFrame[1] { input };
+
+                LoadSchemaLuajit(processData, stackContext.InspectionSession, stackContext.Thread, input);
+
+                log.Debug($"IDkmCallStackFilter.FilterNextFrame before @ebp");
+
+                ulong? stateAddress = EvaluationHelpers.TryEvaluateAddressExpression($"@ebp", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+
+                if (!stateAddress.HasValue)
+                    return new DkmStackWalkFrame[1] { input };
+
+                bool isTopFrame = (input.Flags & DkmStackWalkFrameFlags.TopFrame) != 0;
+
+                List<DkmStackWalkFrame> luaFrames = new List<DkmStackWalkFrame>();
+
+                var luaFrameFlags = input.Flags;
+
+                luaFrameFlags &= ~(DkmStackWalkFrameFlags.NonuserCode | DkmStackWalkFrameFlags.UserStatusNotDetermined);
+
+                if (isTopFrame)
+                    luaFrameFlags |= DkmStackWalkFrameFlags.TopFrame;
+
+                LuajitStateData luajitStateData = null;
+
+                if (Schema.LuajitStateData.available)
+                {
+                    luajitStateData = new LuajitStateData();
+                    luajitStateData.ReadFrom(process, stateAddress.Value);
+                }
+
+                log.Debug($"IDkmCallStackFilter.FilterNextFrame before lua_getstack");
+
+                int frameNum = 0;
+                long? status = EvaluationHelpers.TryEvaluateNumberExpression($"lua_getstack((lua_State*){stateAddress}, {frameNum}, (lua_Debug*){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
+
+                while (status.HasValue && status.Value == 1)
+                {
+                    log.Debug($"IDkmCallStackFilter.FilterNextFrame before lj_debug_frame");
+
+                    ulong? frameAddress = EvaluationHelpers.TryEvaluateAddressExpression($"lj_debug_frame((lua_State*){stateAddress}, {frameNum}, (int*){processData.scratchMemory + 1024})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
+                    int frameSize = DebugHelpers.ReadIntVariable(process, processData.scratchMemory + 1024).GetValueOrDefault(0);
+
+                    LuaValueDataBase callFunction = null;
+
+                    if (frameAddress.HasValue)
+                        callFunction = LuaHelpers.ReadValueOfType(process, (int)LuaExtendedType.LuaFunction, 0, frameAddress.Value);
+
+                    log.Debug($"IDkmCallStackFilter.FilterNextFrame before lua_getinfo");
+
+                    status = EvaluationHelpers.TryEvaluateNumberExpression($"lua_getinfo((lua_State*){stateAddress}, \"Sln\", (lua_Debug*){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
+
+                    int FindFrameInstructionPointer(LuajitStateData L, LuaValueDataLuaFunction fn, ulong nextframe)
+                    {
+                        LiaJitCframeData cframe = new LiaJitCframeData();
+                        cframe.ReadFrom(process, L.cframeAddress);
+
+                        ulong nextframeIns;
+
+                        if (nextframe == 0)
+                        {
+                            if (cframe.raw() == 0 || cframe.pc() == cframe.L())
+                                return -1;
+
+                            nextframeIns = cframe.pc();
+                        }
+                        else
+                        {
+                            var value = DebugHelpers.ReadPointerVariable(process, nextframe);
+
+                            if (!value.HasValue)
+                                return -1;
+
+                            LuaClosureData nextframeFn = new LuaClosureData();
+                            nextframeFn.ReadFrom(process, value.Value);
+
+                            if ((nextframeFn.isC_5_1 & 3u) == 0) // frame_islua
+                            {
+                                nextframeIns = DebugHelpers.ReadPointerVariable(process, nextframe + (ulong)DebugHelpers.GetPointerSize(process)).GetValueOrDefault(0); // frame_pc
+                            }
+                            else if ((nextframeFn.isC_5_1 & 7u) == 2) // frame_iscont
+                            {
+                                nextframeIns = DebugHelpers.ReadPointerVariable(process, (nextframe - LuaHelpers.GetValueSize(process)) + (ulong)DebugHelpers.GetPointerSize(process)).GetValueOrDefault(0); // frame_contpc
+                            }
+                            else
+                            {
+                                ulong f = L.baseAddress - LuaHelpers.GetValueSize(process);
+
+                                for(int i = 0; i < 32; i++) // Don't want to stuck in an infinite loop
+                                {
+                                    if (cframe.raw() == 0)
+                                        return -1;
+
+                                    while (cframe.nres() < 0)
+                                    {
+                                        if (f >= L.stackAddress - (ulong)cframe.nres() * LuaHelpers.GetValueSize(process))
+                                            break;
+
+                                        cframe.ReadFrom(process, cframe.prev());
+
+                                        if (cframe.raw() == 0)
+                                            return -1;
+                                    }
+
+                                    if (f < nextframe)
+                                        break;
+
+                                    ulong ftfz = DebugHelpers.ReadPointerVariable(process, f + (ulong)DebugHelpers.GetPointerSize(process)).GetValueOrDefault(0);
+
+                                    if ((ftfz & 3u) == 0) // frame_islua
+                                    {
+                                        ulong bc = DebugHelpers.ReadUintVariable(process, ftfz - 4).GetValueOrDefault(0);
+                                        ulong bc_a = (bc >> 8) & 0xff;
+
+                                        f = f - (1 + bc_a) * LuaHelpers.GetValueSize(process);
+                                    }
+                                    else
+                                    {
+                                        if ((ftfz & 3u) == 1) // frame_isc
+                                            cframe.ReadFrom(process, cframe.prev());
+
+                                        f = f - (ftfz & ~7u);
+                                    }
+                                }
+
+                                nextframeIns = cframe.pc();
+                            }
+                        }
+
+                        ulong pt = fn.value.functionAddress;
+                        ulong protoBc = pt + 64; // sizeof(GCproto)
+                        int pc = (int)(nextframeIns - protoBc) / 4 - 1;
+
+                        if (pc < 0)
+                            return -1;
+
+                        return pc;
+                    }
+
+                    if (status.HasValue && status.Value == 1)
+                    {
+                        LuaDebugData debugData = new LuaDebugData();
+
+                        debugData.ReadFrom(process, processData.scratchMemory);
+
+                        if (debugData.name != null && debugData.source != null && debugData.what != null)
+                        {
+                            if (debugData.what == "Lua" || debugData.what == "main")
+                            {
+                                LuaValueDataLuaFunction callLuaFunction = callFunction as LuaValueDataLuaFunction;
+
+                                int instructionPointer = -1;
+
+                                if (callLuaFunction != null)
+                                {
+                                    ulong nextframe = frameSize != 0 ? frameAddress.Value + (ulong)frameSize * LuaHelpers.GetValueSize(process) : 0u;
+
+                                    log.Debug($"IDkmCallStackFilter.FilterNextFrame before FindFrameInstructionPointer");
+
+                                    instructionPointer = FindFrameInstructionPointer(luajitStateData, callLuaFunction, nextframe);
+
+                                    log.Debug($"IDkmCallStackFilter.FilterNextFrame after FindFrameInstructionPointer");
+                                }
+
+                                string argumentList = "";
+
+                                LuaAddressEntityData entityData = new LuaAddressEntityData
+                                {
+                                    source = debugData.source,
+                                    line = debugData.currentLine,
+
+                                    functionAddress = callLuaFunction != null ? callLuaFunction.value.functionAddress : 0,
+                                    functionInstructionPointer = instructionPointer,
+                                };
+
+                                LuaFrameData frameData = new LuaFrameData
+                                {
+                                    state = stateAddress.Value,
+
+                                    registryAddress = luajitStateData != null ? luajitStateData.envAddress : 0,
+                                    version = LuaHelpers.luaVersion,
+
+                                    callInfo = frameAddress.Value,
+
+                                    functionAddress = callLuaFunction != null ? callLuaFunction.value.functionAddress : 0,
+                                    functionName = debugData.name,
+
+                                    instructionLine = debugData.currentLine,
+                                    instructionPointer = instructionPointer,
+
+                                    source = debugData.source
+                                };
+
+                                var entityDataBytes = entityData.Encode();
+                                var frameDataBytes = frameData.Encode();
+
+                                DkmInstructionAddress instructionAddress = DkmCustomInstructionAddress.Create(processData.runtimeInstance, processData.moduleInstance, entityDataBytes, (ulong)((debugData.currentLine << 16) + instructionPointer), frameDataBytes, null);
+
+                                var description = $"{debugData.source} {debugData.name}({argumentList}) Line {debugData.currentLine} PC {instructionPointer} FS {frameSize}";
+
+                                var parentFrameData = DkmStackWalkFrameData.Create(stackContext.InspectionSession, new LuaStackWalkFrameParentData { originalFrame = input, stateAddress = stateAddress.Value });
+
+                                luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, instructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, description, input.Registers, input.Annotations, null, null, parentFrameData));
+                            }
+                            else if (debugData.what == "C")
+                            {
+                                luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, luaFrameFlags, $"[{debugData.name} C function]", input.Registers, input.Annotations));
+                            }
+                        }
+                    }
+
+                    log.Debug($"IDkmCallStackFilter.FilterNextFrame before lua_getstack");
+
+                    frameNum++;
+                    status = EvaluationHelpers.TryEvaluateNumberExpression($"lua_getstack((lua_State*){stateAddress}, {frameNum}, (lua_Debug*){processData.scratchMemory})", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.None);
+                }
+
+                if (!stackContextData.hideInternalLuaLibraryFrames)
+                {
+                    if (luaFrames.Count == 0)
+                        return new DkmStackWalkFrame[1] { input };
+
+                    luaFrames.Add(DkmStackWalkFrame.Create(stackContext.Thread, null, input.FrameBase, input.FrameSize, DkmStackWalkFrameFlags.NonuserCode, "[Transition to Luajit]", input.Registers, input.Annotations));
+                }
+
+                log.Debug($"IDkmCallStackFilter.FilterNextFrame Completed Luajit stack frame");
+
+                return luaFrames.ToArray();
             }
 
             return new DkmStackWalkFrame[1] { input };
@@ -1699,7 +1946,29 @@ namespace LuaDkmDebuggerComponent
 
                         string name = "[registry]";
 
-                        results[i - startIndex] = EvaluationHelpers.EvaluateDataAtAddress(enumContext.InspectionContext, enumContext.StackFrame, name, name, address, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+                        if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+                        {
+                            LuaTableData target = new LuaTableData();
+
+                            target.ReadFrom(process, address);
+
+                            LuaValueDataTable envTable = new LuaValueDataTable()
+                            {
+                                baseType = LuaBaseType.Table,
+                                extendedType = LuaExtendedType.Table,
+                                evaluationFlags = DkmEvaluationResultFlags.ReadOnly | DkmEvaluationResultFlags.Expandable,
+                                tagAddress = 0,
+                                originalAddress = 0,
+                                value = target,
+                                targetAddress = address
+                            };
+
+                            results[i - startIndex] = EvaluationHelpers.EvaluateDataAtLuaValue(enumContext.InspectionContext, enumContext.StackFrame, name, name, envTable, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+                        }
+                        else
+                        {
+                            results[i - startIndex] = EvaluationHelpers.EvaluateDataAtAddress(enumContext.InspectionContext, enumContext.StackFrame, name, name, address, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+                        }
                         continue;
                     }
 
@@ -2902,6 +3171,8 @@ namespace LuaDkmDebuggerComponent
             Schema.LuaUserDataData.available = false;
             Schema.LuaStateData.available = false;
             Schema.LuaDebugData.available = false;
+
+            Schema.LuajitStateData.available = false;
         }
 
         void LoadSchema(LuaLocalProcessData processData, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
@@ -2925,6 +3196,16 @@ namespace LuaDkmDebuggerComponent
             Schema.LuaDebugData.LoadSchema(inspectionSession, thread, frame);
 
             processData.schemaLoaded = true;
+        }
+
+        void LoadSchemaLuajit(LuaLocalProcessData processData, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
+        {
+            if (processData.schemaLoadedLuajit)
+                return;
+
+            Schema.LuajitStateData.LoadSchema(inspectionSession, thread, frame);
+
+            processData.schemaLoadedLuajit = true;
         }
 
         bool HasPendingBreakpoint(DkmProcess process, LuaLocalProcessData processData, string filePath)

@@ -599,5 +599,42 @@ namespace LuaDkmDebuggerComponent
                     Log.instance.Debug($"LuaDebugData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
             }
         }
+
+        public class LuajitStateData
+        {
+            public static bool available = false;
+            public static int success = 0;
+            public static int failure = 0;
+            public static int optional = 0;
+
+            public static long structSize = 0;
+
+            public static ulong? status;
+            public static ulong? glref;
+            public static ulong? base_;
+            public static ulong? stack;
+            public static ulong? env;
+            public static ulong? cframe;
+
+            public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
+            {
+                available = true;
+                success = 0;
+                failure = 0;
+                optional = 0;
+
+                structSize = Helper.GetSize(inspectionSession, thread, frame, "lua_State", ref available);
+
+                status = Helper.Read(inspectionSession, thread, frame, "lua_State", "status", ref available, ref success, ref failure);
+                glref = Helper.Read(inspectionSession, thread, frame, "lua_State", "glref", ref available, ref success, ref failure);
+                base_ = Helper.Read(inspectionSession, thread, frame, "lua_State", "base", ref available, ref success, ref failure);
+                stack = Helper.Read(inspectionSession, thread, frame, "lua_State", "stack", ref available, ref success, ref failure);
+                env = Helper.Read(inspectionSession, thread, frame, "lua_State", "env", ref available, ref success, ref failure);
+                cframe = Helper.Read(inspectionSession, thread, frame, "lua_State", "cframe", ref available, ref success, ref failure);
+
+                if (Log.instance != null)
+                    Log.instance.Debug($"LuajitStateData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
+            }
+        }
     }
 }

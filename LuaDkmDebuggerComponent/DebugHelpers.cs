@@ -301,6 +301,44 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
+        internal static ulong? ReadUleb128Variable(DkmProcess process, ulong address, out ulong length, BatchRead batch = null)
+        {
+            byte[] variableAddressData = new byte[8];
+
+            length = 0;
+
+            try
+            {
+                if (batch != null && batch.TryRead(address, variableAddressData.Length, out byte[] batchData))
+                    variableAddressData = batchData;
+                else if (process.ReadMemory(address, DkmReadMemoryFlags.None, variableAddressData) == 0)
+                    return null;
+            }
+            catch (DkmException)
+            {
+                return null;
+            }
+
+            ulong pos = 0;
+            ulong v = variableAddressData[pos++];
+
+            if (v >= 0x80)
+            {
+                int sh = 0;
+                v &= 0x7f;
+
+                do
+                {
+                    sh += 7;
+                    v |= (variableAddressData[pos] & 0x7fu) << sh;
+                }
+                while (variableAddressData[pos++] >= 0x80);
+            }
+
+            length = pos;
+            return v;
+        }
+
         internal static bool TryWriteRawBytes(DkmProcess process, ulong address, byte[] value)
         {
             try
