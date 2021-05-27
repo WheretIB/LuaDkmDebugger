@@ -51,7 +51,7 @@ namespace LuaDkmDebuggerComponent
         public bool helperInitializationWaitUsed = false;
         public bool helperInitialized = false;
         public bool helperFailed = false;
-        public DkmThread helperInitializionSuspensionThread;
+        public DkmThread helperInitializationSuspensionThread;
 
         public ulong helperWorkingDirectoryAddress = 0;
         public ulong helperHookFunctionAddress_5_1 = 0;
@@ -2932,13 +2932,13 @@ namespace LuaDkmDebuggerComponent
                     {
                         log.Debug("Lua thread is already suspended but the Helper initialization wait wasn't activated");
 
-                        if (processData.helperInitializionSuspensionThread != null)
+                        if (processData.helperInitializationSuspensionThread != null)
                         {
                             log.Debug("Resuming Lua thread");
 
-                            processData.helperInitializionSuspensionThread.Resume(true);
+                            processData.helperInitializationSuspensionThread.Resume(true);
 
-                            processData.helperInitializionSuspensionThread = null;
+                            processData.helperInitializationSuspensionThread = null;
                         }
                     }
                 }
@@ -3335,7 +3335,7 @@ namespace LuaDkmDebuggerComponent
 
                         thread.Suspend(true);
 
-                        processData.helperInitializionSuspensionThread = thread;
+                        processData.helperInitializationSuspensionThread = thread;
                         processData.helperInitializationWaitUsed = true;
                     }
                     else if (!processData.helperInjected)
@@ -3675,13 +3675,13 @@ namespace LuaDkmDebuggerComponent
                     processData.helperInitializationWaitActive = false;
                     processData.helperInitialized = true;
 
-                    if (processData.helperInitializionSuspensionThread != null)
+                    if (processData.helperInitializationSuspensionThread != null)
                     {
                         log.Debug("Resuming Lua thread");
 
-                        processData.helperInitializionSuspensionThread.Resume(true);
+                        processData.helperInitializationSuspensionThread.Resume(true);
 
-                        processData.helperInitializionSuspensionThread = null;
+                        processData.helperInitializationSuspensionThread = null;
                     }
 
                     if (processData.helperWorkingDirectoryAddress != 0)
