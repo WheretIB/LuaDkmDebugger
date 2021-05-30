@@ -1021,7 +1021,7 @@ namespace LuaDkmDebuggerComponent
             }
 
             // Luajit support for x86
-            if (methodName.StartsWith("_lj_") && !DebugHelpers.Is64Bit(process))
+            if (methodName.StartsWith("_lj_") || methodName.StartsWith("lj_BC_"))
             {
                 log.Verbose($"IDkmCallStackFilter.FilterNextFrame Found a Luajit frame");
 
@@ -1047,7 +1047,7 @@ namespace LuaDkmDebuggerComponent
                     return processData.ljStackCache[input.FrameBase].ToArray();
                 }
 
-                ulong? stateAddress = EvaluationHelpers.TryEvaluateAddressExpression($"@ebp", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                ulong? stateAddress = EvaluationHelpers.TryEvaluateAddressExpression(DebugHelpers.Is64Bit(process) ? $"@rbp" : $"@ebp", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
                 if (!stateAddress.HasValue)
                     return new DkmStackWalkFrame[1] { input };
@@ -1102,7 +1102,7 @@ namespace LuaDkmDebuggerComponent
                         }
                         else
                         {
-                            var value = DebugHelpers.ReadPointerVariable(process, nextframe);
+                            var value = DebugHelpers.ReadUintVariable(process, nextframe);
 
                             if (!value.HasValue)
                                 return -1;
@@ -1112,11 +1112,11 @@ namespace LuaDkmDebuggerComponent
 
                             if ((nextframeFn.isC_5_1 & 3u) == 0) // frame_islua
                             {
-                                nextframeIns = DebugHelpers.ReadPointerVariable(process, nextframe + (ulong)DebugHelpers.GetPointerSize(process)).GetValueOrDefault(0); // frame_pc
+                                nextframeIns = DebugHelpers.ReadUintVariable(process, nextframe + 4).GetValueOrDefault(0); // frame_pc
                             }
                             else if ((nextframeFn.isC_5_1 & 7u) == 2) // frame_iscont
                             {
-                                nextframeIns = DebugHelpers.ReadPointerVariable(process, (nextframe - LuaHelpers.GetValueSize(process)) + (ulong)DebugHelpers.GetPointerSize(process)).GetValueOrDefault(0); // frame_contpc
+                                nextframeIns = DebugHelpers.ReadUintVariable(process, (nextframe - LuaHelpers.GetValueSize(process)) + 4).GetValueOrDefault(0); // frame_contpc
                             }
                             else
                             {
@@ -1141,7 +1141,7 @@ namespace LuaDkmDebuggerComponent
                                     if (f < nextframe)
                                         break;
 
-                                    ulong ftfz = DebugHelpers.ReadPointerVariable(process, f + (ulong)DebugHelpers.GetPointerSize(process)).GetValueOrDefault(0);
+                                    ulong ftfz = DebugHelpers.ReadUintVariable(process, f + (ulong)DebugHelpers.GetPointerSize(process)).GetValueOrDefault(0);
 
                                     if ((ftfz & 3u) == 0) // frame_islua
                                     {
