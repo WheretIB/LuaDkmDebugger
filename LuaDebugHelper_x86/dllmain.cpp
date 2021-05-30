@@ -31,6 +31,41 @@ extern "C"
     {
         volatile char dummy = 0;
     }
+
+    __declspec(dllexport) __declspec(noinline) void OnLuaHelperAsyncBreak()
+    {
+        volatile char dummy = 0;
+    }
+
+    __declspec(dllexport) DWORD breakpointLoopThreadId;
+}
+
+extern "C" __declspec(dllexport) volatile unsigned luaHelperAsyncBreakCode = 0;
+extern "C" __declspec(dllexport) unsigned long long luaHelperAsyncBreakData[1024] = {};
+
+DWORD __stdcall BreakpointHookLoop(void *context)
+{
+    while(true)
+    {
+        if(luaHelperAsyncBreakCode != 0)
+        {
+            OnLuaHelperAsyncBreak();
+
+            if(luaHelperAsyncBreakCode == 2)
+            {
+                ((int(*)(void*, void*, int, int))luaHelperAsyncBreakData[0])((void*)luaHelperAsyncBreakData[1], (void*)luaHelperAsyncBreakData[2], 7, 0);
+                luaHelperAsyncBreakCode = 0;
+            }
+
+            // If the code hasn't been cleared, it's a signal to stop the loop
+            if(luaHelperAsyncBreakCode != 0)
+                break;
+        }
+
+        Sleep(100);
+    }
+
+    return 0;
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
@@ -39,6 +74,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 	{
     case DLL_PROCESS_ATTACH:
         GetCurrentDirectoryA(1024, luaHelperWorkingDirectory);
+
+        CreateThread(0, 32 * 1024, BreakpointHookLoop, 0, 0, &breakpointLoopThreadId);
 
         luaHelperIsInitialized = 1;
         OnLuaHelperInitialized();
@@ -565,6 +602,23 @@ namespace Lua_5_1
     };
 }
 
+namespace Luajit
+{
+    struct lj_Debug
+    {
+        int event;
+        const char *name;
+        const char *namewhat;
+        const char *what;
+        const char *source;
+        int currentline;
+        int nups;
+        int linedefined;
+        int lastlinedefined;
+        // other
+    };
+}
+
 struct LuaHelperBreakData
 {
     uintptr_t line;
@@ -870,5 +924,17 @@ extern "C" __declspec(dllexport) void LuaHelperHook_5_234_compat(char *L, char *
                 LuaHelperBreakpointHook(L, currentLine, uintptr_t(proto), sourceName);
             }
         }
+    }
+}
+
+extern "C" __declspec(dllexport) unsigned long long luaHelperLuajitGetInfoAddress = 0;
+
+extern "C" __declspec(dllexport) void LuaHelperHook_luajit(char *L, Luajit::lj_Debug *ar)
+{
+    LuaHelperStepHook(ar->event);
+
+    if(luaHelperLuajitGetInfoAddress && ((int(*)(void*, const char*, void*))luaHelperLuajitGetInfoAddress)(L, "Sln", ar) == 1)
+    {
+        LuaHelperBreakpointHook(L, ar->currentline, 0, ar->source);
     }
 }

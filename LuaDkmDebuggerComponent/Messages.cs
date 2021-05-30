@@ -64,11 +64,13 @@ namespace LuaDkmDebuggerComponent
         public ulong helperStepIntoAddress = 0;
         public ulong helperStepOutAddress = 0;
         public ulong helperSkipDepthAddress = 0;
+        public ulong helperAsyncBreakCodeAddress = 0;
 
         public Guid breakpointLuaHelperBreakpointHit;
         public Guid breakpointLuaHelperStepComplete;
         public Guid breakpointLuaHelperStepInto;
         public Guid breakpointLuaHelperStepOut;
+        public Guid breakpointLuaHelperAsyncBreak;
 
         public ulong helperStartAddress = 0;
         public ulong helperEndAddress = 0;
@@ -92,11 +94,13 @@ namespace LuaDkmDebuggerComponent
                     writer.Write(helperStepIntoAddress);
                     writer.Write(helperStepOutAddress);
                     writer.Write(helperSkipDepthAddress);
+                    writer.Write(helperAsyncBreakCodeAddress);
 
                     writer.Write(breakpointLuaHelperBreakpointHit.ToByteArray());
                     writer.Write(breakpointLuaHelperStepComplete.ToByteArray());
                     writer.Write(breakpointLuaHelperStepInto.ToByteArray());
                     writer.Write(breakpointLuaHelperStepOut.ToByteArray());
+                    writer.Write(breakpointLuaHelperAsyncBreak.ToByteArray());
 
                     writer.Write(helperStartAddress);
                     writer.Write(helperEndAddress);
@@ -127,11 +131,13 @@ namespace LuaDkmDebuggerComponent
                     helperStepIntoAddress = reader.ReadUInt64();
                     helperStepOutAddress = reader.ReadUInt64();
                     helperSkipDepthAddress = reader.ReadUInt64();
+                    helperAsyncBreakCodeAddress = reader.ReadUInt64();
 
                     breakpointLuaHelperBreakpointHit = new Guid(reader.ReadBytes(16));
                     breakpointLuaHelperStepComplete = new Guid(reader.ReadBytes(16));
                     breakpointLuaHelperStepInto = new Guid(reader.ReadBytes(16));
                     breakpointLuaHelperStepOut = new Guid(reader.ReadBytes(16));
+                    breakpointLuaHelperAsyncBreak = new Guid(reader.ReadBytes(16));
 
                     helperStartAddress = reader.ReadUInt64();
                     helperEndAddress = reader.ReadUInt64();

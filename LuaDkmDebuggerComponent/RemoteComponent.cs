@@ -185,6 +185,10 @@ namespace LuaDkmDebuggerComponent
                     }
                 }
             }
+
+            // TODO: only for luajit
+            // Trigger a custom breakpoint
+            DebugHelpers.TryWriteUintVariable(process, processData.locations.helperAsyncBreakCodeAddress, 1u);
         }
 
         void RemoveHooks(DkmProcess process, LuaRemoteProcessData processData)

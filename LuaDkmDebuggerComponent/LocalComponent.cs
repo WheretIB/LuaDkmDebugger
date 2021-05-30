@@ -58,6 +58,7 @@ namespace LuaDkmDebuggerComponent
         public ulong helperHookFunctionAddress_5_2 = 0;
         public ulong helperHookFunctionAddress_5_3 = 0;
         public ulong helperHookFunctionAddress_5_4 = 0;
+        public ulong helperHookFunctionAddress_luajit = 0;
 
         public ulong helperBreakCountAddress = 0;
         public ulong helperBreakDataAddress = 0;
@@ -77,10 +78,14 @@ namespace LuaDkmDebuggerComponent
         public ulong helperCompatLuaFunctionSourceOffset = 0;
         public ulong helperCompatStringContentOffset = 0;
 
+        public ulong helperLuajitGetInfoAddress = 0;
+
         public ulong helperStepOverAddress = 0;
         public ulong helperStepIntoAddress = 0;
         public ulong helperStepOutAddress = 0;
         public ulong helperSkipDepthAddress = 0;
+        public ulong helperAsyncBreakCodeAddress = 0;
+        public ulong helperAsyncBreakDataAddress = 0;
 
         public LuaLocationsMessage luaLocations;
 
@@ -111,12 +116,16 @@ namespace LuaDkmDebuggerComponent
         public Guid breakpointLuaHelperStepComplete;
         public Guid breakpointLuaHelperStepInto;
         public Guid breakpointLuaHelperStepOut;
+        public Guid breakpointLuaHelperAsyncBreak;
 
         public ulong helperStartAddress = 0;
         public ulong helperEndAddress = 0;
 
         public ulong executionStartAddress = 0;
         public ulong executionEndAddress = 0;
+
+        public ulong luaSetHookAddress = 0;
+        public ulong luaGetInfoAddress = 0;
 
         public bool canAccessBasicSymbolInfo = true;
         public Dictionary<ulong, string> knownStackFilterMethodNames = new Dictionary<ulong, string>();
@@ -1259,6 +1268,13 @@ namespace LuaDkmDebuggerComponent
                 log.Verbose($"IDkmCallStackFilter.FilterNextFrame Completed Luajit stack frame");
 
                 return luaFrames.ToArray();
+            }
+
+            if (stackContextData.hideTopLuaLibraryFrames && (methodName == "lj_dispatch_ins") && !showHiddenFrames)
+            {
+                var flags = (input.Flags & ~DkmStackWalkFrameFlags.UserStatusNotDetermined) | DkmStackWalkFrameFlags.NonuserCode | DkmStackWalkFrameFlags.Hidden;
+
+                return new DkmStackWalkFrame[1] { DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, flags, input.Description, input.Registers, input.Annotations) };
             }
 
             return new DkmStackWalkFrame[1] { input };
@@ -2805,6 +2821,7 @@ namespace LuaDkmDebuggerComponent
                         processData.helperHookFunctionAddress_5_2 = AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "LuaHelperHook_5_2");
                         processData.helperHookFunctionAddress_5_3 = AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "LuaHelperHook_5_3");
                         processData.helperHookFunctionAddress_5_4 = AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "LuaHelperHook_5_4");
+                        processData.helperHookFunctionAddress_luajit = AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "LuaHelperHook_luajit");
 
                         processData.helperBreakCountAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperBreakCount");
                         processData.helperBreakDataAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperBreakData");
@@ -2816,7 +2833,9 @@ namespace LuaDkmDebuggerComponent
                         processData.helperStepIntoAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperStepInto");
                         processData.helperStepOutAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperStepOut");
                         processData.helperSkipDepthAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperSkipDepth");
-
+                        processData.helperAsyncBreakCodeAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperAsyncBreakCode");
+                        processData.helperAsyncBreakDataAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperAsyncBreakData");
+                        
                         // Hooks for compatibility mode
                         processData.helperHookFunctionAddress_5_234_compat = AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "LuaHelperHook_5_234_compat");
 
@@ -2830,11 +2849,14 @@ namespace LuaDkmDebuggerComponent
                         processData.helperCompatLuaFunctionSourceOffset = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperCompatLuaFunctionSourceOffset");
                         processData.helperCompatStringContentOffset = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperCompatStringContentOffset");
 
+                        processData.helperLuajitGetInfoAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperLuajitGetInfoAddress");
+
                         // Breakpoints for calls into debugger
                         processData.breakpointLuaHelperBreakpointHit = AttachmentHelpers.CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperBreakpointHit").GetValueOrDefault(Guid.Empty);
                         processData.breakpointLuaHelperStepComplete = AttachmentHelpers.CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperStepComplete").GetValueOrDefault(Guid.Empty);
                         processData.breakpointLuaHelperStepInto = AttachmentHelpers.CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperStepInto").GetValueOrDefault(Guid.Empty);
                         processData.breakpointLuaHelperStepOut = AttachmentHelpers.CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperStepOut").GetValueOrDefault(Guid.Empty);
+                        processData.breakpointLuaHelperAsyncBreak = AttachmentHelpers.CreateHelperFunctionBreakpoint(nativeModuleInstance, "OnLuaHelperAsyncBreak").GetValueOrDefault(Guid.Empty);
 
                         // TODO: check all data
 
@@ -2854,11 +2876,13 @@ namespace LuaDkmDebuggerComponent
                             helperStepIntoAddress = processData.helperStepIntoAddress,
                             helperStepOutAddress = processData.helperStepOutAddress,
                             helperSkipDepthAddress = processData.helperSkipDepthAddress,
+                            helperAsyncBreakCodeAddress = processData.helperAsyncBreakCodeAddress,
 
                             breakpointLuaHelperBreakpointHit = processData.breakpointLuaHelperBreakpointHit,
                             breakpointLuaHelperStepComplete = processData.breakpointLuaHelperStepComplete,
                             breakpointLuaHelperStepInto = processData.breakpointLuaHelperStepInto,
                             breakpointLuaHelperStepOut = processData.breakpointLuaHelperStepOut,
+                            breakpointLuaHelperAsyncBreak = processData.breakpointLuaHelperAsyncBreak,
 
                             helperStartAddress = processData.helperStartAddress,
                             helperEndAddress = processData.helperEndAddress,
@@ -3062,6 +3086,10 @@ namespace LuaDkmDebuggerComponent
                     {
                         processData.breakpointLuaThrow = AttachmentHelpers.CreateTargetFunctionBreakpointObjectAtDebugStart(process, processData.moduleWithLoadedLua, "luaD_throw", "Lua script error", out processData.breakpointLuaThrowAddress, false);
                     }
+
+                    // TODO: locations
+                    processData.luaSetHookAddress = AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "lua_sethook");
+                    processData.luaGetInfoAddress = AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "lua_getinfo");
 
                     string assemblyFolder = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 
@@ -3393,6 +3421,13 @@ namespace LuaDkmDebuggerComponent
                             version = 504;
                     }
 
+                    if (!version.HasValue)
+                    {
+                        // dummy_ffid field is used in luajit
+                        if (EvaluationHelpers.TryEvaluateNumberExpression($"(int)((lua_State*){stateAddress})->dummy_ffid", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).HasValue)
+                            version = -501;
+                    }
+
                     log.Debug("Completed evaluation");
 
                     // Don't check version, Lua 5.1 doesn't have it
@@ -3493,6 +3528,10 @@ namespace LuaDkmDebuggerComponent
                             {
                                 log.Warning("Failed to evaluate variables to hook");
                             }
+                        }
+                        else if (LuaHelpers.luaVersion == -501)
+                        {
+                            DebugHelpers.TryWriteUlongVariable(process, processData.helperLuajitGetInfoAddress, processData.luaGetInfoAddress);
                         }
                         else
                         {
@@ -3748,6 +3787,48 @@ namespace LuaDkmDebuggerComponent
                         {
                             log.Error("Failed to get Lua error message");
                         }
+                    }
+                }
+                else if (data.breakpointId == processData.breakpointLuaHelperAsyncBreak)
+                {
+                    log.Debug("Detected Lua debugger async break");
+
+                    ulong code = DebugHelpers.ReadUintVariable(process, processData.helperAsyncBreakCodeAddress).GetValueOrDefault(0);
+
+                    // Acknowledge signal
+                    DebugHelpers.TryWriteUintVariable(process, processData.helperAsyncBreakCodeAddress, 0u);
+
+                    var inspectionSession = EvaluationHelpers.CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
+
+                    if (code == 1)
+                    {
+                        if (processData.luaSetHookAddress == 0)
+                        {
+                            log.Error("lua_sethook address is not available");
+                            return null;
+                        }
+
+                        List<ulong> states = new List<ulong>();
+
+                        lock (processData.symbolStore)
+                        {
+                            foreach (var state in processData.symbolStore.knownStates)
+                                states.Add(state.Key);
+                        }
+
+                        // TODO: all states
+                        if (states.Count > 0)
+                        {
+                            DebugHelpers.TryWriteUintVariable(process, processData.helperAsyncBreakCodeAddress, 2u);
+
+                            DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + 0 * 8, processData.luaSetHookAddress);
+                            DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + 1 * 8, states[0]);
+                            DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + 2 * 8, processData.helperHookFunctionAddress_luajit); 
+                        }
+                    }
+                    else
+                    {
+                        log.Error("Unknown async break code");
                     }
                 }
                 else
