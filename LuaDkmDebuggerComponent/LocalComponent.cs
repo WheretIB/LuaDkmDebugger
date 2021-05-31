@@ -1098,7 +1098,9 @@ namespace LuaDkmDebuggerComponent
 
                 while (frameAddress != 0)
                 {
-                    LuaValueDataBase callFunction = LuaHelpers.ReadValueOfType(process, (int)LuaExtendedType.LuaFunction, 0, frameAddress);
+                    ulong functionAddress = Schema.Luajit.fullPointer ? frameAddress - LuaHelpers.GetValueSize(process) : frameAddress;
+
+                    LuaValueDataBase callFunction = LuaHelpers.ReadValueOfType(process, (int)LuaExtendedType.LuaFunction, 0, functionAddress);
 
                     long? status;
 

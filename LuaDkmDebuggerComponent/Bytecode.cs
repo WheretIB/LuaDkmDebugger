@@ -162,16 +162,33 @@ namespace LuaDkmDebuggerComponent
                 if (value == null)
                     return null;
 
-                tagAddress = address + 4;
+                if (Schema.Luajit.fullPointer)
+                    tagAddress = address;
+                else
+                    tagAddress = address + 4;
 
                 if (double.IsNaN(value.Value))
                 {
-                    int? ljTypeTagEncoded = DebugHelpers.ReadIntVariable(process, tagAddress, batch);
+                    int ljTypeTag;
 
-                    if (!ljTypeTagEncoded.HasValue)
-                        return null;
+                    if (Schema.Luajit.fullPointer)
+                    {
+                        ulong? ljTypeTagEncoded = DebugHelpers.ReadUlongVariable(process, tagAddress, batch);
 
-                    int ljTypeTag = (~ljTypeTagEncoded.Value) & 0x1f;
+                        if (!ljTypeTagEncoded.HasValue)
+                            return null;
+
+                        ljTypeTag = (int)((~(ljTypeTagEncoded.Value >> 47)) & 0x1f);
+                    }
+                    else
+                    {
+                        int? ljTypeTagEncoded = DebugHelpers.ReadIntVariable(process, tagAddress, batch);
+
+                        if (!ljTypeTagEncoded.HasValue)
+                            return null;
+
+                        ljTypeTag = (~ljTypeTagEncoded.Value) & 0x1f;
+                    }
 
                     // upvalue, proto, trace and cdata are not supported as values
                     LuaExtendedType[] ljTypeTagMapping = { LuaExtendedType.Nil, LuaExtendedType.Boolean, LuaExtendedType.BooleanTrue, LuaExtendedType.LightUserData, LuaExtendedType.ShortString, LuaExtendedType.Nil, LuaExtendedType.Thread, LuaExtendedType.Nil, LuaExtendedType.LuaFunction, LuaExtendedType.Nil, LuaExtendedType.Nil, LuaExtendedType.Table, LuaExtendedType.UserData };
@@ -253,6 +270,19 @@ namespace LuaDkmDebuggerComponent
                 return null;
 
             return ReadValueOfType(process, typeTag.Value, tagAddress, valueAddress, batch);
+        }
+
+        internal static ulong? ReadGCobjAddress(DkmProcess process, ulong address, BatchRead batch = null)
+        {
+            if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+            {
+                if (Schema.Luajit.gcrefSize == 8)
+                    return DebugHelpers.ReadUlongVariable(process, address, batch) & 0x7fffffffffful;
+
+                return DebugHelpers.ReadUintVariable(process, address, batch);
+            }
+
+            return DebugHelpers.ReadPointerVariable(process, address, batch);
         }
 
         internal static LuaValueDataBase ReadValueOfType(DkmProcess process, int typeTag, ulong tagAddress, ulong address, BatchRead batch = null)
@@ -419,7 +449,7 @@ namespace LuaDkmDebuggerComponent
 
             if (extenedType == LuaExtendedType.ShortString)
             {
-                var value = LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit ? DebugHelpers.ReadUintVariable(process, address, batch) : DebugHelpers.ReadPointerVariable(process, address, batch);
+                var value = ReadGCobjAddress(process, address, batch);
 
                 if (value.HasValue)
                 {
@@ -454,7 +484,7 @@ namespace LuaDkmDebuggerComponent
 
             if (extenedType == LuaExtendedType.LongString)
             {
-                var value = LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit ? DebugHelpers.ReadUintVariable(process, address, batch) : DebugHelpers.ReadPointerVariable(process, address, batch);
+                var value = ReadGCobjAddress(process, address, batch);
 
                 if (value.HasValue)
                 {
@@ -489,7 +519,7 @@ namespace LuaDkmDebuggerComponent
 
             if (extenedType == LuaExtendedType.Table)
             {
-                var value = LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit ? DebugHelpers.ReadUintVariable(process, address, batch) : DebugHelpers.ReadPointerVariable(process, address, batch);
+                var value = ReadGCobjAddress(process, address, batch);
 
                 if (value.HasValue)
                 {
@@ -521,8 +551,7 @@ namespace LuaDkmDebuggerComponent
 
             if (extenedType == LuaExtendedType.LuaFunction)
             {
-                // Read pointer to GCObject from address
-                var value = LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit ? DebugHelpers.ReadUintVariable(process, address, batch) : DebugHelpers.ReadPointerVariable(process, address, batch);
+                var value = ReadGCobjAddress(process, address, batch);
 
                 if (value.HasValue)
                 {
@@ -573,7 +602,7 @@ namespace LuaDkmDebuggerComponent
 
             if (extenedType == LuaExtendedType.ExternalFunction)
             {
-                var value = LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit ? DebugHelpers.ReadUintVariable(process, address, batch) : DebugHelpers.ReadPointerVariable(process, address, batch);
+                var value = ReadGCobjAddress(process, address, batch);
 
                 if (value.HasValue)
                 {
@@ -600,7 +629,7 @@ namespace LuaDkmDebuggerComponent
 
             if (extenedType == LuaExtendedType.ExternalClosure)
             {
-                var value = LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit ? DebugHelpers.ReadUintVariable(process, address, batch) : DebugHelpers.ReadPointerVariable(process, address, batch);
+                var value = ReadGCobjAddress(process, address, batch);
 
                 if (value.HasValue)
                 {
@@ -632,7 +661,7 @@ namespace LuaDkmDebuggerComponent
 
             if (extenedType == LuaExtendedType.UserData)
             {
-                var value = LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit ? DebugHelpers.ReadUintVariable(process, address, batch) : DebugHelpers.ReadPointerVariable(process, address, batch);
+                var value = ReadGCobjAddress(process, address, batch);
 
                 if (value.HasValue)
                 {
@@ -664,7 +693,7 @@ namespace LuaDkmDebuggerComponent
 
             if (extenedType == LuaExtendedType.Thread)
             {
-                var value = LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit ? DebugHelpers.ReadUintVariable(process, address, batch) : DebugHelpers.ReadPointerVariable(process, address, batch);
+                var value = ReadGCobjAddress(process, address, batch);
 
                 if (value.HasValue)
                 {
@@ -1109,28 +1138,32 @@ namespace LuaDkmDebuggerComponent
             if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
             {
                 // Skip GCHeader
-                DebugHelpers.SkipStructUint(process, ref address);
+                LuajitHelpers.SkipStructGCref(process, ref address);
                 DebugHelpers.SkipStructByte(process, ref address);
                 DebugHelpers.SkipStructByte(process, ref address);
 
                 argumentCount = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
                 ljFrameSize = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
                 ljBytecodeSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
-                gclistAddress = DebugHelpers.ReadStructUint(process, ref address).GetValueOrDefault(0);
-                constantDataAddress = DebugHelpers.ReadStructUint(process, ref address).GetValueOrDefault(0); // points in the middle of an array at first number constant
-                upvalueDataAddress = DebugHelpers.ReadStructUint(process, ref address).GetValueOrDefault(0);
+
+                if (Schema.Luajit.fullPointer)
+                    DebugHelpers.SkipStructUint(process, ref address); // unused_gc64
+
+                gclistAddress = LuajitHelpers.ReadStructGCref(process, ref address).GetValueOrDefault(0);
+                constantDataAddress = LuajitHelpers.ReadStructMref(process, ref address).GetValueOrDefault(0); // points in the middle of an array at first number constant
+                upvalueDataAddress = LuajitHelpers.ReadStructMref(process, ref address).GetValueOrDefault(0);
                 ljCollectableConstCount = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
                 constantSize = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
                 DebugHelpers.SkipStructInt(process, ref address); // Total size including colocated arrays
                 upvalueSize = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault(0);
                 DebugHelpers.SkipStructByte(process, ref address); // flags
                 DebugHelpers.SkipStructShort(process, ref address); // Anchor for chain of root traces
-                sourceAddress = DebugHelpers.ReadStructUint(process, ref address).GetValueOrDefault(0);
+                sourceAddress = LuajitHelpers.ReadStructGCref(process, ref address).GetValueOrDefault(0);
                 definitionStartLine_opt = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
                 definitionEndLine_opt = DebugHelpers.ReadStructInt(process, ref address).GetValueOrDefault(0);
-                lineInfoDataAddress = DebugHelpers.ReadStructUint(process, ref address).GetValueOrDefault(0);
-                upvalueDataAddress = DebugHelpers.ReadStructUint(process, ref address).GetValueOrDefault(0);
-                localVariableDataAddress = DebugHelpers.ReadStructUint(process, ref address).GetValueOrDefault(0);
+                lineInfoDataAddress = LuajitHelpers.ReadStructMref(process, ref address).GetValueOrDefault(0);
+                upvalueDataAddress = LuajitHelpers.ReadStructMref(process, ref address).GetValueOrDefault(0);
+                localVariableDataAddress = LuajitHelpers.ReadStructMref(process, ref address).GetValueOrDefault(0);
 
                 hasDefinitionLineInfo = true;
             }
@@ -1989,20 +2022,20 @@ namespace LuaDkmDebuggerComponent
         {
             if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
             {
-                var batch = BatchRead.Create(process, address, 32);
+                var batch = BatchRead.Create(process, address, Schema.Luajit.tableSize != 0 ? (int)Schema.Luajit.tableSize : 32);
 
                 // Skip GCHeader
-                DebugHelpers.SkipStructUint(process, ref address);
+                LuajitHelpers.SkipStructGCref(process, ref address);
                 DebugHelpers.SkipStructByte(process, ref address);
                 DebugHelpers.SkipStructByte(process, ref address);
 
                 DebugHelpers.SkipStructByte(process, ref address); // Negative cache for fast metamethods
                 DebugHelpers.SkipStructByte(process, ref address); // Array colocation
 
-                arrayDataAddress = DebugHelpers.ReadStructUint(process, ref address, batch).GetValueOrDefault(0);
-                gclistAddress = DebugHelpers.ReadStructUint(process, ref address, batch).GetValueOrDefault(0);
-                metaTableDataAddress = DebugHelpers.ReadStructUint(process, ref address, batch).GetValueOrDefault(0);
-                nodeDataAddress = DebugHelpers.ReadStructUint(process, ref address, batch).GetValueOrDefault(0);
+                arrayDataAddress = LuajitHelpers.ReadStructMref(process, ref address, batch).GetValueOrDefault(0);
+                gclistAddress = LuajitHelpers.ReadStructGCref(process, ref address, batch).GetValueOrDefault(0);
+                metaTableDataAddress = LuajitHelpers.ReadStructGCref(process, ref address, batch).GetValueOrDefault(0);
+                nodeDataAddress = LuajitHelpers.ReadStructMref(process, ref address, batch).GetValueOrDefault(0);
 
                 arraySize = DebugHelpers.ReadStructInt(process, ref address, batch).GetValueOrDefault(0);
                 ljNodeArraySize = DebugHelpers.ReadStructInt(process, ref address, batch).GetValueOrDefault(-1) + 1;
@@ -2348,15 +2381,15 @@ namespace LuaDkmDebuggerComponent
         {
             if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
             {
-                nextAddress = DebugHelpers.ReadStructUint(process, ref address).GetValueOrDefault();
+                nextAddress = LuajitHelpers.ReadStructGCref(process, ref address).GetValueOrDefault();
                 marked = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
                 typeTag = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
                 isC_5_1 = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
                 upvalueSize_opt = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
 
-                envTableDataAddress_5_1 = DebugHelpers.ReadStructUint(process, ref address).GetValueOrDefault();
-                gcListAddress = DebugHelpers.ReadStructUint(process, ref address).GetValueOrDefault();
-                functionAddress = DebugHelpers.ReadStructUint(process, ref address).GetValueOrDefault();
+                envTableDataAddress_5_1 = LuajitHelpers.ReadStructGCref(process, ref address).GetValueOrDefault();
+                gcListAddress = LuajitHelpers.ReadStructGCref(process, ref address).GetValueOrDefault();
+                functionAddress = LuajitHelpers.ReadStructMref(process, ref address).GetValueOrDefault();
 
                 if (functionAddress != 0)
                     functionAddress -= Schema.Luajit.protoSize != 0 ? (ulong)Schema.Luajit.protoSize : 64ul;
@@ -2485,16 +2518,16 @@ namespace LuaDkmDebuggerComponent
         {
             if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
             {
-                nextAddress = DebugHelpers.ReadStructUint(process, ref address).GetValueOrDefault();
+                nextAddress = LuajitHelpers.ReadStructGCref(process, ref address).GetValueOrDefault();
                 marked = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
                 typeTag = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
                 isC_5_1 = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
                 DebugHelpers.SkipStructByte(process, ref address);
 
-                envTableDataAddress_5_1 = DebugHelpers.ReadStructUint(process, ref address).GetValueOrDefault();
-                gcListAddress = DebugHelpers.ReadStructUint(process, ref address).GetValueOrDefault();
-                DebugHelpers.SkipStructPointer(process, ref address);
-                functionAddress = DebugHelpers.ReadStructUint(process, ref address).GetValueOrDefault();
+                envTableDataAddress_5_1 = LuajitHelpers.ReadStructGCref(process, ref address).GetValueOrDefault();
+                gcListAddress = LuajitHelpers.ReadStructGCref(process, ref address).GetValueOrDefault();
+                LuajitHelpers.SkipStructMref(process, ref address);
+                functionAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
             }
             else if (Schema.LuaExternalClosureData.available)
             {
@@ -2538,17 +2571,17 @@ namespace LuaDkmDebuggerComponent
         {
             if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
             {
-                nextAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+                nextAddress = LuajitHelpers.ReadStructGCref(process, ref address).GetValueOrDefault();
                 marked = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
                 typeTag = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
 
                 userValueTypeTag_5_3 = DebugHelpers.ReadStructByte(process, ref address).GetValueOrDefault();
                 DebugHelpers.SkipStructByte(process, ref address); // unused2
 
-                DebugHelpers.SkipStructPointer(process, ref address); // env
+                LuajitHelpers.SkipStructGCref(process, ref address); // env
                 DebugHelpers.SkipStructInt(process, ref address); // len
 
-                metaTableDataAddress = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
+                metaTableDataAddress = LuajitHelpers.ReadStructGCref(process, ref address).GetValueOrDefault();
                 DebugHelpers.SkipStructInt(process, ref address); // align1
 
                 pointerAtValueStart = DebugHelpers.ReadStructPointer(process, ref address).GetValueOrDefault();
@@ -2743,10 +2776,10 @@ namespace LuaDkmDebuggerComponent
             stateAddress = address;
 
             status = DebugHelpers.ReadByteVariable(process, address + Schema.LuajitStateData.status.GetValueOrDefault(0)).GetValueOrDefault(0);
-            globalStateAddress = DebugHelpers.ReadUintVariable(process, address + Schema.LuajitStateData.glref.GetValueOrDefault(0)).GetValueOrDefault(0);
+            globalStateAddress = LuajitHelpers.ReadMrefVariable(process, address + Schema.LuajitStateData.glref.GetValueOrDefault(0)).GetValueOrDefault(0);
             baseAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuajitStateData.base_.GetValueOrDefault(0)).GetValueOrDefault(0);
-            stackAddress = DebugHelpers.ReadUintVariable(process, address + Schema.LuajitStateData.stack.GetValueOrDefault(0)).GetValueOrDefault(0);
-            envAddress = DebugHelpers.ReadUintVariable(process, address + Schema.LuajitStateData.env.GetValueOrDefault(0)).GetValueOrDefault(0);
+            stackAddress = LuajitHelpers.ReadMrefVariable(process, address + Schema.LuajitStateData.stack.GetValueOrDefault(0)).GetValueOrDefault(0);
+            envAddress = LuajitHelpers.ReadGCrefVariable(process, address + Schema.LuajitStateData.env.GetValueOrDefault(0)).GetValueOrDefault(0);
             cframeAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuajitStateData.cframe.GetValueOrDefault(0)).GetValueOrDefault(0);
         }
     }
@@ -2785,12 +2818,24 @@ namespace LuaDkmDebuggerComponent
 
             if (DebugHelpers.Is64Bit(process))
             {
-                errFunc = DebugHelpers.ReadIntVariable(process, address + 23 * 4).GetValueOrDefault(0);
-                resultCount = DebugHelpers.ReadIntVariable(process, address + 22 * 4).GetValueOrDefault(0);
-                prevAddress = DebugHelpers.ReadPointerVariable(process, address + 13 * 8).GetValueOrDefault(0);
-                threadAddress = DebugHelpers.ReadUintVariable(process, address + 24 * 4).GetValueOrDefault(0);
-                instructionAddress = DebugHelpers.ReadUintVariable(process, address + 25 * 4).GetValueOrDefault(0);
-                multRes = DebugHelpers.ReadUintVariable(process, address + 21 * 4).GetValueOrDefault(0);
+                if (Schema.Luajit.fullPointer)
+                {
+                    errFunc = DebugHelpers.ReadIntVariable(process, address + 21 * 4).GetValueOrDefault(0);
+                    resultCount = DebugHelpers.ReadIntVariable(process, address + 20 * 4).GetValueOrDefault(0);
+                    prevAddress = DebugHelpers.ReadPointerVariable(process, address + 13 * 8).GetValueOrDefault(0);
+                    threadAddress = LuajitHelpers.ReadGCrefVariable(process, address + 11 * 8).GetValueOrDefault(0);
+                    instructionAddress = LuajitHelpers.ReadMrefVariable(process, address + 12 * 8).GetValueOrDefault(0);
+                    multRes = DebugHelpers.ReadUintVariable(process, address + 8 * 4).GetValueOrDefault(0);
+                }
+                else
+                {
+                    errFunc = DebugHelpers.ReadIntVariable(process, address + 23 * 4).GetValueOrDefault(0);
+                    resultCount = DebugHelpers.ReadIntVariable(process, address + 22 * 4).GetValueOrDefault(0);
+                    prevAddress = DebugHelpers.ReadPointerVariable(process, address + 13 * 8).GetValueOrDefault(0);
+                    threadAddress = LuajitHelpers.ReadGCrefVariable(process, address + 24 * 4).GetValueOrDefault(0);
+                    instructionAddress = LuajitHelpers.ReadMrefVariable(process, address + 25 * 4).GetValueOrDefault(0);
+                    multRes = DebugHelpers.ReadUintVariable(process, address + 21 * 4).GetValueOrDefault(0);
+                }
             }
             else
             {
@@ -2838,9 +2883,37 @@ namespace LuaDkmDebuggerComponent
         public static bool frame_isvarg(uint ftfz) { return frame_typep(ftfz) == FrameType.FRAME_VARG; }
         public static bool frame_ispcall(uint ftfz) { return (FrameType)(ftfz & 6) == FrameType.FRAME_PCALL; }
 
+        public static ulong frame_prevl(DkmProcess process, ulong frameAddress, ulong ftsz)
+        {
+            ulong bc = DebugHelpers.ReadUintVariable(process, ftsz - 4).GetValueOrDefault(0);
+            ulong bc_a = (bc >> 8) & 0xff;
+
+            if (Schema.Luajit.fullPointer)
+                return frameAddress - (2 + bc_a) * LuaHelpers.GetValueSize(process);
+            else
+                return frameAddress - (1 + bc_a) * LuaHelpers.GetValueSize(process);
+        }
+
+        public static ulong frame_prevd(ulong frameAddress, ulong ftsz)
+        {
+            return frameAddress - (ftsz & ~7ul);
+        }
+        public static ulong frame_ftsz(DkmProcess process, ulong frameAddress)
+        {
+            if (Schema.Luajit.fullPointer)
+                return DebugHelpers.ReadUlongVariable(process, frameAddress).GetValueOrDefault(0);
+            else
+                return DebugHelpers.ReadUintVariable(process, frameAddress + 4).GetValueOrDefault(0);
+        }
+
         public static ulong FindDebugFrame(DkmProcess process, LuajitStateData L, int level, out int frameSize, out int i_ci)
         {
-            ulong bottomAddress = L.stackAddress;
+            ulong bottomAddress;
+
+            if (Schema.Luajit.fullPointer)
+                bottomAddress = L.stackAddress + LuaHelpers.GetValueSize(process);
+            else
+                bottomAddress = L.stackAddress;
 
             ulong frameAddress = L.baseAddress - LuaHelpers.GetValueSize(process);
             ulong nextFrameAddress = frameAddress;
@@ -2861,21 +2934,18 @@ namespace LuaDkmDebuggerComponent
 
                 nextFrameAddress = frameAddress;
 
-                uint ftfz = DebugHelpers.ReadUintVariable(process, frameAddress + 4).GetValueOrDefault(0);
+                ulong ftsz = frame_ftsz(process, frameAddress);
 
-                if (frame_islua(ftfz))
+                if (frame_islua((uint)ftsz))
                 {
-                    ulong bc = DebugHelpers.ReadUintVariable(process, ftfz - 4).GetValueOrDefault(0);
-                    ulong bc_a = (bc >> 8) & 0xff;
-
-                    frameAddress = frameAddress - (1 + bc_a) * LuaHelpers.GetValueSize(process);
+                    frameAddress = frame_prevl(process, frameAddress, ftsz);
                 }
                 else
                 {
-                    if (frame_isvarg(ftfz))
+                    if (frame_isvarg((uint)ftsz))
                         level++;  // Skip vararg pseudo-frame
 
-                    frameAddress = frameAddress - (ftfz & ~7u);
+                    frameAddress = frame_prevd(frameAddress, ftsz);
                 }
             }
 
@@ -2900,21 +2970,13 @@ namespace LuaDkmDebuggerComponent
             }
             else
             {
-                var value = DebugHelpers.ReadUintVariable(process, nextframe);
+                ulong nextFrameFtfz = frame_ftsz(process, nextframe);
 
-                if (!value.HasValue)
-                    return -1;
-
-                LuaClosureData nextframeFn = new LuaClosureData();
-                nextframeFn.ReadFrom(process, value.Value);
-
-                uint nextFrameFtfz = DebugHelpers.ReadUintVariable(process, nextframe + 4).GetValueOrDefault(0);
-
-                if (frame_islua(nextFrameFtfz))
+                if (frame_islua((uint)nextFrameFtfz))
                 {
                     nextframeIns = nextFrameFtfz; // frame_pc, instruction address at union with the frame size
                 }
-                else if (frame_iscont(nextFrameFtfz))
+                else if (frame_iscont((uint)nextFrameFtfz))
                 {
                     nextframeIns = DebugHelpers.ReadUintVariable(process, (nextframe - LuaHelpers.GetValueSize(process)) + 4).GetValueOrDefault(0); // frame_contpc
                 }
@@ -2941,21 +3003,18 @@ namespace LuaDkmDebuggerComponent
                         if (f < nextframe)
                             break;
 
-                        uint ftfz = DebugHelpers.ReadUintVariable(process, f + 4).GetValueOrDefault(0);
+                        ulong ftsz = frame_ftsz(process, f);
 
-                        if (frame_islua(ftfz))
+                        if (frame_islua((uint)ftsz))
                         {
-                            ulong bc = DebugHelpers.ReadUintVariable(process, ftfz - 4).GetValueOrDefault(0);
-                            ulong bc_a = (bc >> 8) & 0xff;
-
-                            f = f - (1 + bc_a) * LuaHelpers.GetValueSize(process);
+                            f = frame_prevl(process, f, ftsz);
                         }
                         else
                         {
-                            if (frame_isc(ftfz))
+                            if (frame_isc((uint)ftsz))
                                 cframe.ReadFrom(process, cframe.prev());
 
-                            f = f - (ftfz & ~7u);
+                            f = frame_prevd(f, ftsz);
                         }
                     }
 
@@ -2971,6 +3030,64 @@ namespace LuaDkmDebuggerComponent
                 return -1;
 
             return pc;
+        }
+
+        public static ulong? ReadStructMref(DkmProcess process, ref ulong address, BatchRead batch = null)
+        {
+            if (Schema.Luajit.mrefSize == 8)
+                return DebugHelpers.ReadStructUlong(process, ref address, batch);
+
+            uint? result = DebugHelpers.ReadStructUint(process, ref address, batch);
+
+            if (result.HasValue)
+                return result.Value;
+
+            return null;
+        }
+
+        public static ulong? ReadStructGCref(DkmProcess process, ref ulong address, BatchRead batch = null)
+        {
+            if (Schema.Luajit.mrefSize == 8)
+                return DebugHelpers.ReadStructUlong(process, ref address, batch);
+
+            uint? result = DebugHelpers.ReadStructUint(process, ref address, batch);
+
+            if (result.HasValue)
+                return result.Value;
+
+            return result;
+        }
+
+        public static void SkipStructMref(DkmProcess process, ref ulong address)
+        {
+            if (Schema.Luajit.mrefSize == 8)
+                DebugHelpers.SkipStructUlong(process, ref address);
+            else
+                DebugHelpers.SkipStructUint(process, ref address);
+        }
+
+        public static void SkipStructGCref(DkmProcess process, ref ulong address)
+        {
+            if (Schema.Luajit.gcrefSize == 8)
+                DebugHelpers.SkipStructUlong(process, ref address);
+            else
+                DebugHelpers.SkipStructUint(process, ref address);
+        }
+
+        public static ulong? ReadMrefVariable(DkmProcess process, ulong address, BatchRead batch = null)
+        {
+            if (Schema.Luajit.mrefSize == 8)
+                return DebugHelpers.ReadUlongVariable(process, address, batch);
+
+            return DebugHelpers.ReadUintVariable(process, address, batch);
+        }
+
+        public static ulong? ReadGCrefVariable(DkmProcess process, ulong address, BatchRead batch = null)
+        {
+            if (Schema.Luajit.gcrefSize == 8)
+                return DebugHelpers.ReadUlongVariable(process, address, batch);
+
+            return DebugHelpers.ReadUintVariable(process, address, batch);
         }
     }
 

@@ -615,6 +615,8 @@ namespace LuaDkmDebuggerComponent
             public static long mrefSize = 0;
             public static long gcrefSize = 0;
 
+            public static bool fullPointer = false;
+
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
             {
                 bool dummy = false;
@@ -627,6 +629,9 @@ namespace LuaDkmDebuggerComponent
                 tableSize = Helper.GetSize(inspectionSession, thread, frame, "GCtab", ref dummy);
                 mrefSize = Helper.GetSize(inspectionSession, thread, frame, "MRef", ref dummy);
                 gcrefSize = Helper.GetSize(inspectionSession, thread, frame, "GCRef", ref dummy);
+
+                if (mrefSize == 8 && gcrefSize == 8)
+                    fullPointer = true;
             }
         }
 
