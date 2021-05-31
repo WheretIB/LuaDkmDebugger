@@ -58,6 +58,21 @@ namespace LuaDkmDebuggerComponent
                     locations.luaRunError = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, "luaG_runerror", out _).GetValueOrDefault(0);
                     locations.luaThrow = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, "luaD_throw", out _).GetValueOrDefault(0);
 
+                    // Check if it's luajit
+                    locations.ljSetMode = AttachmentHelpers.TryGetFunctionAddress(nativeModuleInstance, "luaJIT_setmode", out _).GetValueOrDefault(0);
+
+                    if (locations.ljSetMode != 0)
+                    {
+                        locations.luaLibNewStateAtStart = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, "luaL_newstate", out _).GetValueOrDefault(0);
+                        locations.luaLibNewStateAtEnd = AttachmentHelpers.TryGetFunctionAddressAtDebugEnd(nativeModuleInstance, "luaL_newstate", out _).GetValueOrDefault(0);
+
+                        locations.luaSetHook = AttachmentHelpers.TryGetFunctionAddress(nativeModuleInstance, "lua_sethook", out _).GetValueOrDefault(0);
+                        locations.luaGetInfo = AttachmentHelpers.TryGetFunctionAddress(nativeModuleInstance, "lua_getinfo", out _).GetValueOrDefault(0);
+                        locations.luaGetStack = AttachmentHelpers.TryGetFunctionAddress(nativeModuleInstance, "lua_getstack", out _).GetValueOrDefault(0);
+
+                        locations.ljErrThrow = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, "lj_err_throw", out _).GetValueOrDefault(0);
+                    }
+
                     return DkmCustomMessage.Create(process.Connection, process, MessageToLocal.guid, MessageToLocal.luaSymbols, locations.Encode(), null);
                 }
             }

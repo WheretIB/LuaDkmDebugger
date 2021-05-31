@@ -636,6 +636,7 @@ extern "C" __declspec(dllexport) unsigned luaHelperStepOver = 0;
 extern "C" __declspec(dllexport) unsigned luaHelperStepInto = 0;
 extern "C" __declspec(dllexport) unsigned luaHelperStepOut = 0;
 extern "C" __declspec(dllexport) unsigned luaHelperSkipDepth = 0;
+extern "C" __declspec(dllexport) unsigned luaHelperStackDepthAtCall = 0;
 
 void LuaHelperStepHook(int event)
 {
@@ -928,13 +929,57 @@ extern "C" __declspec(dllexport) void LuaHelperHook_5_234_compat(char *L, char *
 }
 
 extern "C" __declspec(dllexport) unsigned long long luaHelperLuajitGetInfoAddress = 0;
+extern "C" __declspec(dllexport) unsigned long long luaHelperLuajitGetStackAddress = 0;
+
+static unsigned LuaHelperMeasureStackDepth(char *L, Luajit::lj_Debug *ar)
+{
+    unsigned depth = 0;
+    while(((int(*)(void*, int, void*))luaHelperLuajitGetStackAddress)(L, depth, ar))
+        depth++;
+    return depth;
+}
 
 extern "C" __declspec(dllexport) void LuaHelperHook_luajit(char *L, Luajit::lj_Debug *ar)
 {
-    LuaHelperStepHook(ar->event);
-
     if(luaHelperLuajitGetInfoAddress && ((int(*)(void*, const char*, void*))luaHelperLuajitGetInfoAddress)(L, "Sln", ar) == 1)
     {
+        // On a line event during step over action, check if we returned from some functions we don't know about
+        if(luaHelperLuajitGetStackAddress && luaHelperStepOver && ar->event == LUA_HOOKLINE && luaHelperStackDepthAtCall != 0)
+        {
+            unsigned currentDepth = LuaHelperMeasureStackDepth(L, ar);
+
+            if(currentDepth < luaHelperStackDepthAtCall)
+            {
+                luaHelperSkipDepth = 0;
+
+#if defined(DEBUG_MODE)
+                printf("hook line is called at lower stack depth %u (recored at call as %u) (skip depth reset to 0)\n", currentDepth, luaHelperStackDepthAtCall);
+#endif
+
+                luaHelperStackDepthAtCall = 0;
+            }
+        }
+
+#if defined(DEBUG_MODE)
+        LuaHelperDebugStepHook(ar->event, ar->currentline, ar->source);
+#else
+        LuaHelperStepHook(ar->event);
+#endif
+
+        // For the first call during step over action, measure the stack depth we are placed at
+        if(luaHelperLuajitGetStackAddress && luaHelperStepOver && ar->event == LUA_HOOKCALL && luaHelperStackDepthAtCall == 0)
+        {
+            luaHelperStackDepthAtCall = LuaHelperMeasureStackDepth(L, ar);
+
+#if defined(DEBUG_MODE)
+            printf("   this call was measured at stack depth %u\n", luaHelperStackDepthAtCall);
+#endif
+        }
+
         LuaHelperBreakpointHook(L, ar->currentline, 0, ar->source);
+    }
+    else
+    {
+        LuaHelperStepHook(ar->event);
     }
 }

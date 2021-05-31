@@ -576,6 +576,8 @@ namespace LuaDkmDebuggerComponent
             public static ulong? definitionStartLine;
             public static ulong? definitionEndLine;
 
+            public static ulong? ici;
+
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
             {
                 available = true;
@@ -594,9 +596,37 @@ namespace LuaDkmDebuggerComponent
                 upvalueSize = Helper.Read(inspectionSession, thread, frame, "lua_Debug", "nups", ref available, ref success, ref failure);
                 definitionStartLine = Helper.Read(inspectionSession, thread, frame, "lua_Debug", "linedefined", ref available, ref success, ref failure);
                 definitionEndLine = Helper.Read(inspectionSession, thread, frame, "lua_Debug", "lastlinedefined", ref available, ref success, ref failure);
+                ici = Helper.ReadOptional(inspectionSession, thread, frame, "lua_Debug", "i_ci", "used in luajit", ref optional);
 
                 if (Log.instance != null)
                     Log.instance.Debug($"LuaDebugData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
+            }
+        }
+
+        public class Luajit
+        {
+            public static long valueSize = 0;
+            public static long stringSize = 0;
+            public static long userdataSize = 0;
+            public static long protoSize = 0;
+            public static long upvalueSize = 0;
+            public static long nodeSize = 0;
+            public static long tableSize = 0;
+            public static long mrefSize = 0;
+            public static long gcrefSize = 0;
+
+            public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
+            {
+                bool dummy = false;
+                valueSize = Helper.GetSize(inspectionSession, thread, frame, "TValue", ref dummy);
+                stringSize = Helper.GetSize(inspectionSession, thread, frame, "GCstr", ref dummy);
+                userdataSize = Helper.GetSize(inspectionSession, thread, frame, "GCudata", ref dummy);
+                protoSize = Helper.GetSize(inspectionSession, thread, frame, "GCproto", ref dummy);
+                upvalueSize = Helper.GetSize(inspectionSession, thread, frame, "GCupval", ref dummy);
+                nodeSize = Helper.GetSize(inspectionSession, thread, frame, "Node", ref dummy);
+                tableSize = Helper.GetSize(inspectionSession, thread, frame, "GCtab", ref dummy);
+                mrefSize = Helper.GetSize(inspectionSession, thread, frame, "MRef", ref dummy);
+                gcrefSize = Helper.GetSize(inspectionSession, thread, frame, "GCRef", ref dummy);
             }
         }
 

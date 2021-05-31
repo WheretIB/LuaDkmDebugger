@@ -64,6 +64,7 @@ namespace LuaDkmDebuggerComponent
         public ulong helperStepIntoAddress = 0;
         public ulong helperStepOutAddress = 0;
         public ulong helperSkipDepthAddress = 0;
+        public ulong helperStackDepthAtCallAddress = 0;
         public ulong helperAsyncBreakCodeAddress = 0;
 
         public Guid breakpointLuaHelperBreakpointHit;
@@ -94,6 +95,7 @@ namespace LuaDkmDebuggerComponent
                     writer.Write(helperStepIntoAddress);
                     writer.Write(helperStepOutAddress);
                     writer.Write(helperSkipDepthAddress);
+                    writer.Write(helperStackDepthAtCallAddress);
                     writer.Write(helperAsyncBreakCodeAddress);
 
                     writer.Write(breakpointLuaHelperBreakpointHit.ToByteArray());
@@ -131,6 +133,7 @@ namespace LuaDkmDebuggerComponent
                     helperStepIntoAddress = reader.ReadUInt64();
                     helperStepOutAddress = reader.ReadUInt64();
                     helperSkipDepthAddress = reader.ReadUInt64();
+                    helperStackDepthAtCallAddress = reader.ReadUInt64();
                     helperAsyncBreakCodeAddress = reader.ReadUInt64();
 
                     breakpointLuaHelperBreakpointHit = new Guid(reader.ReadBytes(16));
@@ -278,6 +281,18 @@ namespace LuaDkmDebuggerComponent
         public ulong luaRunError = 0;
         public ulong luaThrow = 0;
 
+        // For luajit
+        public ulong ljSetMode = 0;
+
+        public ulong luaLibNewStateAtStart = 0;
+        public ulong luaLibNewStateAtEnd = 0;
+
+        public ulong luaSetHook = 0;
+        public ulong luaGetInfo = 0;
+        public ulong luaGetStack = 0;
+
+        public ulong ljErrThrow = 0;
+
         public byte[] Encode()
         {
             using (var stream = new MemoryStream())
@@ -299,6 +314,14 @@ namespace LuaDkmDebuggerComponent
                     writer.Write(luaError);
                     writer.Write(luaRunError);
                     writer.Write(luaThrow);
+
+                    writer.Write(ljSetMode);
+                    writer.Write(luaLibNewStateAtStart);
+                    writer.Write(luaLibNewStateAtEnd);
+                    writer.Write(luaSetHook);
+                    writer.Write(luaGetInfo);
+                    writer.Write(luaGetStack);
+                    writer.Write(ljErrThrow);
 
                     writer.Flush();
 
@@ -328,6 +351,14 @@ namespace LuaDkmDebuggerComponent
                     luaError = reader.ReadUInt64();
                     luaRunError = reader.ReadUInt64();
                     luaThrow = reader.ReadUInt64();
+
+                    ljSetMode = reader.ReadUInt64();
+                    luaLibNewStateAtStart = reader.ReadUInt64();
+                    luaLibNewStateAtEnd = reader.ReadUInt64();
+                    luaSetHook = reader.ReadUInt64();
+                    luaGetInfo = reader.ReadUInt64();
+                    luaGetStack = reader.ReadUInt64();
+                    ljErrThrow = reader.ReadUInt64();
                 }
             }
 

@@ -63,7 +63,13 @@ namespace LuaDkmDebuggerComponent
         internal static ulong GetStringDataOffset(DkmProcess process)
         {
             if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+            {
+                if (Schema.Luajit.stringSize != 0)
+                    return (ulong)Schema.Luajit.stringSize;
+
+                // TODO: 20 in luajit 2.1.0 when schema is not available
                 return 16u;
+            }
 
             if (Schema.LuaStringData.available)
             {
@@ -80,7 +86,12 @@ namespace LuaDkmDebuggerComponent
         internal static ulong GetValueSize(DkmProcess process)
         {
             if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+            {
+                if (Schema.Luajit.valueSize != 0)
+                    return (ulong)Schema.Luajit.valueSize;
+
                 return 8u;
+            }
 
             if (Schema.LuaValueData.available)
                 return (ulong)Schema.LuaValueData.structSize;
@@ -95,7 +106,12 @@ namespace LuaDkmDebuggerComponent
         internal static ulong GetNodeSize(DkmProcess process)
         {
             if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+            {
+                if (Schema.Luajit.nodeSize != 0)
+                    return (ulong)Schema.Luajit.nodeSize;
+
                 return 24u;
+            }
 
             if (Schema.LuaNodeData.available)
                 return (ulong)Schema.LuaNodeData.structSize;
@@ -2343,7 +2359,7 @@ namespace LuaDkmDebuggerComponent
                 functionAddress = DebugHelpers.ReadStructUint(process, ref address).GetValueOrDefault();
 
                 if (functionAddress != 0)
-                    functionAddress -= 64;
+                    functionAddress -= Schema.Luajit.protoSize != 0 ? (ulong)Schema.Luajit.protoSize : 64ul;
 
                 firstUpvaluePointerAddress = address;
             }
@@ -2711,6 +2727,8 @@ namespace LuaDkmDebuggerComponent
 
     public class LuajitStateData
     {
+        public ulong stateAddress;
+
         public int status;
         public ulong globalStateAddress; // 32 bit global_State*
         public ulong baseAddress;
@@ -2721,6 +2739,8 @@ namespace LuaDkmDebuggerComponent
         public void ReadFrom(DkmProcess process, ulong address)
         {
             Debug.Assert(Schema.LuajitStateData.available);
+
+            stateAddress = address;
 
             status = DebugHelpers.ReadByteVariable(process, address + Schema.LuajitStateData.status.GetValueOrDefault(0)).GetValueOrDefault(0);
             globalStateAddress = DebugHelpers.ReadUintVariable(process, address + Schema.LuajitStateData.glref.GetValueOrDefault(0)).GetValueOrDefault(0);
@@ -2796,6 +2816,162 @@ namespace LuaDkmDebuggerComponent
         public bool canyield() { return (cf & 1u) != 0u; }
         public bool unwind_ff() { return (cf & 2u) != 0u; }
         public ulong raw() { return cf & ~3ul; }
+    }
+
+    public class LuajitHelpers
+    {
+        public enum FrameType
+        {
+            FRAME_LUA, FRAME_C, FRAME_CONT, FRAME_VARG,
+            FRAME_LUAP, FRAME_CP, FRAME_PCALL, FRAME_PCALLH
+        }
+
+        public static int FRAME_TYPE = 3;
+        public static int FRAME_P = 4;
+        public static int FRAME_TYPEP = (FRAME_TYPE | FRAME_P);
+
+        public static FrameType frame_type(uint ftfz) { return (FrameType)(ftfz & FRAME_TYPE); }
+        public static FrameType frame_typep(uint ftfz) { return (FrameType)(ftfz & FRAME_TYPEP); }
+        public static bool frame_islua(uint ftfz) { return frame_type(ftfz) == FrameType.FRAME_LUA; }
+        public static bool frame_isc(uint ftfz) { return frame_type(ftfz) == FrameType.FRAME_C; }
+        public static bool frame_iscont(uint ftfz) { return frame_typep(ftfz) == FrameType.FRAME_CONT; }
+        public static bool frame_isvarg(uint ftfz) { return frame_typep(ftfz) == FrameType.FRAME_VARG; }
+        public static bool frame_ispcall(uint ftfz) { return (FrameType)(ftfz & 6) == FrameType.FRAME_PCALL; }
+
+        public static ulong FindDebugFrame(DkmProcess process, LuajitStateData L, int level, out int frameSize, out int i_ci)
+        {
+            ulong bottomAddress = L.stackAddress;
+
+            ulong frameAddress = L.baseAddress - LuaHelpers.GetValueSize(process);
+            ulong nextFrameAddress = frameAddress;
+
+            // Traverse frames backwards
+            int walkLimit = 256;
+            for (int i = 0; i < walkLimit && frameAddress > bottomAddress; i++)
+            {
+                if (frameAddress == L.stateAddress)
+                    level++;  // Skip dummy frames. See lj_meta_call()
+
+                if (level-- == 0)
+                {
+                    frameSize = (int)((nextFrameAddress - frameAddress) / LuaHelpers.GetValueSize(process));
+                    i_ci = (frameSize << 16) | (int)((frameAddress - L.stackAddress) / LuaHelpers.GetValueSize(process));
+                    return frameAddress;
+                }
+
+                nextFrameAddress = frameAddress;
+
+                uint ftfz = DebugHelpers.ReadUintVariable(process, frameAddress + 4).GetValueOrDefault(0);
+
+                if (frame_islua(ftfz))
+                {
+                    ulong bc = DebugHelpers.ReadUintVariable(process, ftfz - 4).GetValueOrDefault(0);
+                    ulong bc_a = (bc >> 8) & 0xff;
+
+                    frameAddress = frameAddress - (1 + bc_a) * LuaHelpers.GetValueSize(process);
+                }
+                else
+                {
+                    if (frame_isvarg(ftfz))
+                        level++;  // Skip vararg pseudo-frame
+
+                    frameAddress = frameAddress - (ftfz & ~7u);
+                }
+            }
+
+            frameSize = 0;
+            i_ci = 0;
+            return 0;
+        }
+
+        public static int FindFrameInstructionPointer(DkmProcess process, LuajitStateData L, LuaValueDataLuaFunction fn, ulong nextframe)
+        {
+            LiaJitCframeData cframe = new LiaJitCframeData();
+            cframe.ReadFrom(process, L.cframeAddress);
+
+            ulong nextframeIns;
+
+            if (nextframe == 0)
+            {
+                if (cframe.raw() == 0 || cframe.pc() == cframe.L())
+                    return -1;
+
+                nextframeIns = cframe.pc();
+            }
+            else
+            {
+                var value = DebugHelpers.ReadUintVariable(process, nextframe);
+
+                if (!value.HasValue)
+                    return -1;
+
+                LuaClosureData nextframeFn = new LuaClosureData();
+                nextframeFn.ReadFrom(process, value.Value);
+
+                uint nextFrameFtfz = DebugHelpers.ReadUintVariable(process, nextframe + 4).GetValueOrDefault(0);
+
+                if (frame_islua(nextFrameFtfz))
+                {
+                    nextframeIns = nextFrameFtfz; // frame_pc, instruction address at union with the frame size
+                }
+                else if (frame_iscont(nextFrameFtfz))
+                {
+                    nextframeIns = DebugHelpers.ReadUintVariable(process, (nextframe - LuaHelpers.GetValueSize(process)) + 4).GetValueOrDefault(0); // frame_contpc
+                }
+                else
+                {
+                    ulong f = L.baseAddress - LuaHelpers.GetValueSize(process);
+
+                    for (int i = 0; i < 32; i++) // Don't want to stuck in an infinite loop
+                    {
+                        if (cframe.raw() == 0)
+                            return -1;
+
+                        while (cframe.nres() < 0)
+                        {
+                            if (f >= L.stackAddress - (ulong)cframe.nres() * LuaHelpers.GetValueSize(process))
+                                break;
+
+                            cframe.ReadFrom(process, cframe.prev());
+
+                            if (cframe.raw() == 0)
+                                return -1;
+                        }
+
+                        if (f < nextframe)
+                            break;
+
+                        uint ftfz = DebugHelpers.ReadUintVariable(process, f + 4).GetValueOrDefault(0);
+
+                        if (frame_islua(ftfz))
+                        {
+                            ulong bc = DebugHelpers.ReadUintVariable(process, ftfz - 4).GetValueOrDefault(0);
+                            ulong bc_a = (bc >> 8) & 0xff;
+
+                            f = f - (1 + bc_a) * LuaHelpers.GetValueSize(process);
+                        }
+                        else
+                        {
+                            if (frame_isc(ftfz))
+                                cframe.ReadFrom(process, cframe.prev());
+
+                            f = f - (ftfz & ~7u);
+                        }
+                    }
+
+                    nextframeIns = cframe.pc();
+                }
+            }
+
+            ulong pt = fn.value.functionAddress;
+            ulong protoBc = pt + (Schema.Luajit.protoSize != 0 ? (ulong)Schema.Luajit.protoSize : 64ul);
+            int pc = (int)(nextframeIns - protoBc) / 4 - 1;
+
+            if (pc < 0)
+                return -1;
+
+            return pc;
+        }
     }
 
     public class LuaAddressEntityData

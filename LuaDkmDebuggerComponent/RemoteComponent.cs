@@ -285,12 +285,12 @@ namespace LuaDkmDebuggerComponent
             {
                 if (processData.locations != null)
                 {
+                    // Breakpoint can get hit again after expression evaluation 'slips' the thread
+                    if (processData.pauseBreakpoints)
+                        return;
+
                     if (runtimeBreakpoint.UniqueId == processData.locations.breakpointLuaHelperBreakpointHit)
                     {
-                        // Breakpoint can get hit again after expression evaluation 'slips' the thread
-                        if (processData.pauseBreakpoints)
-                            return;
-
                         eventDescriptor.Suppress();
 
                         var breakpointPos = DebugHelpers.ReadUintVariable(process, processData.locations.helperBreakHitIdAddress);
@@ -474,6 +474,7 @@ namespace LuaDkmDebuggerComponent
                 DebugHelpers.TryWriteIntVariable(process, processData.locations.helperStepIntoAddress, 0);
                 DebugHelpers.TryWriteIntVariable(process, processData.locations.helperStepOutAddress, 0);
                 DebugHelpers.TryWriteIntVariable(process, processData.locations.helperSkipDepthAddress, 0);
+                DebugHelpers.TryWriteIntVariable(process, processData.locations.helperStackDepthAtCallAddress, 0);
             }
 
             processData.activeStepper = null;
