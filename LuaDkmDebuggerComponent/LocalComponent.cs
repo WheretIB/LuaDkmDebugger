@@ -47,6 +47,7 @@ namespace LuaDkmDebuggerComponent
 
         public bool helperInjectRequested = false;
         public bool helperInjected = false;
+        public bool helperInjectionFailed = false;
         public bool helperInitializationWaitActive = false;
         public bool helperInitializationWaitUsed = false;
         public bool helperInitialized = false;
@@ -3105,6 +3106,7 @@ namespace LuaDkmDebuggerComponent
                     {
                         SendStatusMessage(process, 2, $"Attach: helper dll hasn't been found");
                         log.Warning("Helper dll hasn't been found");
+                        processData.helperInjectionFailed = true;
                         return;
                     }
 
@@ -3123,6 +3125,7 @@ namespace LuaDkmDebuggerComponent
                         {
                             SendStatusMessage(process, 2, $"Attach: helper exe hasn't been found");
                             log.Error("Helper exe hasn't been found");
+                            processData.helperInjectionFailed = true;
                             return;
                         }
 
@@ -3157,6 +3160,8 @@ namespace LuaDkmDebuggerComponent
 
                                 if (output != null)
                                     log.Error(output);
+
+                                processData.helperInjectionFailed = true;
                                 return;
                             }
                         }
@@ -3164,6 +3169,7 @@ namespace LuaDkmDebuggerComponent
                         {
                             SendStatusMessage(process, 2, $"Attach: failed to start process (x64)");
                             log.Error("Failed to start process (x64) with " + e.Message);
+                            processData.helperInjectionFailed = true;
                         }
 
                         SendStatusMessage(process, 2, $"Attach: injected (x64), waiting...");
@@ -3182,6 +3188,7 @@ namespace LuaDkmDebuggerComponent
                         {
                             SendStatusMessage(process, 2, $"Attach: failed to open target process");
                             log.Error("Failed to open target process");
+                            processData.helperInjectionFailed = true;
                             return;
                         }
 
@@ -3191,6 +3198,7 @@ namespace LuaDkmDebuggerComponent
                         {
                             SendStatusMessage(process, 2, $"Attach: failed to start thread (x86)");
                             log.Error("Failed to start thread (x86)");
+                            processData.helperInjectionFailed = true;
                             return;
                         }
 
@@ -3447,6 +3455,10 @@ namespace LuaDkmDebuggerComponent
 
                         processData.helperInitializationSuspensionThread = thread;
                         processData.helperInitializationWaitUsed = true;
+                    }
+                    else if (processData.helperInjectionFailed)
+                    {
+                        log.Warning("Helper injection has failed");
                     }
                     else if (!processData.helperInjected)
                     {
