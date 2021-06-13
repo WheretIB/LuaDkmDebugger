@@ -3170,6 +3170,7 @@ namespace LuaDkmDebuggerComponent
                             SendStatusMessage(process, 2, $"Attach: failed to start process (x64)");
                             log.Error("Failed to start process (x64) with " + e.Message);
                             processData.helperInjectionFailed = true;
+                            return;
                         }
 
                         SendStatusMessage(process, 2, $"Attach: injected (x64), waiting...");
