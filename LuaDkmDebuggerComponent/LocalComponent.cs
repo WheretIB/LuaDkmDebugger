@@ -1145,6 +1145,54 @@ namespace LuaDkmDebuggerComponent
 
                                 if (callLuaFunction != null)
                                 {
+                                    void RegisterMissingScript()
+                                    {
+                                        var currFunctionData = callLuaFunction.value.ReadFunction(process);
+
+                                        if (currFunctionData == null)
+                                            return;
+
+                                        string source = currFunctionData.ReadSource(process);
+
+                                        if (source == null)
+                                            return;
+
+                                        bool foundNewScript = false;
+
+                                        lock (processData.symbolStore)
+                                        {
+                                            LuaStateSymbols stateSymbols = processData.symbolStore.FetchOrCreate(stateAddress.Value);
+
+                                            if (stateSymbols.FetchScriptSource(source) == null)
+                                            {
+                                                stateSymbols.AddScriptSource(source, null, null);
+
+                                                foundNewScript = true;
+                                            }
+                                        }
+
+                                        if (!foundNewScript)
+                                            return;
+
+                                        string filePath = TryGetSourceFilePath(process, processData, source);
+
+                                        if (filePath == null)
+                                            return;
+
+                                        log.Debug($"IDkmCallStackFilter.FilterNextFrame Resolved new script {source} to {filePath}");
+
+                                        if (HasPendingBreakpoint(process, processData, filePath))
+                                        {
+                                            log.Debug($"IDkmCallStackFilter.FilterNextFrame Reloading script {source} pending breakpoints");
+
+                                            var message = DkmCustomMessage.Create(process.Connection, process, Guid.Empty, MessageToVsService.reloadBreakpoints, Encoding.UTF8.GetBytes(filePath), null);
+
+                                            message.SendToVsService(Guids.luaVsPackageComponentGuid, false);
+                                        }
+                                    }
+
+                                    RegisterMissingScript();
+
                                     ulong nextframe = frameSize != 0 ? frameAddress + (ulong)frameSize * LuaHelpers.GetValueSize(process) : 0u;
 
                                     instructionPointer = LuajitHelpers.FindFrameInstructionPointer(process, luajitStateData, callLuaFunction, nextframe);
