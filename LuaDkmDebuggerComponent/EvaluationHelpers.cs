@@ -402,7 +402,12 @@ namespace LuaDkmDebuggerComponent
         internal static DkmEvaluationResult GetTableChildAtIndex(DkmInspectionContext inspectionContext, DkmStackWalkFrame stackFrame, string fullName, LuaTableData value, int index)
         {
             if (value == null)
+            {
+                if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+                    return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, $"[{index}]", $"{fullName}[{index}]", "Table data is missing", DkmEvaluationResultFlags.Invalid, null);
+
                 return DkmFailedEvaluationResult.Create(inspectionContext, stackFrame, $"[{index + 1}]", $"{fullName}[{index + 1}]", "Table data is missing", DkmEvaluationResultFlags.Invalid, null);
+            }
 
             var process = stackFrame.Process;
 
@@ -413,6 +418,9 @@ namespace LuaDkmDebuggerComponent
                 var arrayElements = value.GetArrayElements(process);
 
                 var element = arrayElements[index];
+
+                if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+                    return EvaluateDataAtLuaValue(inspectionContext, stackFrame, $"[{index}]", $"{fullName}[{index}]", element, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
 
                 return EvaluateDataAtLuaValue(inspectionContext, stackFrame, $"[{index + 1}]", $"{fullName}[{index + 1}]", element, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
             }

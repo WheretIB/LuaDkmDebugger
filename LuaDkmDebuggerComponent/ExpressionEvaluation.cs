@@ -386,6 +386,9 @@ namespace LuaDkmDebuggerComponent
                 if (index as LuaValueDataError != null)
                     return index;
 
+                if (!TryTakeToken("]"))
+                    return Report("Failed to find ']' after '['");
+
                 if (process == null)
                     return Report("Can't load table - process memory is not available");
 
@@ -396,14 +399,23 @@ namespace LuaDkmDebuggerComponent
                 {
                     int result = (int)indexAsNumber.value;
 
-                    if (result > 0 && result - 1 < table.value.GetArrayElementCount(process))
+                    if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
                     {
-                        if (!TryTakeToken("]"))
-                            return Report("Failed to find ']' after '['");
+                        if (result >= 0 && result < table.value.GetArrayElementCount(process))
+                        {
+                            var arrayElements = table.value.GetArrayElements(process);
 
-                        var arrayElements = table.value.GetArrayElements(process);
+                            return EvaluatePostExpressions(arrayElements[result]);
+                        }
+                    }
+                    else
+                    {
+                        if (result > 0 && result - 1 < table.value.GetArrayElementCount(process))
+                        {
+                            var arrayElements = table.value.GetArrayElements(process);
 
-                        return EvaluatePostExpressions(arrayElements[result - 1]);
+                            return EvaluatePostExpressions(arrayElements[result - 1]);
+                        }
                     }
                 }
 
@@ -416,9 +428,6 @@ namespace LuaDkmDebuggerComponent
 
                     if (elementKey.LuaCompare(index))
                     {
-                        if (!TryTakeToken("]"))
-                            return Report("Failed to find ']' after '['");
-
                         return EvaluatePostExpressions(element.LoadValue(process, table.value.batchNodeElementData));
                     }
                 }
