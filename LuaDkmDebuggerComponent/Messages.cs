@@ -273,7 +273,8 @@ namespace LuaDkmDebuggerComponent
         public ulong solCompatLoadFileEx = 0;
 
         public ulong luaLoadBufferEx = 0;
-        public ulong luaLoadBuffer = 0;
+        public ulong luaLoadBufferAtStart = 0;
+        public ulong luaLoadBufferAtEnd = 0;
 
         public ulong luaLoad = 0;
 
@@ -309,7 +310,8 @@ namespace LuaDkmDebuggerComponent
                     writer.Write(luaLoadFile);
                     writer.Write(solCompatLoadFileEx);
                     writer.Write(luaLoadBufferEx);
-                    writer.Write(luaLoadBuffer);
+                    writer.Write(luaLoadBufferAtStart);
+                    writer.Write(luaLoadBufferAtEnd);
                     writer.Write(luaLoad);
                     writer.Write(luaError);
                     writer.Write(luaRunError);
@@ -346,7 +348,8 @@ namespace LuaDkmDebuggerComponent
                     luaLoadFile = reader.ReadUInt64();
                     solCompatLoadFileEx = reader.ReadUInt64();
                     luaLoadBufferEx = reader.ReadUInt64();
-                    luaLoadBuffer = reader.ReadUInt64();
+                    luaLoadBufferAtStart = reader.ReadUInt64();
+                    luaLoadBufferAtEnd = reader.ReadUInt64();
                     luaLoad = reader.ReadUInt64();
                     luaError = reader.ReadUInt64();
                     luaRunError = reader.ReadUInt64();

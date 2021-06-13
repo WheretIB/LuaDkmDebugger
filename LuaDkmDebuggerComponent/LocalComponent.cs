@@ -105,7 +105,11 @@ namespace LuaDkmDebuggerComponent
 
         public Guid breakpointLuaFileLoaded;
         public Guid breakpointLuaFileLoadedSolCompat;
+
+        public bool skipNextInternalBufferLoaded = false;
         public Guid breakpointLuaBufferLoaded;
+        public Guid breakpointLuaBufferLoadedExternalStart;
+        public Guid breakpointLuaBufferLoadedExternalEnd;
 
         public bool skipNextRawLoad = false;
         public Guid breakpointLuaLoad;
@@ -3074,7 +3078,7 @@ namespace LuaDkmDebuggerComponent
                         if (processData.luaLocations.luaLoadBufferEx != 0)
                             processData.breakpointLuaBufferLoaded = AttachmentHelpers.CreateTargetFunctionBreakpointAtAddress(process, processData.moduleWithLoadedLua, "luaL_loadbufferx", "Lua script load from buffer", processData.luaLocations.luaLoadBufferEx).GetValueOrDefault(Guid.Empty);
                         else
-                            processData.breakpointLuaBufferLoaded = AttachmentHelpers.CreateTargetFunctionBreakpointAtAddress(process, processData.moduleWithLoadedLua, "luaL_loadbuffer", "Lua script load from file", processData.luaLocations.luaLoadBuffer).GetValueOrDefault(Guid.Empty);
+                            processData.breakpointLuaBufferLoaded = AttachmentHelpers.CreateTargetFunctionBreakpointAtAddress(process, processData.moduleWithLoadedLua, "luaL_loadbuffer", "Lua script load from file", processData.luaLocations.luaLoadBufferAtStart).GetValueOrDefault(Guid.Empty);
                     }
                     else
                     {
@@ -3127,6 +3131,9 @@ namespace LuaDkmDebuggerComponent
 
                             processData.breakpointLuaThreadCreateExternalStart = AttachmentHelpers.CreateTargetFunctionBreakpointAtAddress(process, processData.moduleWithLoadedLua, "luaL_newstate", "Lua thread creation (lib @ start)", processData.luaLocations.luaLibNewStateAtStart).GetValueOrDefault(Guid.Empty);
                             processData.breakpointLuaThreadCreateExternalEnd = AttachmentHelpers.CreateTargetFunctionBreakpointAtAddress(process, processData.moduleWithLoadedLua, "luaL_newstate", "Lua thread creation (lib @ end)", processData.luaLocations.luaLibNewStateAtEnd).GetValueOrDefault(Guid.Empty);
+
+                            processData.breakpointLuaBufferLoadedExternalStart = AttachmentHelpers.CreateTargetFunctionBreakpointAtAddress(process, processData.moduleWithLoadedLua, "luaL_loadbuffer", "Lua buffer load (outer @ start)", processData.luaLocations.luaLoadBufferAtStart).GetValueOrDefault(Guid.Empty);
+                            processData.breakpointLuaBufferLoadedExternalEnd = AttachmentHelpers.CreateTargetFunctionBreakpointAtAddress(process, processData.moduleWithLoadedLua, "luaL_loadbuffer", "Lua buffer load (outer @ end)", processData.luaLocations.luaLoadBufferAtEnd).GetValueOrDefault(Guid.Empty);
                         }
                         else
                         {
@@ -3139,6 +3146,9 @@ namespace LuaDkmDebuggerComponent
 
                             processData.breakpointLuaThreadCreateExternalStart = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_newstate", "Lua thread creation (lib @ start)", out _).GetValueOrDefault(Guid.Empty);
                             processData.breakpointLuaThreadCreateExternalEnd = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugEnd(process, processData.moduleWithLoadedLua, "luaL_newstate", "Lua thread creation (lib @ end)", out _).GetValueOrDefault(Guid.Empty);
+
+                            processData.breakpointLuaBufferLoadedExternalStart = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadbuffer", "Lua buffer load (outer @ start)", out _).GetValueOrDefault(Guid.Empty);
+                            processData.breakpointLuaBufferLoadedExternalEnd = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugEnd(process, processData.moduleWithLoadedLua, "luaL_loadbuffer", "Lua buffer load (outer @ end)", out _).GetValueOrDefault(Guid.Empty);
                         }
 
                         LuaHelpers.luaVersion = LuaHelpers.luaVersionLuajit;
@@ -3811,9 +3821,26 @@ namespace LuaDkmDebuggerComponent
 
                     inspectionSession.Close();
                 }
-                else if (data.breakpointId == processData.breakpointLuaBufferLoaded)
+                else if (data.breakpointId == processData.breakpointLuaBufferLoaded || data.breakpointId == processData.breakpointLuaBufferLoadedExternalStart)
                 {
-                    log.Debug("Detected Lua script buffer load");
+                    if (data.breakpointId == processData.breakpointLuaBufferLoadedExternalStart)
+                    {
+                        log.Debug("Detected Lua script buffer load (outer @ start)");
+
+                        processData.skipNextInternalBufferLoaded = true;
+                    }
+                    else
+                    {
+                        log.Debug("Detected Lua script buffer load");
+
+                        if (processData.skipNextInternalBufferLoaded)
+                        {
+                            log.Debug("Skipping internal script buffer load");
+
+                            processData.skipNextInternalBufferLoaded = false;
+                            return null;
+                        }
+                    }
 
                     processData.skipNextRawLoad = true;
 
@@ -3839,6 +3866,12 @@ namespace LuaDkmDebuggerComponent
                     }
 
                     inspectionSession.Close();
+                }
+                else if (data.breakpointId == processData.breakpointLuaBufferLoadedExternalEnd)
+                {
+                    log.Debug("Detected Lua script buffer load (outer @ end)");
+
+                    processData.skipNextInternalBufferLoaded = false;
                 }
                 else if (data.breakpointId == processData.breakpointLuaLoad)
                 {

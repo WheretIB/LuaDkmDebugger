@@ -50,7 +50,8 @@ namespace LuaDkmDebuggerComponent
                     locations.solCompatLoadFileEx = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, "kp_compat53L_loadfilex", out _).GetValueOrDefault(0);
 
                     locations.luaLoadBufferEx = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, "luaL_loadbufferx", out _).GetValueOrDefault(0);
-                    locations.luaLoadBuffer = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, "luaL_loadbuffer", out _).GetValueOrDefault(0);
+                    locations.luaLoadBufferAtStart = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, "luaL_loadbuffer", out _).GetValueOrDefault(0);
+                    locations.luaLoadBufferAtEnd = AttachmentHelpers.TryGetFunctionAddressAtDebugEnd(nativeModuleInstance, "luaL_loadbuffer", out _).GetValueOrDefault(0);
 
                     locations.luaLoad = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, "lua_load", out _).GetValueOrDefault(0);
 
