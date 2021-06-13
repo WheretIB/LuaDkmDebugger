@@ -3486,6 +3486,8 @@ namespace LuaDkmDebuggerComponent
                     {
                         if (HasPendingBreakpoint(process, processData, resolvedPath))
                         {
+                            log.Debug($"Reloading script {scriptName} pending breakpoints");
+
                             var message = DkmCustomMessage.Create(process.Connection, process, Guid.Empty, MessageToVsService.reloadBreakpoints, Encoding.UTF8.GetBytes(resolvedPath), null);
 
                             message.SendToVsService(Guids.luaVsPackageComponentGuid, true);
@@ -3707,6 +3709,8 @@ namespace LuaDkmDebuggerComponent
 
             if (!knownState)
             {
+                log.Debug($"TryRegisterLuaStateCreation found state that wasn't registered");
+
                 RegisterLuaStateCreation(process, processData, inspectionSession, thread, frame, stateAddress);
             }
         }
@@ -3892,6 +3896,8 @@ namespace LuaDkmDebuggerComponent
                             {
                                 if (HasPendingBreakpoint(process, processData, resolvedPath))
                                 {
+                                    log.Debug($"Reloading script {scriptName} pending breakpoints");
+
                                     var message = DkmCustomMessage.Create(process.Connection, process, Guid.Empty, MessageToVsService.reloadBreakpoints, Encoding.UTF8.GetBytes(resolvedPath), null);
 
                                     message.SendToVsService(Guids.luaVsPackageComponentGuid, true);
