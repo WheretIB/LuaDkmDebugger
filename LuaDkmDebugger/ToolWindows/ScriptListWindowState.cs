@@ -28,5 +28,7 @@ namespace LuaDkmDebugger.ToolWindows
         public EnvDTE80.DTE2 dte;
 
         public ObservableCollection<ScriptEntry> scripts = new ObservableCollection<ScriptEntry>();
+        public string statusText1 = "Lua: ---";
+        public string statusText2 = "Attach: ---";
     }
 }

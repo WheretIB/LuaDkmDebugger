@@ -641,18 +641,21 @@ namespace LuaDkmDebugger
 
                     statusTextMessage.ReadFrom(message.Parameter1 as byte[]);
 
+                    if (statusTextMessage.id == 1)
+                    {
+                        package.scriptListWindowState.statusText1 = statusTextMessage.content;
+                    }
+                    else if (statusTextMessage.id == 2)
+                    {
+                        package.scriptListWindowState.statusText2 = statusTextMessage.content;
+                    }
+
                     if (package.FindToolWindow(typeof(ScriptListWindow), 0, false) is ScriptListWindow scriptListWindow)
                     {
                         if (scriptListWindow.Content is ScriptListWindowControl scriptListWindowControl)
                         {
-                            if (statusTextMessage.id == 1)
-                            {
-                                scriptListWindowControl.StatusText1.Text = statusTextMessage.content;
-                            }
-                            else if (statusTextMessage.id == 2)
-                            {
-                                scriptListWindowControl.StatusText2.Text = statusTextMessage.content;
-                            }
+                            scriptListWindowControl.StatusText1.Text = package.scriptListWindowState.statusText1;
+                            scriptListWindowControl.StatusText2.Text = package.scriptListWindowState.statusText2;
                         }
                     }
                 }
