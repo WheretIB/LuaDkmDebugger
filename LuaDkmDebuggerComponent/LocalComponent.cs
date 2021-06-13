@@ -3988,6 +3988,26 @@ namespace LuaDkmDebuggerComponent
                             DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + 2 * 8, processData.helperHookFunctionAddress_luajit);
                         }
                     }
+                    else if (code == 3)
+                    {
+                        List<ulong> states = new List<ulong>();
+
+                        lock (processData.symbolStore)
+                        {
+                            foreach (var state in processData.symbolStore.knownStates)
+                                states.Add(state.Key);
+                        }
+
+                        // TODO: all states
+                        if (states.Count > 0)
+                        {
+                            DebugHelpers.TryWriteUintVariable(process, processData.helperAsyncBreakCodeAddress, 4u);
+
+                            DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + 0 * 8, processData.luaSetHookAddress);
+                            DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + 1 * 8, states[0]);
+                            DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + 2 * 8, 0);
+                        }
+                    }
                     else
                     {
                         log.Error("Unknown async break code");

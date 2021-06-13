@@ -116,6 +116,9 @@ namespace LuaDkmDebuggerComponent
             }
             else if (customMessage.MessageCode == MessageToRemote.registerLuaState)
             {
+                if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+                    return null;
+
                 var data = new RegisterStateMessage();
 
                 data.ReadFrom(customMessage.Parameter1 as byte[]);
@@ -136,6 +139,9 @@ namespace LuaDkmDebuggerComponent
             }
             else if (customMessage.MessageCode == MessageToRemote.unregisterLuaState)
             {
+                if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+                    return null;
+
                 var data = new UnregisterStateMessage();
 
                 data.ReadFrom(customMessage.Parameter1 as byte[]);
@@ -186,9 +192,11 @@ namespace LuaDkmDebuggerComponent
                 }
             }
 
-            // TODO: only for luajit
-            // Trigger a custom breakpoint
-            DebugHelpers.TryWriteUintVariable(process, processData.locations.helperAsyncBreakCodeAddress, 1u);
+            if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+            {
+                // Trigger a custom breakpoint
+                DebugHelpers.TryWriteUintVariable(process, processData.locations.helperAsyncBreakCodeAddress, 1u);
+            }
         }
 
         void RemoveHooks(DkmProcess process, LuaRemoteProcessData processData)
@@ -208,6 +216,12 @@ namespace LuaDkmDebuggerComponent
 
                 DebugHelpers.TryWriteIntVariable(process, state.hookBaseCountAddress, 0);
                 DebugHelpers.TryWriteIntVariable(process, state.hookCountAddress, 0);
+            }
+
+            if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+            {
+                // Trigger a custom breakpoint
+                DebugHelpers.TryWriteUintVariable(process, processData.locations.helperAsyncBreakCodeAddress, 3u);
             }
         }
 
