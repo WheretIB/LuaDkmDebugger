@@ -1377,6 +1377,29 @@ namespace LuaDkmDebuggerComponent
             return filePath;
         }
 
+        string TryGetSourceFilePath(DkmProcess process, LuaLocalProcessData processData, string source)
+        {
+            if (source == null)
+                return null;
+
+            LuaScriptSymbols scriptSource;
+
+            lock (processData.symbolStore)
+            {
+                scriptSource = processData.symbolStore.FetchScriptSource(source);
+            }
+
+            if (scriptSource?.resolvedFileName != null)
+                return scriptSource.resolvedFileName;
+
+            string filePath = TryFindSourcePath(process.Path, processData, source, scriptSource?.scriptContent, true, out string loadStatus);
+
+            if (scriptSource != null)
+                scriptSource.resolvedFileName = filePath;
+
+            return filePath;
+        }
+
         DkmSourcePosition IDkmSymbolQuery.GetSourcePosition(DkmInstructionSymbol instruction, DkmSourcePositionFlags flags, DkmInspectionSession inspectionSession, out bool startOfLine)
         {
             var process = inspectionSession?.Process;
@@ -1405,26 +1428,7 @@ namespace LuaDkmDebuggerComponent
 
                 addressEntityData.ReadFrom(instructionSymbol.EntityId.ToArray());
 
-                LuaScriptSymbols scriptSource;
-
-                lock (processData.symbolStore)
-                {
-                    scriptSource = processData.symbolStore.FetchScriptSource(addressEntityData.source);
-                }
-
-                string filePath = null;
-
-                if (scriptSource?.resolvedFileName != null)
-                {
-                    filePath = scriptSource.resolvedFileName;
-                }
-                else
-                {
-                    filePath = TryFindSourcePath(process.Path, processData, addressEntityData.source, scriptSource?.scriptContent, true, out string loadStatus);
-
-                    if (scriptSource != null)
-                        scriptSource.resolvedFileName = filePath;
-                }
+                string filePath = TryGetSourceFilePath(process, processData, addressEntityData.source);
 
                 log.Debug($"IDkmSymbolQuery.GetSourcePosition success");
 
