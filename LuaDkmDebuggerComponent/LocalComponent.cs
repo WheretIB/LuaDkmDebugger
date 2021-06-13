@@ -2171,6 +2171,12 @@ namespace LuaDkmDebuggerComponent
             {
                 if (value == "true")
                 {
+                    if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+                    {
+                        LuaHelpers.TryWriteValue(process, result.StackFrame, result.InspectionSession, evalData.luaValueData.tagAddress, address, new LuaValueDataBool(true), out errorText);
+                        return;
+                    }
+
                     if (LuaHelpers.luaVersion == 504 && evalData.luaValueData.tagAddress != 0)
                     {
                         if (!DebugHelpers.TryWriteIntVariable(process, evalData.luaValueData.tagAddress, (int)LuaExtendedType.BooleanTrue))
@@ -2189,6 +2195,12 @@ namespace LuaDkmDebuggerComponent
                 }
                 else if (value == "false")
                 {
+                    if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+                    {
+                        LuaHelpers.TryWriteValue(process, result.StackFrame, result.InspectionSession, evalData.luaValueData.tagAddress, address, new LuaValueDataBool(false), out errorText);
+                        return;
+                    }
+
                     if (LuaHelpers.luaVersion == 504 && evalData.luaValueData.tagAddress != 0)
                     {
                         if (!DebugHelpers.TryWriteIntVariable(process, evalData.luaValueData.tagAddress, (int)LuaExtendedType.Boolean))
@@ -2207,6 +2219,12 @@ namespace LuaDkmDebuggerComponent
                 }
                 else if (int.TryParse(value, out int intValue))
                 {
+                    if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+                    {
+                        LuaHelpers.TryWriteValue(process, result.StackFrame, result.InspectionSession, evalData.luaValueData.tagAddress, address, new LuaValueDataBool(intValue != 0), out errorText);
+                        return;
+                    }
+
                     if (LuaHelpers.luaVersion == 504 && evalData.luaValueData.tagAddress != 0)
                     {
                         if (!DebugHelpers.TryWriteIntVariable(process, evalData.luaValueData.tagAddress, (int)(intValue != 0 ? LuaExtendedType.BooleanTrue : LuaExtendedType.Boolean)))
@@ -2232,6 +2250,12 @@ namespace LuaDkmDebuggerComponent
             {
                 if (ulong.TryParse(value, out ulong ulongValue))
                 {
+                    if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+                    {
+                        LuaHelpers.TryWriteValue(process, result.StackFrame, result.InspectionSession, evalData.luaValueData.tagAddress, address, new LuaValueDataLightUserData(ulongValue), out errorText);
+                        return;
+                    }
+
                     if (!DebugHelpers.TryWritePointerVariable(process, address, ulongValue))
                         errorText = "Failed to modify target process memory";
                     else
@@ -2250,6 +2274,12 @@ namespace LuaDkmDebuggerComponent
                 {
                     if (int.TryParse(value, out int intValue))
                     {
+                        if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+                        {
+                            LuaHelpers.TryWriteValue(process, result.StackFrame, result.InspectionSession, evalData.luaValueData.tagAddress, address, new LuaValueDataNumber(intValue), out errorText);
+                            return;
+                        }
+
                         if (!DebugHelpers.TryWriteIntVariable(process, address, intValue))
                             errorText = "Failed to modify target process memory";
                         else
@@ -2265,6 +2295,12 @@ namespace LuaDkmDebuggerComponent
                 {
                     if (double.TryParse(value, out double doubleValue))
                     {
+                        if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+                        {
+                            LuaHelpers.TryWriteValue(process, result.StackFrame, result.InspectionSession, evalData.luaValueData.tagAddress, address, new LuaValueDataNumber(doubleValue), out errorText);
+                            return;
+                        }
+
                         if (!DebugHelpers.TryWriteDoubleVariable(process, address, doubleValue))
                             errorText = "Failed to modify target process memory";
                         else
@@ -2280,6 +2316,12 @@ namespace LuaDkmDebuggerComponent
 
             if (evalData.luaValueData as LuaValueDataString != null)
             {
+                if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+                {
+                    LuaHelpers.TryWriteValue(process, result.StackFrame, result.InspectionSession, evalData.luaValueData.tagAddress, address, new LuaValueDataString(value), out errorText);
+                    return;
+                }
+
                 var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
 
                 if (processData.scratchMemory == 0)

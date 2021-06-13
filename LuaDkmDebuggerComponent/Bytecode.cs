@@ -723,7 +723,63 @@ namespace LuaDkmDebuggerComponent
 
         internal static bool WriteTypeTag(DkmProcess process, ulong tagAddress, int tagValue)
         {
-            if (Schema.LuaValueData.available)
+            if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+            {
+                if ((LuaExtendedType)tagValue == GetFloatNumberExtendedType())
+                    return true;
+
+                // Integer writes are not supported
+                if ((LuaExtendedType)tagValue == GetIntegerNumberExtendedType())
+                    return false;
+
+                // GC64 encoding is not supported
+                if (Schema.Luajit.fullPointer)
+                    return false;
+
+                int ljTypeTag = 0;
+
+                switch ((LuaExtendedType)tagValue)
+                {
+                    case LuaExtendedType.Nil:
+                        break;
+                    case LuaExtendedType.Boolean:
+                        ljTypeTag = 1;
+                        break;
+                    case LuaExtendedType.BooleanTrue:
+                        ljTypeTag = 2;
+                        break;
+                    case LuaExtendedType.LightUserData:
+                        ljTypeTag = 3;
+                        break;
+                    case LuaExtendedType.ShortString:
+                    case LuaExtendedType.LongString:
+                        ljTypeTag = 4;
+                        break;
+                    case LuaExtendedType.Table:
+                        ljTypeTag = 11;
+                        break;
+                    case LuaExtendedType.LuaFunction:
+                        ljTypeTag = 8;
+                        break;
+                    case LuaExtendedType.ExternalFunction:
+                    case LuaExtendedType.ExternalClosure:
+                        return false;
+                    case LuaExtendedType.UserData:
+                        ljTypeTag = 12;
+                        break;
+                    case LuaExtendedType.Thread:
+                        ljTypeTag = 6;
+                        break;
+                    default:
+                        break;
+                }
+
+                int ljTypeTagEncoded = ~ljTypeTag;
+
+                if (!DebugHelpers.TryWriteIntVariable(process, tagAddress, ljTypeTagEncoded | 0x7FF7A500))
+                    return false;
+            }
+            else if (Schema.LuaValueData.available)
             {
                 // Handle NAN trick
                 if (Schema.LuaValueData.doubleAddress.HasValue)
@@ -768,6 +824,10 @@ namespace LuaDkmDebuggerComponent
 
             if (value is LuaValueDataNil)
             {
+                // TODO: add support
+                if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit && Schema.Luajit.fullPointer)
+                    return Failed("Value update (nil) is not supported with LJ_GC64", out errorText);
+
                 if (!WriteTypeTag(process, tagAddress, (int)LuaExtendedType.Nil))
                     return Failed("Failed to modify target process memory (tag)", out errorText);
 
@@ -779,6 +839,10 @@ namespace LuaDkmDebuggerComponent
             }
             else if (value is LuaValueDataBool sourceBool)
             {
+                // TODO: add support
+                if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit && Schema.Luajit.fullPointer)
+                    return Failed("Value update (boolean) is not supported with LJ_GC64", out errorText);
+
                 if (LuaHelpers.luaVersion == 504)
                 {
                     if (!WriteTypeTag(process, tagAddress, (int)(sourceBool.value ? LuaExtendedType.BooleanTrue : LuaExtendedType.Boolean)))
@@ -828,6 +892,10 @@ namespace LuaDkmDebuggerComponent
             }
             else if (value is LuaValueDataString sourceString)
             {
+                // TODO: add support
+                if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit && Schema.Luajit.fullPointer)
+                    return Failed("Value update (string) is not supported with LJ_GC64", out errorText);
+
                 // We have to allocate literal string
                 if (sourceString.targetAddress == 0)
                 {
@@ -882,6 +950,10 @@ namespace LuaDkmDebuggerComponent
                 errorText = null;
                 return true;
             }
+
+            // TODO: add support
+            if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit && Schema.Luajit.fullPointer)
+                return Failed("Value update (pointer) is not supported with LJ_GC64", out errorText);
 
             // Other types are all pointers, but we need to get target pointer from all of them
             ulong targetAddress = 0;
