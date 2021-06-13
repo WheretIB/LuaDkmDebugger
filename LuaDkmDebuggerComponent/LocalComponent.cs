@@ -146,6 +146,8 @@ namespace LuaDkmDebuggerComponent
         public bool pendingBreakpointDocumentsReady = false;
         public HashSet<string> pendingBreakpointDocuments = new HashSet<string>();
 
+        public bool versionNotificationSent = false;
+
         public bool schemaLoadedLuajit = false;
 
         public Guid ljStackCacheInspectionContextGuid;
@@ -485,6 +487,8 @@ namespace LuaDkmDebuggerComponent
                     }
 
                     LuaHelpers.luaVersion = (int)version.GetValueOrDefault(501); // Lua 5.1 doesn't have version field
+
+                    SendVersionNotification(process, processData);
                 }
 
                 string GetLuaFunctionName(ulong currCallInfoAddress, ulong prevCallInfoAddress, ulong closureAddress)
@@ -1051,6 +1055,8 @@ namespace LuaDkmDebuggerComponent
                     return new DkmStackWalkFrame[1] { input };
 
                 LoadSchemaLuajit(processData, stackContext.InspectionSession, stackContext.Thread, input);
+
+                SendVersionNotification(process, processData);
 
                 // Invalidate cache
                 if (processData.ljStackCacheInspectionContextGuid != stackContext.InspectionSession.UniqueId)
@@ -2643,6 +2649,18 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
+        void SendStatusMessage(DkmProcess process, int id, string content)
+        {
+            StatusTextMessage statusTextMessage = new StatusTextMessage
+            {
+                id = id,
+                content = content
+            };
+
+            DkmCustomMessage msg = DkmCustomMessage.Create(process.Connection, process, Guid.Empty, MessageToVsService.setStatusText, statusTextMessage.Encode(), null);
+            msg.SendToVsService(Guids.luaVsPackageComponentGuid, false);
+        }
+
         void IDkmModuleInstanceLoadNotification.OnModuleInstanceLoad(DkmModuleInstance moduleInstance, DkmWorkList workList, DkmEventDescriptorS eventDescriptor)
         {
             log.Debug($"IDkmModuleInstanceLoadNotification.OnModuleInstanceLoad begin");
@@ -2667,6 +2685,14 @@ namespace LuaDkmDebuggerComponent
                 var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
 
                 var moduleName = nativeModuleInstance.FullName;
+
+                if (moduleName != null && moduleName.EndsWith(".exe"))
+                {
+                    SendStatusMessage(process, 1, $"Lua: ---");
+                    SendStatusMessage(process, 2, $"Attach: ---");
+
+                    processData.versionNotificationSent = false;
+                }
 
                 if (moduleName != null && (moduleName.EndsWith(".exe") || Path.GetFileName(moduleName).IndexOf("lua", StringComparison.InvariantCultureIgnoreCase) != -1) &&
                     processData.moduleWithLoadedLua == null)
@@ -2855,6 +2881,7 @@ namespace LuaDkmDebuggerComponent
 
                                 if (breakpointId.HasValue)
                                 {
+                                    SendStatusMessage(process, 2, $"Attach: waiting for initialization");
                                     log.Debug("Waiting for helper library initialization");
 
                                     processData.breakpointLuaHelperInitialized = breakpointId.Value;
@@ -2863,6 +2890,7 @@ namespace LuaDkmDebuggerComponent
                                 }
                                 else
                                 {
+                                    SendStatusMessage(process, 2, $"Attach: not initialized, failed to wait");
                                     log.Error("Failed to set breakpoint at 'OnLuaHelperInitialized'");
 
                                     processData.helperFailed = true;
@@ -2870,6 +2898,7 @@ namespace LuaDkmDebuggerComponent
                             }
                             else if (initialized.Value == 1)
                             {
+                                SendStatusMessage(process, 2, $"Attach: initialized");
                                 log.Debug("Helper has been initialized");
 
                                 processData.helperInitialized = true;
@@ -2894,11 +2923,13 @@ namespace LuaDkmDebuggerComponent
                         }
                         else
                         {
+                            SendStatusMessage(process, 2, $"Attach: failed to read initialization state");
                             processData.helperFailed = true;
                         }
                     }
                     else
                     {
+                        SendStatusMessage(process, 2, $"Attach: failed to find initializtion state");
                         log.Error("Failed to find 'luaHelperIsInitialized' in debug helper library");
 
                         processData.helperFailed = true;
@@ -3072,6 +3103,7 @@ namespace LuaDkmDebuggerComponent
 
                     if (!File.Exists(dllPathName))
                     {
+                        SendStatusMessage(process, 2, $"Attach: helper dll hasn't been found");
                         log.Warning("Helper dll hasn't been found");
                         return;
                     }
@@ -3089,6 +3121,7 @@ namespace LuaDkmDebuggerComponent
 
                         if (!File.Exists(exePathName))
                         {
+                            SendStatusMessage(process, 2, $"Attach: helper exe hasn't been found");
                             log.Error("Helper exe hasn't been found");
                             return;
                         }
@@ -3112,6 +3145,7 @@ namespace LuaDkmDebuggerComponent
 
                             if (attachProcess.ExitCode != 0)
                             {
+                                SendStatusMessage(process, 2, $"Attach: failed to start thread (x64) code {attachProcess.ExitCode}");
                                 log.Error($"Failed to start thread (x64) code {attachProcess.ExitCode}");
 
                                 string errors = attachProcess.StandardError.ReadToEnd();
@@ -3128,8 +3162,11 @@ namespace LuaDkmDebuggerComponent
                         }
                         catch (Exception e)
                         {
-                            log.Error("Failed to start atatcher process (x64) with " + e.Message);
+                            SendStatusMessage(process, 2, $"Attach: failed to start process (x64)");
+                            log.Error("Failed to start process (x64) with " + e.Message);
                         }
+
+                        SendStatusMessage(process, 2, $"Attach: injected (x64), waiting...");
                     }
                     else
                     {
@@ -3143,6 +3180,7 @@ namespace LuaDkmDebuggerComponent
 
                         if (processHandle == IntPtr.Zero)
                         {
+                            SendStatusMessage(process, 2, $"Attach: failed to open target process");
                             log.Error("Failed to open target process");
                             return;
                         }
@@ -3151,9 +3189,15 @@ namespace LuaDkmDebuggerComponent
 
                         if (threadHandle == IntPtr.Zero)
                         {
+                            SendStatusMessage(process, 2, $"Attach: failed to start thread (x86)");
                             log.Error("Failed to start thread (x86)");
                             return;
                         }
+
+                        if (errorCode != 0)
+                            SendStatusMessage(process, 2, $"Attach: injected (x86, thread may hang), waiting...");
+                        else
+                            SendStatusMessage(process, 2, $"Attach: injected (x86), waiting...");
                     }
 
                     processData.helperInjected = true;
@@ -3217,6 +3261,46 @@ namespace LuaDkmDebuggerComponent
             Schema.LuajitStateData.LoadSchema(inspectionSession, thread, frame);
 
             processData.schemaLoadedLuajit = true;
+        }
+
+        void SendVersionNotification(DkmProcess process, LuaLocalProcessData processData)
+        {
+            if (processData.versionNotificationSent)
+                return;
+
+            if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+            {
+                if (DebugHelpers.Is64Bit(process))
+                {
+                    if (Schema.Luajit.fullPointer)
+                    {
+                        SendStatusMessage(process, 1, $"Lua: created (LuaJIT x64 GC64)");
+                    }
+                    else
+                    {
+                        SendStatusMessage(process, 1, $"Lua: created (LuaJIT x64 GC32)");
+                    }
+                }
+                else
+                {
+                    SendStatusMessage(process, 1, $"Lua: created (LuaJIT x86)");
+                }
+            }
+            else
+            {
+                string arch = DebugHelpers.Is64Bit(process) ? "x64" : "x86";
+
+                if (LuaHelpers.luaVersion != 0)
+                {
+                    SendStatusMessage(process, 1, $"Lua: created ({LuaHelpers.luaVersion / 100}.0.{LuaHelpers.luaVersion % 10} {arch})");
+                }
+                else
+                {
+                    SendStatusMessage(process, 1, $"Lua: created (unknown {arch})");
+                }
+            }
+
+            processData.versionNotificationSent = true;
         }
 
         bool HasPendingBreakpoint(DkmProcess process, LuaLocalProcessData processData, string filePath)
@@ -3355,7 +3439,7 @@ namespace LuaDkmDebuggerComponent
 
                     if (processData.helperInjected && !processData.helperInitialized && !processData.helperFailed && !processData.helperInitializationWaitUsed)
                     {
-                        log.Debug("Helper was injected but hasn't been initialized, suspening thread");
+                        log.Debug("Helper was injected but hasn't been initialized, suspending thread");
 
                         Debug.Assert(thread != null);
 
@@ -3451,6 +3535,8 @@ namespace LuaDkmDebuggerComponent
                         log.Debug($"New Lua state 0x{stateAddress:x} version {version.GetValueOrDefault(501)}");
 
                         LuaHelpers.luaVersion = (int)version.GetValueOrDefault(501);
+
+                        SendVersionNotification(process, processData);
 
                         // Tell remote component about Lua version
                         DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.luaVersionInfo, LuaHelpers.luaVersion, null).SendLower();
@@ -3732,6 +3818,7 @@ namespace LuaDkmDebuggerComponent
                 }
                 else if (data.breakpointId == processData.breakpointLuaHelperInitialized)
                 {
+                    SendStatusMessage(process, 2, $"Attach: initialized");
                     log.Debug("Detected Helper initialization");
 
                     processData.helperInitializationWaitActive = false;

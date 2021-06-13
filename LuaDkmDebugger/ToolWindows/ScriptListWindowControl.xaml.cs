@@ -22,6 +22,9 @@ namespace LuaDkmDebugger.ToolWindows
             InitializeComponent();
 
             ScriptList.ItemsSource = _state.scripts;
+
+            StatusText1.Text = "Lua: ---";
+            StatusText2.Text = "Attach: ---";
         }
 
         private void ListViewItem_DoubleClick(object sender, RoutedEventArgs args)

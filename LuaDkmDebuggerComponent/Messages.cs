@@ -391,4 +391,26 @@ namespace LuaDkmDebuggerComponent
             }
         }
     }
+
+    public class StatusTextMessage
+    {
+        public int id;
+        public string content;
+
+        public byte[] Encode()
+        {
+            using (var stream = new MemoryStream())
+            {
+                using (var writer = new BinaryWriter(stream))
+                {
+                    writer.Write(id);
+                    writer.Write(content);
+
+                    writer.Flush();
+
+                    return stream.ToArray();
+                }
+            }
+        }
+    }
 }

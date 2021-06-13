@@ -50,5 +50,6 @@ namespace LuaDkmDebuggerComponent
     {
         public static readonly int reloadBreakpoints = 1;
         public static readonly int scriptLoad = 2;
+        public static readonly int setStatusText = 3;
     }
 }

@@ -464,6 +464,7 @@ namespace LuaDkmDebugger
         {
             public static readonly int reloadBreakpoints = 1;
             public static readonly int scriptLoad = 2;
+            public static readonly int setStatusText = 3;
         }
 
         private class ScriptLoadMessage
@@ -482,6 +483,26 @@ namespace LuaDkmDebugger
                         name = reader.ReadString();
                         path = reader.ReadString();
                         status = reader.ReadString();
+                        content = reader.ReadString();
+                    }
+                }
+
+                return true;
+            }
+        }
+
+        private class StatusTextMessage
+        {
+            public int id;
+            public string content;
+
+            public bool ReadFrom(byte[] data)
+            {
+                using (var stream = new MemoryStream(data))
+                {
+                    using (var reader = new BinaryReader(stream))
+                    {
+                        id = reader.ReadInt32();
                         content = reader.ReadString();
                     }
                 }
@@ -609,7 +630,35 @@ namespace LuaDkmDebugger
                 }
                 catch (Exception e)
                 {
-                    Debug.WriteLine("Failed to add script to the list" + e.Message);
+                    Debug.WriteLine("Failed to add script to the list with " + e.Message);
+                }
+            }
+            else if (message.MessageCode == MessageToVsService.setStatusText)
+            {
+                try
+                {
+                    StatusTextMessage statusTextMessage = new StatusTextMessage();
+
+                    statusTextMessage.ReadFrom(message.Parameter1 as byte[]);
+
+                    if (package.FindToolWindow(typeof(ScriptListWindow), 0, false) is ScriptListWindow scriptListWindow)
+                    {
+                        if (scriptListWindow.Content is ScriptListWindowControl scriptListWindowControl)
+                        {
+                            if (statusTextMessage.id == 1)
+                            {
+                                scriptListWindowControl.StatusText1.Text = statusTextMessage.content;
+                            }
+                            else if (statusTextMessage.id == 2)
+                            {
+                                scriptListWindowControl.StatusText2.Text = statusTextMessage.content;
+                            }
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    Debug.WriteLine("Failed to update status message with " + e.Message);
                 }
             }
 

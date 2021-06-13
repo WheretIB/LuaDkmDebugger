@@ -9,6 +9,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
+            <RowDefinition Height="20" />
         </Grid.RowDefinitions>
         <ListView Name="ScriptList" Grid.Row="0">
             <ListView.ItemContainerStyle>
@@ -24,5 +25,16 @@
                 </GridView>
             </ListView.View>
         </ListView>
+        <StatusBar Name="Status" Grid.Row="1" HorizontalAlignment="Left" VerticalAlignment="Top">
+            <StatusBarItem>
+                <TextBlock Name="StatusText1">Lua: ---</TextBlock>
+            </StatusBarItem>
+            <StatusBarItem>
+                <TextBlock>|</TextBlock>
+            </StatusBarItem>
+            <StatusBarItem>
+                <TextBlock Name="StatusText2">Attach: ---</TextBlock>
+            </StatusBarItem>
+        </StatusBar>
     </Grid>
 </UserControl>
