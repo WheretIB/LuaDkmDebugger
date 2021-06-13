@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.9.7] - 2021-06-14
+
+### Added
+
+- Experimental support for LuaJIT (2.0.5 x86/x64, 2.1.0 x86/x64). Limitations include:
+    - Scripts loaded from a file are not captured for breakpoint placement/stepping immediately
+    - Only writes to 'number' are supported with LUA_GC64
+    - Conditional breakpoints are not supported
+    - Only one global state is supported for breakpoints/stepping
+    - Breakpoints based on function name are not supported
+- Status bar for information about detected Lua library and helper attachment state
+
+### Changed
+
+- Fixed a case when failed helper attachment to x64 process could suspend thread indefinitely
+
 ## [0.9.6] - 2021-04-06
 
 ### Added
@@ -245,7 +261,31 @@
 
 ## Code changes
 
-[unreleased]https://github.com/olivierlacan/keep-a-changelog/compare/v0.8.0...HEAD
+[unreleased]https://github.com/olivierlacan/keep-a-changelog/compare/v0.9.7...HEAD
+
+[0.9.7]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.9.6...v0.9.7
+
+[0.9.6]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.9.5...v0.9.6
+
+[0.9.5]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.9.4...v0.9.5
+
+[0.9.4]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.9.3...v0.9.4
+
+[0.9.3]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.9.2...v0.9.3
+
+[0.9.2]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.9.1...v0.9.2
+
+[0.9.1]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.9.0...v0.9.1
+
+[0.9.0]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.8.8...v0.9.0
+
+[0.8.8]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.8.7...v0.8.8
+
+[0.8.7]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.8.2...v0.8.7
+
+[0.8.2]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.8.1...v0.8.2
+
+[0.8.1]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.8.0...v0.8.1
 
 [0.8.0]https://github.com/WheretIB/LuaDkmDebugger/compare/v0.7.7...v0.8.0
 
