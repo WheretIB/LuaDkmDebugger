@@ -179,6 +179,9 @@ namespace LuaDkmDebuggerComponent
 
         public bool hideTopLuaLibraryFrames = false;
         public bool hideInternalLuaLibraryFrames = false;
+
+        public bool hasPreparedStateAddress = false;
+        public ulong preparedStateAddress = 0;
     }
 
     internal class LuaFrameLocalsEnumData : DkmDataItem
@@ -1045,7 +1048,7 @@ namespace LuaDkmDebuggerComponent
                 return new DkmStackWalkFrame[1] { DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, flags, input.Description, input.Registers, input.Annotations) };
             }
 
-            // Luajit support for x86
+            // LuaJIT support
             if (methodName.StartsWith("_lj_") || methodName.StartsWith("lj_BC_") || methodName.StartsWith("lj_vm_inshook") || methodName.StartsWith("lj_vm_hotcall"))
             {
                 log.Verbose($"IDkmCallStackFilter.FilterNextFrame Found a Luajit frame");
@@ -1077,7 +1080,13 @@ namespace LuaDkmDebuggerComponent
                     return processData.ljStackCache[input.FrameBase].ToArray();
                 }
 
-                ulong? stateAddress = EvaluationHelpers.TryEvaluateAddressExpression(DebugHelpers.Is64Bit(process) ? $"@rbp" : $"@ebp", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
+                ulong? stateAddress = null;
+
+                if (stackContextData.preparedStateAddress != 0)
+                    stateAddress = stackContextData.preparedStateAddress;
+
+                if (!stateAddress.HasValue)
+                    stateAddress = EvaluationHelpers.TryEvaluateAddressExpression(DebugHelpers.Is64Bit(process) ? $"@rbp" : $"@ebp", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
 
                 if (!stateAddress.HasValue)
                     return new DkmStackWalkFrame[1] { input };
@@ -1272,9 +1281,19 @@ namespace LuaDkmDebuggerComponent
 
             if (stackContextData.hideTopLuaLibraryFrames && (methodName == "lj_dispatch_ins" || methodName == "lj_dispatch_call" || methodName == "lj_cf_error" || methodName.StartsWith("lj_err_") || methodName.StartsWith("lj_ffh_")) && !showHiddenFrames)
             {
-                var flags = (input.Flags & ~DkmStackWalkFrameFlags.UserStatusNotDetermined) | DkmStackWalkFrameFlags.NonuserCode | DkmStackWalkFrameFlags.Hidden;
+                if (!stackContextData.hasPreparedStateAddress)
+                {
+                    stackContextData.preparedStateAddress = EvaluationHelpers.TryEvaluateAddressExpression($"L", stackContext.InspectionSession, stackContext.Thread, input, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects).GetValueOrDefault(0);
 
-                return new DkmStackWalkFrame[1] { DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, flags, input.Description, input.Registers, input.Annotations) };
+                    stackContextData.hasPreparedStateAddress = true;
+                }
+
+                if (!showHiddenFrames)
+                {
+                    var flags = (input.Flags & ~DkmStackWalkFrameFlags.UserStatusNotDetermined) | DkmStackWalkFrameFlags.NonuserCode | DkmStackWalkFrameFlags.Hidden;
+
+                    return new DkmStackWalkFrame[1] { DkmStackWalkFrame.Create(stackContext.Thread, input.InstructionAddress, input.FrameBase, input.FrameSize, flags, input.Description, input.Registers, input.Annotations) };
+                }
             }
 
             return new DkmStackWalkFrame[1] { input };
