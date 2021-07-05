@@ -1207,10 +1207,12 @@ namespace LuaDkmDebuggerComponent
 
                                 string argumentList = "";
 
+                                int currentLine = debugData.currentLine == -1 ? debugData.definitionStartLine : debugData.currentLine;
+
                                 LuaAddressEntityData entityData = new LuaAddressEntityData
                                 {
                                     source = debugData.source,
-                                    line = debugData.currentLine,
+                                    line = currentLine,
 
                                     functionAddress = callLuaFunction != null ? callLuaFunction.value.functionAddress : 0,
                                     functionInstructionPointer = instructionPointer,
@@ -1228,7 +1230,7 @@ namespace LuaDkmDebuggerComponent
                                     functionAddress = callLuaFunction != null ? callLuaFunction.value.functionAddress : 0,
                                     functionName = debugData.name,
 
-                                    instructionLine = debugData.currentLine,
+                                    instructionLine = currentLine,
                                     instructionPointer = instructionPointer,
 
                                     source = debugData.source
