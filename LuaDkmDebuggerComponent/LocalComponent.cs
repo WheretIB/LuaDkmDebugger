@@ -1281,7 +1281,7 @@ namespace LuaDkmDebuggerComponent
                 return luaFrames.ToArray();
             }
 
-            if (stackContextData.hideTopLuaLibraryFrames && (methodName == "lj_dispatch_ins" || methodName == "lj_dispatch_call" || methodName == "lj_cf_error" || methodName.StartsWith("lj_err_") || methodName.StartsWith("lj_ffh_")) && !showHiddenFrames)
+            if (stackContextData.hideTopLuaLibraryFrames && (methodName == "lj_dispatch_ins" || methodName == "lj_dispatch_call" || methodName == "lj_cf_error" || methodName == "trace_state" || methodName.StartsWith("lj_err_") || methodName.StartsWith("lj_ffh_") || methodName.StartsWith("lj_trace_") || methodName.StartsWith("lj_record_")))
             {
                 if (!stackContextData.hasPreparedStateAddress)
                 {
