@@ -2980,6 +2980,13 @@ namespace LuaDkmDebuggerComponent
 
         public static ulong FindDebugFrame(DkmProcess process, LuajitStateData L, int level, out int frameSize, out int i_ci)
         {
+            if (L.baseAddress == 0 || L.stackAddress == 0)
+            {
+                frameSize = 0;
+                i_ci = 0;
+                return 0;
+            }
+
             ulong bottomAddress;
 
             if (Schema.Luajit.fullPointer)
