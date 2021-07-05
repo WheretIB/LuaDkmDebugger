@@ -366,6 +366,8 @@ namespace LuaDkmDebuggerComponent
                 {
                     if (userData.value.metaTable != null)
                         value = LookupTableMember(userData.value.metaTable, name);
+                    else
+                        return Report("Cannot evaluate metatable __index function");
                 }
 
                 if (value as LuaValueDataError != null)
