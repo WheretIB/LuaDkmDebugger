@@ -1402,7 +1402,7 @@ namespace LuaDkmDebuggerComponent
                 // If we have source data, write it to the temp directory and return it
                 if (content != null && content.Length != 0)
                 {
-                    string pattern = "[<>:\"/\\\\\\|\\?\\*]";
+                    string pattern = "[\\s<>:\"/\\\\\\|\\?\\*]";
                     string cleanPath = Regex.Replace(winSourcePath, pattern, "+");
                     string tempPath = $"{Path.GetTempPath()}{cleanPath}";
 
