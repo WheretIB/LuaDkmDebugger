@@ -3833,7 +3833,8 @@ namespace LuaDkmDebuggerComponent
 
                     processData.skipStateCreationRecovery = true;
 
-                    RegisterLuaStateCreation(process, processData, inspectionSession, thread, frame, stateAddress);
+                    if (stateAddress != 0)
+                        RegisterLuaStateCreation(process, processData, inspectionSession, thread, frame, stateAddress);
 
                     inspectionSession.Close();
                 }
