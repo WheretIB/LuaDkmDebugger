@@ -4133,9 +4133,13 @@ namespace LuaDkmDebuggerComponent
                         {
                             DebugHelpers.TryWriteUintVariable(process, processData.helperAsyncBreakCodeAddress, 2u);
 
-                            DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + 0 * 8, processData.luaSetHookAddress);
-                            DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + 1 * 8, states[0]);
-                            DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + 2 * 8, processData.helperHookFunctionAddress_luajit);
+                            uint index = 0;
+                            DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + index++ * 8, processData.luaSetHookAddress);
+                            DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + index++ * 8, processData.helperHookFunctionAddress_luajit);
+
+                            foreach (var state in states)
+                                DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + index++ * 8, state);
+                            DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + index++ * 8, 0);
                         }
                     }
                     else if (code == 3)
@@ -4153,9 +4157,13 @@ namespace LuaDkmDebuggerComponent
                         {
                             DebugHelpers.TryWriteUintVariable(process, processData.helperAsyncBreakCodeAddress, 4u);
 
-                            DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + 0 * 8, processData.luaSetHookAddress);
-                            DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + 1 * 8, states[0]);
-                            DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + 2 * 8, 0);
+                            uint index = 0;
+                            DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + index++ * 8, processData.luaSetHookAddress);
+                            DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + index++ * 8, 0);
+
+                            foreach (var state in states)
+                                DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + index++ * 8, state);
+                            DebugHelpers.TryWriteUlongVariable(process, processData.helperAsyncBreakDataAddress + index++ * 8, 0);
                         }
                     }
                     else

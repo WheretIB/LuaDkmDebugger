@@ -53,15 +53,17 @@ DWORD __stdcall BreakpointHookLoop(void *context)
 
             if(luaHelperAsyncBreakCode == 2)
             {
-                // lua_sethook
-                ((int(*)(void*, void*, int, int))luaHelperAsyncBreakData[0])((void*)luaHelperAsyncBreakData[1], (void*)luaHelperAsyncBreakData[2], 7, 0);
+                unsigned index = 2;
+                while(void* state = (void*)luaHelperAsyncBreakData[index++])
+                    ((int(*)(void*, void*, int, int))luaHelperAsyncBreakData[0])(state, (void*)luaHelperAsyncBreakData[1], 7, 0); // lua_sethook
                 luaHelperAsyncBreakCode = 0;
             }
 
             if(luaHelperAsyncBreakCode == 4)
             {
-                // lua_sethook
-                ((int(*)(void*, void*, int, int))luaHelperAsyncBreakData[0])((void*)luaHelperAsyncBreakData[1], NULL, 0, 0);
+                unsigned index = 2;
+                while (void* state = (void*)luaHelperAsyncBreakData[index++])
+                    ((int(*)(void*, void*, int, int))luaHelperAsyncBreakData[0])(state, (void*)luaHelperAsyncBreakData[1], 0, 0); // lua_sethook
                 luaHelperAsyncBreakCode = 0;
             }
 
