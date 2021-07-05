@@ -231,7 +231,7 @@ namespace LuaDkmDebuggerComponent
                         envIndex = i;
                 }
 
-                if (LuaHelpers.luaVersion == 501)
+                if (LuaHelpers.luaVersion == 501 || LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
                 {
                     var envTable = luaClosure.ReadEnvTable_5_1(process);
 
