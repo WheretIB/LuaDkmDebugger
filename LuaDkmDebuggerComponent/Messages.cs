@@ -292,6 +292,7 @@ namespace LuaDkmDebuggerComponent
         public ulong luaGetInfo = 0;
         public ulong luaGetStack = 0;
 
+        public ulong ljErrRun = 0;
         public ulong ljErrThrow = 0;
 
         public byte[] Encode()
@@ -323,6 +324,7 @@ namespace LuaDkmDebuggerComponent
                     writer.Write(luaSetHook);
                     writer.Write(luaGetInfo);
                     writer.Write(luaGetStack);
+                    writer.Write(ljErrRun);
                     writer.Write(ljErrThrow);
 
                     writer.Flush();
@@ -361,6 +363,7 @@ namespace LuaDkmDebuggerComponent
                     luaSetHook = reader.ReadUInt64();
                     luaGetInfo = reader.ReadUInt64();
                     luaGetStack = reader.ReadUInt64();
+                    ljErrRun = reader.ReadUInt64();
                     ljErrThrow = reader.ReadUInt64();
                 }
             }

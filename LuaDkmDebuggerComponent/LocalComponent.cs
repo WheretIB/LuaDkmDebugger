@@ -120,8 +120,6 @@ namespace LuaDkmDebuggerComponent
         public ulong breakpointLuaThrowAddress = 0;
         public DkmRuntimeInstructionBreakpoint breakpointLuaThrow;
 
-        public Guid breakpointLuaJitErrThrow;
-
         public Guid breakpointLuaHelperInitialized;
 
         public Guid breakpointLuaHelperBreakpointHit;
@@ -3175,8 +3173,10 @@ namespace LuaDkmDebuggerComponent
                             processData.luaGetInfoAddress = processData.luaLocations.luaGetInfo;
                             processData.luaGetStackAddress = processData.luaLocations.luaGetStack;
 
+                            processData.breakpointLuaRuntimeError = AttachmentHelpers.CreateTargetFunctionBreakpointAtAddress(process, processData.moduleWithLoadedLua, "lj_err_run", "LuaJIT runtime error", processData.luaLocations.ljErrRun).GetValueOrDefault(Guid.Empty);
+
                             processData.breakpointLuaThrowAddress = processData.luaLocations.ljErrThrow;
-                            processData.breakpointLuaJitErrThrow = AttachmentHelpers.CreateTargetFunctionBreakpointAtAddress(process, processData.moduleWithLoadedLua, "lj_err_throw", "LuaJIT error throw", processData.luaLocations.ljErrThrow).GetValueOrDefault(Guid.Empty);
+                            processData.breakpointLuaThrow = AttachmentHelpers.CreateTargetFunctionBreakpointObjectAtDebugStart(process, processData.moduleWithLoadedLua, "lj_err_throw", "LuaJIT error throw", out processData.breakpointLuaThrowAddress, false);
 
                             processData.breakpointLuaThreadCreateExternalStart = AttachmentHelpers.CreateTargetFunctionBreakpointAtAddress(process, processData.moduleWithLoadedLua, "luaL_newstate", "Lua thread creation (lib @ start)", processData.luaLocations.luaLibNewStateAtStart).GetValueOrDefault(Guid.Empty);
                             processData.breakpointLuaThreadCreateExternalEnd = AttachmentHelpers.CreateTargetFunctionBreakpointAtAddress(process, processData.moduleWithLoadedLua, "luaL_newstate", "Lua thread creation (lib @ end)", processData.luaLocations.luaLibNewStateAtEnd).GetValueOrDefault(Guid.Empty);
@@ -3190,8 +3190,10 @@ namespace LuaDkmDebuggerComponent
                             processData.luaGetInfoAddress = AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "lua_getinfo");
                             processData.luaGetStackAddress = AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "lua_getstack");
 
+                            processData.breakpointLuaRuntimeError = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "lj_err_run", "LuaJIT runtime error", out _).GetValueOrDefault(Guid.Empty);
+
                             processData.breakpointLuaThrowAddress = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(processData.moduleWithLoadedLua, "lj_err_throw", out string _).GetValueOrDefault(0);
-                            processData.breakpointLuaJitErrThrow = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "lj_err_throw", "LuaJIT error throw", out _).GetValueOrDefault(Guid.Empty);
+                            processData.breakpointLuaThrow = AttachmentHelpers.CreateTargetFunctionBreakpointObjectAtDebugStart(process, processData.moduleWithLoadedLua, "lj_err_throw", "LuaJIT error throw", out processData.breakpointLuaThrowAddress, false);
 
                             processData.breakpointLuaThreadCreateExternalStart = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_newstate", "Lua thread creation (lib @ start)", out _).GetValueOrDefault(Guid.Empty);
                             processData.breakpointLuaThreadCreateExternalEnd = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugEnd(process, processData.moduleWithLoadedLua, "luaL_newstate", "Lua thread creation (lib @ end)", out _).GetValueOrDefault(Guid.Empty);
@@ -4159,30 +4161,6 @@ namespace LuaDkmDebuggerComponent
                     else
                     {
                         log.Error("Unknown async break code");
-                    }
-                }
-                else if (data.breakpointId == processData.breakpointLuaJitErrThrow)
-                {
-                    log.Debug("Detected LuaJIT exception throw");
-
-                    var inspectionSession = EvaluationHelpers.CreateInspectionSession(process, thread, data, out DkmStackWalkFrame frame);
-
-                    ulong? messageAddress = EvaluationHelpers.TryEvaluateAddressExpression($"L->top", inspectionSession, thread, frame, DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects);
-
-                    if (messageAddress.HasValue)
-                    {
-                        var value = LuaHelpers.ReadValue(process, messageAddress.Value);
-
-                        if (value != null)
-                        {
-                            var description = value.AsSimpleDisplayString(10);
-
-                            return DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.throwException, Encoding.UTF8.GetBytes(description), null);
-                        }
-                        else
-                        {
-                            log.Error("Failed to get LuaJIT error message");
-                        }
                     }
                 }
                 else

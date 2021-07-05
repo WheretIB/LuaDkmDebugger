@@ -71,6 +71,7 @@ namespace LuaDkmDebuggerComponent
                         locations.luaGetInfo = AttachmentHelpers.TryGetFunctionAddress(nativeModuleInstance, "lua_getinfo", out _).GetValueOrDefault(0);
                         locations.luaGetStack = AttachmentHelpers.TryGetFunctionAddress(nativeModuleInstance, "lua_getstack", out _).GetValueOrDefault(0);
 
+                        locations.ljErrRun = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, "lj_err_run", out _).GetValueOrDefault(0);
                         locations.ljErrThrow = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, "lj_err_throw", out _).GetValueOrDefault(0);
                     }
 
