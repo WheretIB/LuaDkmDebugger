@@ -2950,6 +2950,12 @@ namespace LuaDkmDebuggerComponent
                         processData.helperStartAddress = nativeModuleInstance.BaseAddress;
                         processData.helperEndAddress = processData.helperStartAddress + nativeModuleInstance.Size;
 
+                        if (processData.helperLuajitGetInfoAddress != 0 && processData.luaGetInfoAddress != 0)
+                            DebugHelpers.TryWriteUlongVariable(process, processData.helperLuajitGetInfoAddress, processData.luaGetInfoAddress);
+
+                        if (processData.helperLuajitGetStackAddress != 0 && processData.luaGetStackAddress != 0)
+                            DebugHelpers.TryWriteUlongVariable(process, processData.helperLuajitGetStackAddress, processData.luaGetStackAddress);
+
                         // Tell remote component about helper library locations
                         var data = new HelperLocationsMessage
                         {
