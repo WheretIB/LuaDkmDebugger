@@ -390,9 +390,26 @@ namespace LuaDkmDebugger
 
                     int localPosition = extentSpan.Start.Position - lineStartPosition;
 
-                    while (localPosition > 1 && (lineText[localPosition - 1] == '.' || lineText[localPosition - 1] == ':'))
+                    while (localPosition > 1 && (lineText[localPosition - 1] == '.' || lineText[localPosition - 1] == ':' || lineText[localPosition - 1] == ']'))
                     {
-                        TextExtent leftExtent = textStructureNavigator.GetExtentOfWord(new SnapshotPoint(textBuffer.CurrentSnapshot, lineStartPosition + localPosition - 2));
+                        // Handle indexing (count matching parenthesis)
+                        if (lineText[localPosition - 1] == ']')
+                        {
+                            localPosition--;
+                            int depth = 1;
+
+                            while (localPosition > 1 && depth > 0)
+                            {
+                                if (lineText[localPosition - 1] == '[')
+                                    depth--;
+                                else if (lineText[localPosition - 1] == ']')
+                                    depth++;
+
+                                localPosition--;
+                            }
+                        }
+
+                        TextExtent leftExtent = textStructureNavigator.GetExtentOfWord(new SnapshotPoint(textBuffer.CurrentSnapshot, lineStartPosition + localPosition - 1));
                         SnapshotSpan leftExtentSpan = leftExtent.Span;
 
                         if (leftExtentSpan.Start.Position >= lineStartPosition)
