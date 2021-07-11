@@ -1117,7 +1117,10 @@ namespace LuaDkmDebuggerComponent
                 int frameNum = 0;
                 ulong frameAddress = LuajitHelpers.FindDebugFrame(process, luajitStateData, frameNum, out int frameSize, out int debugFrameIndex);
 
-                while (frameAddress != 0)
+                var startTime = DateTime.Now.Ticks / 10000.0;
+                bool timeout = false;
+
+                while (frameAddress != 0 && !timeout)
                 {
                     ulong functionAddress = Schema.Luajit.fullPointer ? frameAddress - LuaHelpers.GetValueSize(process) : frameAddress;
 
@@ -1259,6 +1262,8 @@ namespace LuaDkmDebuggerComponent
                     frameNum++;
 
                     frameAddress = LuajitHelpers.FindDebugFrame(process, luajitStateData, frameNum, out frameSize, out debugFrameIndex);
+
+                    timeout = DateTime.Now.Ticks / 10000.0 - startTime > 1000.0;
                 }
 
                 if (!stackContextData.hideInternalLuaLibraryFrames)
