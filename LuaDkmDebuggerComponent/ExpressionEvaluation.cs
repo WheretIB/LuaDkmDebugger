@@ -25,6 +25,7 @@ namespace LuaDkmDebuggerComponent
 
         private string expression;
         private int pos = 0;
+        private bool allowSideEffects = false;
 
         public void SkipSpace()
         {
@@ -139,7 +140,44 @@ namespace LuaDkmDebuggerComponent
             return null;
         }
 
-        public LuaValueDataBase LookupTableMember(LuaTableData table, string name)
+        public LuaValueDataBase LookupMetaTableIndex(LuaValueDataTable tableValue, LuaTableData table, LuaValueDataBase index)
+        {
+            foreach (var element in table.GetMetaTableKeys(process))
+            {
+                var keyAsString = element.LoadKey(process) as LuaValueDataString;
+
+                if (keyAsString == null)
+                    continue;
+
+                if (keyAsString.value == "__index")
+                {
+                    var indexMetaTableValue = element.LoadValue(process);
+
+                    if (indexMetaTableValue is LuaValueDataTable indexMetaTableValueTable)
+                    {
+                        return LookupTableElement(indexMetaTableValueTable, index);
+                    }
+                    else if (indexMetaTableValue is LuaValueDataLuaFunction indexMetaTableValueLuaFunction)
+                    {
+                        if (tableValue != null)
+                            return EvaluateCall(new LuaValueDataBase[] { indexMetaTableValueLuaFunction, tableValue, index });
+                        else
+                            return Report("Cannot evaluate __index Lua function");
+                    }
+                    else if (indexMetaTableValue is LuaValueDataExternalClosure indexMetaTableValueExternalClosure)
+                    {
+                        if (tableValue != null)
+                            return EvaluateCall(new LuaValueDataBase[] { indexMetaTableValueExternalClosure, tableValue, index });
+                        else
+                            return Report("Cannot evaluate __index C closure");
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        public LuaValueDataBase LookupTableMember(LuaValueDataTable tableValue, LuaTableData table, string name)
         {
             if (process == null)
                 return Report("Can't load table - process memory is not available");
@@ -157,24 +195,65 @@ namespace LuaDkmDebuggerComponent
 
             if (table.HasMetaTable())
             {
-                foreach (var element in table.GetMetaTableKeys(process))
+                LuaValueDataBase result = LookupMetaTableIndex(tableValue, table, new LuaValueDataString(name));
+
+                if (result != null)
+                    return result;
+            }
+
+            return Report($"Failed to find key '{name}' in table");
+        }
+
+        public LuaValueDataBase LookupTableElement(LuaValueDataTable table, LuaValueDataBase index)
+        {
+            var indexAsNumber = index as LuaValueDataNumber;
+
+            if (indexAsNumber != null && indexAsNumber.extendedType == LuaHelpers.GetIntegerNumberExtendedType())
+            {
+                int result = (int)indexAsNumber.value;
+
+                if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
                 {
-                    var keyAsString = element.LoadKey(process) as LuaValueDataString;
-
-                    if (keyAsString == null)
-                        continue;
-
-                    if (keyAsString.value == "__index")
+                    if (result >= 0 && result < table.value.GetArrayElementCount(process))
                     {
-                        var indexMetaTableValue = element.LoadValue(process);
+                        var arrayElements = table.value.GetArrayElements(process);
 
-                        if (indexMetaTableValue is LuaValueDataTable indexMetaTableValueTable)
-                            return LookupTableMember(indexMetaTableValueTable.value, name);
+                        return arrayElements[result];
+                    }
+                }
+                else
+                {
+                    if (result > 0 && result - 1 < table.value.GetArrayElementCount(process))
+                    {
+                        var arrayElements = table.value.GetArrayElements(process);
+
+                        return arrayElements[result - 1];
                     }
                 }
             }
 
-            return Report($"Failed to find key '{name}' in table");
+            foreach (var element in table.value.GetNodeKeys(process))
+            {
+                var elementKey = element.LoadKey(process, table.value.batchNodeElementData);
+
+                if (elementKey.GetType() != index.GetType())
+                    continue;
+
+                if (elementKey.LuaCompare(index))
+                {
+                    return element.LoadValue(process, table.value.batchNodeElementData);
+                }
+            }
+
+            if (table.value.HasMetaTable())
+            {
+                LuaValueDataBase result = LookupMetaTableIndex(table, table.value, index);
+
+                if (result != null)
+                    return result;
+            }
+
+            return Report($"Failed to find key '{index.AsSimpleDisplayString(10)}' in table");
         }
 
         public LuaValueDataBase LookupTableValueMember(LuaValueDataBase value, string name)
@@ -184,7 +263,7 @@ namespace LuaDkmDebuggerComponent
             if (table == null)
                 return Report("Value is not a table");
 
-            return LookupTableMember(table.value, name);
+            return LookupTableMember(table, table.value, name);
         }
 
         public LuaValueDataBase LookupVariable(string name)
@@ -238,7 +317,7 @@ namespace LuaDkmDebuggerComponent
                     if (envTable == null)
                         return Report($"Failed to read environment value");
 
-                    var value = LookupTableMember(envTable, name);
+                    var value = LookupTableMember(null, envTable, name);
 
                     if (value as LuaValueDataError == null)
                         return value;
@@ -262,6 +341,89 @@ namespace LuaDkmDebuggerComponent
             }
 
             return Report($"Failed to find variable '{name}'");
+        }
+
+        public LuaValueDataBase EvaluateCall(LuaValueDataBase[] args)
+        {
+            if (!allowSideEffects)
+            {
+                var error = Report("Expression might have side-effects");
+
+                error.evaluationFlags |= DkmEvaluationResultFlags.UnflushedSideEffects;
+
+                return error;
+            }
+
+            if (process == null)
+                return Report($"Can't evaluate function - process memory is not available");
+
+            var processData = DebugHelpers.GetOrCreateDataItem<LuaLocalProcessData>(process);
+
+            var parentFrameData = stackFrame.Data.GetDataItem<LuaStackWalkFrameParentData>();
+
+            if (parentFrameData == null)
+                return Report($"Can't evaluate function - evaluation frame not available");
+
+            ulong stateAddress = parentFrameData.stateAddress;
+
+            if (stateAddress == 0)
+                return Report($"Can't evaluate function - context is not available");
+
+            DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.pauseBreakpoints, null, null).SendLower();
+
+            ulong topAddress = EvaluationHelpers.TryEvaluateAddressExpression($"&((lua_State*){stateAddress})->top", inspectionSession, stackFrame.Thread, parentFrameData.originalFrame, DkmEvaluationFlags.None).GetValueOrDefault(0);
+
+            if (topAddress == 0)
+                return Report($"Can't evaluate function - can't get frame top");
+
+            ulong top = DebugHelpers.ReadPointerVariable(process, topAddress).GetValueOrDefault(0);
+            ulong originalTop = top;
+
+            if (top == 0)
+                return Report($"Can't evaluate function - can't read frame top");
+
+            for (int i = 0; i < args.Length; i++)
+            {
+                LuaValueDataBase arg = args[i];
+
+                LuaHelpers.GetValueAddressParts(process, top + (ulong)i * LuaHelpers.GetValueSize(process), out ulong tagAddress, out ulong valueAddress);
+
+                if (!LuaHelpers.TryWriteValue(process, stackFrame, inspectionSession, tagAddress, valueAddress, arg, out string errorText))
+                {
+                    DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.resumeBreakpoints, null, null).SendLower();
+
+                    return Report($"Can't evaluate function - {errorText}");
+                }
+            }
+
+            DebugHelpers.TryWritePointerVariable(process, topAddress, top + (ulong)args.Length * LuaHelpers.GetValueSize(process));
+
+            long? status = null;
+
+            if (processData.luaPcallAddress != 0)
+            {
+                status = EvaluationHelpers.TryEvaluateNumberExpression($"((int(*)(void*,int,int,int)){processData.luaPcallAddress})({stateAddress}, {args.Length - 1}, 1, 0)", inspectionSession, stackFrame.Thread, parentFrameData.originalFrame, DkmEvaluationFlags.ForceRealFuncEval);
+            }
+            else if (processData.luaPcallkAddress != 0)
+            {
+                status = EvaluationHelpers.TryEvaluateNumberExpression($"((int(*)(void*,int,int,int,int,void*)){processData.luaPcallkAddress})({stateAddress}, {args.Length - 1}, 1, 0, 0, 0)", inspectionSession, stackFrame.Thread, parentFrameData.originalFrame, DkmEvaluationFlags.None);
+            }
+
+            DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.resumeBreakpoints, null, null).SendLower();
+
+            if (!status.HasValue)
+                return Report($"Can't evaluate function - failed");
+
+            var result = LuaHelpers.ReadValue(process, originalTop);
+
+            DebugHelpers.TryWritePointerVariable(process, topAddress, originalTop);
+
+            if (result == null)
+                return Report($"Can't evaluate function - failed to read result");
+
+            result.evaluationFlags |= DkmEvaluationResultFlags.SideEffect;
+
+            return result;
         }
 
         public string TryParseIdentifier()
@@ -360,14 +522,38 @@ namespace LuaDkmDebuggerComponent
 
                 if (value is LuaValueDataTable table)
                 {
-                    value = LookupTableMember(table.value, name);
+                    value = LookupTableMember(table, table.value, name);
                 }
                 else if (value is LuaValueDataUserData userData)
                 {
-                    if (userData.value.metaTable != null)
-                        value = LookupTableMember(userData.value.metaTable, name);
+                    LuaTableData metaTable = userData.value.LoadMetaTable(process);
+
+                    if (metaTable != null)
+                    {
+                        value = LookupTableMember(null, metaTable, name);
+
+                        if (value as LuaValueDataError != null)
+                        {
+                            var indexMetaTableValue = LookupTableMember(null, metaTable, "__index");
+
+                            if (indexMetaTableValue is LuaValueDataTable indexMetaTableValueTable)
+                            {
+                                value = LookupTableMember(indexMetaTableValueTable, indexMetaTableValueTable.value, name);
+                            }
+                            else if (indexMetaTableValue is LuaValueDataLuaFunction indexMetaTableValueLuaFunction)
+                            {
+                                value = EvaluateCall(new LuaValueDataBase[]{ indexMetaTableValueLuaFunction, userData, new LuaValueDataString(name) });
+                            }
+                            else if (indexMetaTableValue is LuaValueDataExternalClosure indexMetaTableValueExternalClosure)
+                            {
+                                value = EvaluateCall(new LuaValueDataBase[]{ indexMetaTableValueExternalClosure, userData, new LuaValueDataString(name) });
+                            }
+                        }
+                    }
                     else
-                        return Report("Cannot evaluate metatable __index function");
+                    {
+                        return Report("Cannot find userdata metatable");
+                    }
                 }
 
                 if (value as LuaValueDataError != null)
@@ -394,47 +580,12 @@ namespace LuaDkmDebuggerComponent
                 if (process == null)
                     return Report("Can't load table - process memory is not available");
 
-                // Check array index
-                var indexAsNumber = index as LuaValueDataNumber;
+                value = LookupTableElement(table, index);
 
-                if (indexAsNumber != null && indexAsNumber.extendedType == LuaHelpers.GetIntegerNumberExtendedType())
-                {
-                    int result = (int)indexAsNumber.value;
+                if (value as LuaValueDataError != null)
+                    return value;
 
-                    if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
-                    {
-                        if (result >= 0 && result < table.value.GetArrayElementCount(process))
-                        {
-                            var arrayElements = table.value.GetArrayElements(process);
-
-                            return EvaluatePostExpressions(arrayElements[result]);
-                        }
-                    }
-                    else
-                    {
-                        if (result > 0 && result - 1 < table.value.GetArrayElementCount(process))
-                        {
-                            var arrayElements = table.value.GetArrayElements(process);
-
-                            return EvaluatePostExpressions(arrayElements[result - 1]);
-                        }
-                    }
-                }
-
-                foreach (var element in table.value.GetNodeKeys(process))
-                {
-                    var elementKey = element.LoadKey(process, table.value.batchNodeElementData);
-
-                    if (elementKey.GetType() != index.GetType())
-                        continue;
-
-                    if (elementKey.LuaCompare(index))
-                    {
-                        return EvaluatePostExpressions(element.LoadValue(process, table.value.batchNodeElementData));
-                    }
-                }
-
-                return Report($"Failed to find key '{index.AsSimpleDisplayString(10)}' in table");
+                return EvaluatePostExpressions(value);
             }
 
             return value;
@@ -851,7 +1002,7 @@ namespace LuaDkmDebuggerComponent
             return lhs;
         }
 
-        public LuaValueDataBase EvaluateAssignment(bool allowSideEffects)
+        public LuaValueDataBase EvaluateAssignment()
         {
             LuaValueDataBase lhs = EvaluateOr();
 
@@ -893,8 +1044,9 @@ namespace LuaDkmDebuggerComponent
         {
             this.expression = expression;
             this.pos = 0;
+            this.allowSideEffects = allowSideEffects;
 
-            LuaValueDataBase value = EvaluateAssignment(allowSideEffects);
+            LuaValueDataBase value = EvaluateAssignment();
 
             if (value as LuaValueDataError != null)
                 return value;

@@ -149,6 +149,34 @@ namespace LuaDkmDebuggerComponent
             return LuaHelpers.luaVersion == 503 || LuaHelpers.luaVersion == 504;
         }
 
+        internal static void GetValueAddressParts(DkmProcess process, ulong address, out ulong tagAddress, out ulong valueAddress)
+        {
+            valueAddress = address;
+
+            if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+            {
+                if (Schema.Luajit.fullPointer)
+                    tagAddress = address;
+                else
+                    tagAddress = address + 4;
+            }
+            else if (Schema.LuaValueData.available)
+            {
+                tagAddress = address + Schema.LuaValueData.typeAddress.GetValueOrDefault(0);
+                valueAddress = address + Schema.LuaValueData.valueAddress.GetValueOrDefault(0);
+            }
+            else if (luaVersion == 502 && !DebugHelpers.Is64Bit(process))
+            {
+                tagAddress = address + (ulong)DebugHelpers.GetPointerSize(process);
+            }
+            else
+            {
+                // Same in Lua 5.1, 5.3 and 5.4
+                // struct { Value value_; int tt_; }
+                tagAddress = address + 8;
+            }
+        }
+
         internal static int? ReadTypeTag(DkmProcess process, ulong address, out ulong tagAddress, out ulong valueAddress, BatchRead batch = null)
         {
             int? typeTag;

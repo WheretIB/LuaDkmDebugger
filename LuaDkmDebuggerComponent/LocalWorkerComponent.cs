@@ -59,6 +59,9 @@ namespace LuaDkmDebuggerComponent
                     locations.luaRunError = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, "luaG_runerror", out _).GetValueOrDefault(0);
                     locations.luaThrow = AttachmentHelpers.TryGetFunctionAddressAtDebugStart(nativeModuleInstance, "luaD_throw", out _).GetValueOrDefault(0);
 
+                    locations.luaPcall = AttachmentHelpers.TryGetFunctionAddress(nativeModuleInstance, "lua_pcall", out _).GetValueOrDefault(0);
+                    locations.luaPcallk = AttachmentHelpers.TryGetFunctionAddress(nativeModuleInstance, "lua_pcallk", out _).GetValueOrDefault(0);
+
                     // Check if it's luajit
                     locations.ljSetMode = AttachmentHelpers.TryGetFunctionAddress(nativeModuleInstance, "luaJIT_setmode", out _).GetValueOrDefault(0);
 

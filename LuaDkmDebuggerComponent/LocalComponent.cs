@@ -134,6 +134,8 @@ namespace LuaDkmDebuggerComponent
         public ulong executionStartAddress = 0;
         public ulong executionEndAddress = 0;
 
+        public ulong luaPcallAddress = 0;
+        public ulong luaPcallkAddress = 0;
         public ulong luaSetHookAddress = 0;
         public ulong luaGetInfoAddress = 0;
         public ulong luaGetStackAddress = 0;
@@ -2826,13 +2828,6 @@ namespace LuaDkmDebuggerComponent
                         return;
                     }
 
-                    if (!attachOnLaunch)
-                    {
-                        log.Warning("Lua attach on launch is disabled, skip search for Lua");
-
-                        return;
-                    }
-
                     log.Debug("Check if Lua library is loaded");
 
                     DkmCustomMessage luaLocations = null;
@@ -3083,6 +3078,32 @@ namespace LuaDkmDebuggerComponent
 
                     processData.helperInjectRequested = true;
 
+                    if (processData.luaLocations != null)
+                    {
+                        processData.luaPcallAddress = processData.luaLocations.luaPcall;
+                        processData.luaPcallkAddress = processData.luaLocations.luaPcallk;
+                    }
+                    else
+                    {
+                        processData.luaPcallAddress = AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "lua_pcall");
+                        processData.luaPcallkAddress = AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "lua_pcallk"); // Lua just can't keep real functions
+                    }
+
+                    // Check for luajit
+                    ulong ljSetMode = processData.luaLocations != null ? processData.luaLocations.ljSetMode : AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "luaJIT_setmode");
+
+                    if (ljSetMode != 0)
+                    {
+                        LuaHelpers.luaVersion = LuaHelpers.luaVersionLuajit;
+                    }
+                    
+                    if (!attachOnLaunch)
+                    {
+                        log.Warning("Lua attach on launch is disabled, skip breakpoint setup");
+
+                        return;
+                    }
+
                     // Track Lua state initialization (breakpoint at the start of the function)
                     if (processData.luaLocations != null)
                     {
@@ -3188,9 +3209,6 @@ namespace LuaDkmDebuggerComponent
                         processData.breakpointLuaThrow = AttachmentHelpers.CreateTargetFunctionBreakpointObjectAtDebugStart(process, processData.moduleWithLoadedLua, "luaD_throw", "Lua script error", out processData.breakpointLuaThrowAddress, false);
                     }
 
-                    // Check for luajit
-                    ulong ljSetMode = processData.luaLocations != null ? processData.luaLocations.ljSetMode : AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "luaJIT_setmode");
-
                     // Load luajit functions
                     if (ljSetMode != 0)
                     {
@@ -3228,8 +3246,6 @@ namespace LuaDkmDebuggerComponent
                             processData.breakpointLuaBufferLoadedExternalStart = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugStart(process, processData.moduleWithLoadedLua, "luaL_loadbuffer", "Lua buffer load (outer @ start)", out _).GetValueOrDefault(Guid.Empty);
                             processData.breakpointLuaBufferLoadedExternalEnd = AttachmentHelpers.CreateTargetFunctionBreakpointAtDebugEnd(process, processData.moduleWithLoadedLua, "luaL_loadbuffer", "Lua buffer load (outer @ end)", out _).GetValueOrDefault(Guid.Empty);
                         }
-
-                        LuaHelpers.luaVersion = LuaHelpers.luaVersionLuajit;
                     }
 
                     string assemblyFolder = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);

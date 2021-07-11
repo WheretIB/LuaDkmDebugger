@@ -282,6 +282,9 @@ namespace LuaDkmDebuggerComponent
         public ulong luaRunError = 0;
         public ulong luaThrow = 0;
 
+        public ulong luaPcall = 0;
+        public ulong luaPcallk = 0;
+
         // For luajit
         public ulong ljSetMode = 0;
 
@@ -317,6 +320,8 @@ namespace LuaDkmDebuggerComponent
                     writer.Write(luaError);
                     writer.Write(luaRunError);
                     writer.Write(luaThrow);
+                    writer.Write(luaPcall);
+                    writer.Write(luaPcallk);
 
                     writer.Write(ljSetMode);
                     writer.Write(luaLibNewStateAtStart);
@@ -356,6 +361,8 @@ namespace LuaDkmDebuggerComponent
                     luaError = reader.ReadUInt64();
                     luaRunError = reader.ReadUInt64();
                     luaThrow = reader.ReadUInt64();
+                    luaPcall = reader.ReadUInt64();
+                    luaPcallk = reader.ReadUInt64();
 
                     ljSetMode = reader.ReadUInt64();
                     luaLibNewStateAtStart = reader.ReadUInt64();
