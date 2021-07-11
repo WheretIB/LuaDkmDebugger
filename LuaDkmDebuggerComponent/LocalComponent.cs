@@ -2892,7 +2892,7 @@ namespace LuaDkmDebuggerComponent
                 {
                     log.Debug("Found kernel32 library");
 
-                    processData.loadLibraryAddress = DebugHelpers.FindFunctionAddress(process.GetNativeRuntimeInstance(), "LoadLibraryA");
+                    processData.loadLibraryAddress = DebugHelpers.FindFunctionAddress(process.GetNativeRuntimeInstance(), "LoadLibraryW");
                 }
 
                 if (nativeModuleInstance.FullName != null && (nativeModuleInstance.FullName.EndsWith("LuaDebugHelper_x86.dll") || nativeModuleInstance.FullName.EndsWith("LuaDebugHelper_x64.dll")))
@@ -3267,10 +3267,10 @@ namespace LuaDkmDebuggerComponent
 
                     var dllNameAddress = process.AllocateVirtualMemory(0ul, 4096, 0x3000, 0x04);
 
-                    byte[] bytes = Encoding.ASCII.GetBytes(dllPathName);
+                    byte[] bytes = Encoding.Unicode.GetBytes(dllPathName);
 
                     process.WriteMemory(dllNameAddress, bytes);
-                    process.WriteMemory(dllNameAddress + (ulong)bytes.Length, new byte[1] { 0 });
+                    process.WriteMemory(dllNameAddress + (ulong)bytes.Length, new byte[2] { 0, 0 });
 
                     if (DebugHelpers.Is64Bit(process))
                     {
