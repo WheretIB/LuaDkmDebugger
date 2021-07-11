@@ -72,7 +72,7 @@ DWORD __stdcall BreakpointHookLoop(void *context)
                 break;
         }
 
-        Sleep(100);
+        Sleep(40);
     }
 
     return 0;
