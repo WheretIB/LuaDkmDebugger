@@ -2430,15 +2430,15 @@ namespace LuaDkmDebuggerComponent
 
                     var frame = parentFrameData.originalFrame;
 
-                    ulong? registryAddress = EvaluationHelpers.TryEvaluateAddressExpression($"luaS_newlstr({parentFrameData.stateAddress}, {processData.scratchMemory}, {data.Length})", result.InspectionSession, frame.Thread, frame, DkmEvaluationFlags.None);
+                    ulong? stringAddress = EvaluationHelpers.TryEvaluateAddressExpression($"luaS_newlstr({parentFrameData.stateAddress}, {processData.scratchMemory}, {data.Length})", result.InspectionSession, frame.Thread, frame, DkmEvaluationFlags.None);
 
-                    if (!registryAddress.HasValue)
+                    if (!stringAddress.HasValue)
                     {
                         errorText = "Failed to create Lua string value";
                         return;
                     }
 
-                    if (!DebugHelpers.TryWritePointerVariable(process, evalData.luaValueData.originalAddress, registryAddress.Value))
+                    if (!DebugHelpers.TryWritePointerVariable(process, evalData.luaValueData.originalAddress, stringAddress.Value))
                         errorText = "Failed to modify target process memory";
                     else
                         errorText = null;
@@ -4177,7 +4177,6 @@ namespace LuaDkmDebuggerComponent
                                 states.Add(state.Key);
                         }
 
-                        // TODO: all states
                         if (states.Count > 0)
                         {
                             DebugHelpers.TryWriteUintVariable(process, processData.helperAsyncBreakCodeAddress, 2u);
@@ -4201,7 +4200,6 @@ namespace LuaDkmDebuggerComponent
                                 states.Add(state.Key);
                         }
 
-                        // TODO: all states
                         if (states.Count > 0)
                         {
                             DebugHelpers.TryWriteUintVariable(process, processData.helperAsyncBreakCodeAddress, 4u);
