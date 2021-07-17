@@ -530,24 +530,19 @@ namespace LuaDkmDebuggerComponent
 
                     if (metaTable != null)
                     {
-                        value = LookupTableMember(null, metaTable, name);
+                        var indexMetaTableValue = LookupTableMember(null, metaTable, "__index");
 
-                        if (value as LuaValueDataError != null)
+                        if (indexMetaTableValue is LuaValueDataTable indexMetaTableValueTable)
                         {
-                            var indexMetaTableValue = LookupTableMember(null, metaTable, "__index");
-
-                            if (indexMetaTableValue is LuaValueDataTable indexMetaTableValueTable)
-                            {
-                                value = LookupTableMember(indexMetaTableValueTable, indexMetaTableValueTable.value, name);
-                            }
-                            else if (indexMetaTableValue is LuaValueDataLuaFunction indexMetaTableValueLuaFunction)
-                            {
-                                value = EvaluateCall(new LuaValueDataBase[]{ indexMetaTableValueLuaFunction, userData, new LuaValueDataString(name) });
-                            }
-                            else if (indexMetaTableValue is LuaValueDataExternalClosure indexMetaTableValueExternalClosure)
-                            {
-                                value = EvaluateCall(new LuaValueDataBase[]{ indexMetaTableValueExternalClosure, userData, new LuaValueDataString(name) });
-                            }
+                            value = LookupTableMember(indexMetaTableValueTable, indexMetaTableValueTable.value, name);
+                        }
+                        else if (indexMetaTableValue is LuaValueDataLuaFunction indexMetaTableValueLuaFunction)
+                        {
+                            value = EvaluateCall(new LuaValueDataBase[]{ indexMetaTableValueLuaFunction, userData, new LuaValueDataString(name) });
+                        }
+                        else if (indexMetaTableValue is LuaValueDataExternalClosure indexMetaTableValueExternalClosure)
+                        {
+                            value = EvaluateCall(new LuaValueDataBase[]{ indexMetaTableValueExternalClosure, userData, new LuaValueDataString(name) });
                         }
                     }
                     else
