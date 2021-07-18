@@ -896,7 +896,7 @@ namespace LuaDkmDebuggerComponent
                 }
                 else
                 {
-                    if (LuaHelpers.luaVersion == 504)
+                    if (LuaHelpers.luaVersion == 504 || LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
                     {
                         if (!WriteTypeTag(process, tagAddress, (int)(sourceBool.value ? LuaExtendedType.BooleanTrue : LuaExtendedType.Boolean)))
                             return Failed("Failed to modify target process memory (tag)", out errorText);
