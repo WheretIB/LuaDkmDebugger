@@ -407,7 +407,7 @@ namespace LuaDkmDebuggerComponent
             LoadConfigurationFile(process, processData);
 
             // If we haven't attached at launch, prepare Compatibility Mode data here
-            if (useSchema && !processData.schemaLoaded)
+            if ((useSchema || LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit) && !processData.schemaLoaded)
                 LoadSchema(processData, stackContext.InspectionSession, stackContext.Thread, input);
 
             return true;
@@ -3578,7 +3578,7 @@ namespace LuaDkmDebuggerComponent
 
         void RegisterLuaStateCreation(DkmProcess process, LuaLocalProcessData processData, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame, ulong? stateAddress)
         {
-            if (useSchema)
+            if (useSchema || LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
             {
                 if (!processData.schemaLoaded)
                     LoadSchema(processData, inspectionSession, thread, frame);
