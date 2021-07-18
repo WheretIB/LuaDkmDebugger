@@ -734,7 +734,22 @@ namespace LuaDkmDebuggerComponent
                     return Report("Can't load value - process memory is not available");
 
                 if (lhs is LuaValueDataTable table)
-                    return new LuaValueDataNumber(table.value.arraySize);
+                {
+                    var arrayElements = table.value.GetArrayElements(process);
+
+                    if (arrayElements == null || arrayElements.Count == 0)
+                        return new LuaValueDataNumber(0);
+
+                    int start = LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit ? 1 : 0;
+
+                    for (int i = start; i < arrayElements.Count; i++)
+                    {
+                        if (arrayElements[i] == null || arrayElements[i].baseType == LuaBaseType.Nil)
+                            return new LuaValueDataNumber(i - start);
+                    }
+
+                    return new LuaValueDataNumber(arrayElements.Count - start);
+                }
 
                 if (lhs is LuaValueDataString str)
                     return new LuaValueDataNumber(str.value.Length);
