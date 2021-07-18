@@ -1054,7 +1054,18 @@ namespace LuaDkmDebuggerComponent
             }
             else
             {
-                if (!WriteTypeTag(process, tagAddress, (int)value.extendedType + (collectable ? 64 : 0)))
+                int finalTag;
+
+                if (LuaHelpers.luaVersion == 501)
+                {
+                    finalTag = (int)value.baseType;
+                }
+                else
+                {
+                    finalTag = (int)value.extendedType + (collectable ? 64 : 0);
+                }
+
+                if (!WriteTypeTag(process, tagAddress, finalTag))
                     return Failed("Failed to modify target process memory (tag)", out errorText);
 
                 if (!DebugHelpers.TryWritePointerVariable(process, valueAddress, targetAddress))
