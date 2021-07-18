@@ -230,6 +230,7 @@ namespace LuaDkmDebuggerComponent
     {
         public static bool attachOnLaunch = true;
         public static bool breakOnError = true;
+        public static bool evalFuncOnHover = true;
         public static bool releaseDebugLogs = false;
         public static bool showHiddenFrames = false;
         public static bool useSchema = false;
@@ -1604,6 +1605,8 @@ namespace LuaDkmDebuggerComponent
 
             ExpressionEvaluation evaluation = new ExpressionEvaluation(process, stackFrame, inspectionContext.InspectionSession, functionData, callInfoData.stackBaseAddress, closureData);
 
+            bool allowSideEffects = !inspectionContext.EvaluationFlags.HasFlag(DkmEvaluationFlags.NoSideEffects);
+
             bool ideDisplayFormat = false;
             string expressionText = expression.Text;
 
@@ -1611,9 +1614,10 @@ namespace LuaDkmDebuggerComponent
             {
                 ideDisplayFormat = true;
                 expressionText = expressionText.Substring(3);
-            }
 
-            bool allowSideEffects = !inspectionContext.EvaluationFlags.HasFlag(DkmEvaluationFlags.NoSideEffects);
+                if (!evalFuncOnHover)
+                    allowSideEffects = false;
+            }
 
             var result = evaluation.Evaluate(expressionText, allowSideEffects);
 

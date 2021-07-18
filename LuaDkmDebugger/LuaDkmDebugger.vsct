@@ -49,7 +49,17 @@
 				</Strings>
 			</Button>
 
-			<Button guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaEnableLoggingCommandId" priority="0x0103" type="Button">
+			<Button guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaEvalFuncOnHoverCommandId" priority="0x0103" type="Button">
+				<Parent guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaMenuGroup" />
+				<CommandFlag>DontCache</CommandFlag>
+				<CommandFlag>DefaultDisabled</CommandFlag>
+				<Strings>
+					<ButtonText>Evaluate Functions on Hover</ButtonText>
+					<CommandName>LuaEvalFuncOnHoverCommandId</CommandName>
+				</Strings>
+			</Button>
+			
+			<Button guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaEnableLoggingCommandId" priority="0x0104" type="Button">
 				<Parent guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaMenuGroup" />
 				<CommandFlag>DontCache</CommandFlag>
 				<CommandFlag>DefaultDisabled</CommandFlag>
@@ -59,7 +69,7 @@
 				</Strings>
 			</Button>
 
-			<Button guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaShowHiddenFramesCommandId" priority="0x0104" type="Button">
+			<Button guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaShowHiddenFramesCommandId" priority="0x0105" type="Button">
 				<Parent guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaMenuGroup" />
 				<CommandFlag>DontCache</CommandFlag>
 				<CommandFlag>DefaultDisabled</CommandFlag>
@@ -69,7 +79,7 @@
 				</Strings>
 			</Button>
 
-			<Button guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaUseSchemaCommandId" priority="0x0105" type="Button">
+			<Button guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaUseSchemaCommandId" priority="0x0106" type="Button">
 				<Parent guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaMenuGroup" />
 				<CommandFlag>DontCache</CommandFlag>
 				<CommandFlag>DefaultDisabled</CommandFlag>
@@ -79,7 +89,7 @@
 				</Strings>
 			</Button>
 
-			<Button guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaShowScriptListCommandId" priority="0x0106" type="Button">
+			<Button guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaShowScriptListCommandId" priority="0x0107" type="Button">
 				<Parent guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaMenuGroup" />
 				<Strings>
 					<ButtonText>Show Script List</ButtonText>
@@ -102,6 +112,7 @@
 			<IDSymbol name="LuaUseSchemaCommandId" value="0x0160" />
 			<IDSymbol name="LuaInitializeCommandId" value="0x0170" />
 			<IDSymbol name="LuaShowScriptListCommandId" value="0x0180" />
+			<IDSymbol name="LuaEvalFuncOnHoverCommandId" value="0x0190" />
 		</GuidSymbol>
 	</Symbols>
 </CommandTable>

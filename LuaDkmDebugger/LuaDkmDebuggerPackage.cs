@@ -60,6 +60,7 @@ namespace LuaDkmDebugger
         public const int LuaUseSchemaCommandId = 0x0160;
         public const int LuaInitializeCommandId = 0x0170;
         public const int LuaShowScriptListCommandId = 0x0180;
+        public const int LuaEvalFuncOnHoverCommandId = 0x0190;
 
         public static readonly Guid CommandSet = new Guid("6EB675D6-C146-4843-990E-32D43B56706C");
 
@@ -70,6 +71,7 @@ namespace LuaDkmDebugger
 
         public static bool attachOnLaunch = true;
         public static bool breakOnError = true;
+        public static bool evalFuncOnHover = true;
         public static bool releaseDebugLogs = false;
         public static bool showHiddenFrames = false;
         public static bool useSchema = false;
@@ -101,12 +103,14 @@ namespace LuaDkmDebugger
 
                 attachOnLaunch = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "AttachOnLaunch", true);
                 breakOnError = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "BreakOnError", true);
+                evalFuncOnHover = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "EvalFuncOnHover", true);
                 releaseDebugLogs = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "ReleaseDebugLogs", false);
                 showHiddenFrames = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "ShowHiddenFrames", false);
                 useSchema = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "UseSchema", false);
 
                 LuaDkmDebuggerComponent.LocalComponent.attachOnLaunch = attachOnLaunch;
                 LuaDkmDebuggerComponent.LocalComponent.breakOnError = breakOnError;
+                LuaDkmDebuggerComponent.LocalComponent.evalFuncOnHover = evalFuncOnHover;
                 LuaDkmDebuggerComponent.LocalComponent.releaseDebugLogs = releaseDebugLogs;
                 LuaDkmDebuggerComponent.LocalComponent.showHiddenFrames = showHiddenFrames;
                 LuaDkmDebuggerComponent.LocalComponent.useSchema = useSchema;
@@ -181,6 +185,26 @@ namespace LuaDkmDebugger
                 }
 
                 {
+                    CommandID menuCommandID = new CommandID(CommandSet, LuaUseSchemaCommandId);
+
+                    OleMenuCommand menuItem = new OleMenuCommand((object sender, EventArgs args) =>
+                    {
+                        HandleToggleMenuItem(sender, args, "UseSchema", ref LuaDkmDebuggerComponent.LocalComponent.useSchema, ref useSchema);
+                    }, menuCommandID);
+
+                    menuItem.BeforeQueryStatus += (object sender, EventArgs args) =>
+                    {
+                        if (sender is OleMenuCommand command)
+                            command.Checked = useSchema;
+                    };
+
+                    menuItem.Enabled = true;
+                    menuItem.Checked = useSchema;
+
+                    commandService.AddCommand(menuItem);
+                }
+
+                {
                     CommandID menuCommandID = new CommandID(CommandSet, LoggingCommandId);
 
                     OleMenuCommand menuItem = new OleMenuCommand((object sender, EventArgs args) =>
@@ -221,21 +245,21 @@ namespace LuaDkmDebugger
                 }
 
                 {
-                    CommandID menuCommandID = new CommandID(CommandSet, LuaUseSchemaCommandId);
+                    CommandID menuCommandID = new CommandID(CommandSet, LuaEvalFuncOnHoverCommandId);
 
                     OleMenuCommand menuItem = new OleMenuCommand((object sender, EventArgs args) =>
                     {
-                        HandleToggleMenuItem(sender, args, "UseSchema", ref LuaDkmDebuggerComponent.LocalComponent.useSchema, ref useSchema);
+                        HandleToggleMenuItem(sender, args, "EvalFuncOnHover", ref LuaDkmDebuggerComponent.LocalComponent.evalFuncOnHover, ref evalFuncOnHover);
                     }, menuCommandID);
 
                     menuItem.BeforeQueryStatus += (object sender, EventArgs args) =>
                     {
                         if (sender is OleMenuCommand command)
-                            command.Checked = useSchema;
+                            command.Checked = evalFuncOnHover;
                     };
 
                     menuItem.Enabled = true;
-                    menuItem.Checked = useSchema;
+                    menuItem.Checked = evalFuncOnHover;
 
                     commandService.AddCommand(menuItem);
                 }
