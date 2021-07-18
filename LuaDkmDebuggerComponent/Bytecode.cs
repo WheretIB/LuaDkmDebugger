@@ -1803,6 +1803,8 @@ namespace LuaDkmDebuggerComponent
 
                     upvalues.Add(upvalue);
                 }
+
+                return;
             }
 
             for (int i = 0; i < upvalueSize; i++)
