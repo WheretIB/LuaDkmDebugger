@@ -3101,7 +3101,11 @@ namespace LuaDkmDebuggerComponent
                     {
                         LuaHelpers.luaVersion = LuaHelpers.luaVersionLuajit;
                     }
-                    
+                    else
+                    {
+                        LuaHelpers.luaVersion = 0;
+                    }
+
                     if (!attachOnLaunch)
                     {
                         log.Warning("Lua attach on launch is disabled, skip breakpoint setup");
