@@ -8,6 +8,8 @@ Supported Lua versions:
 * Lua 5.3
 * Lua 5.2 with LUA_NANTRICK (default configuration)
 * Lua 5.1
+* LuaJIT 2.0.5
+* LuaJIT 2.1.0
 
 [Extension on Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=wheretib.lua-dkm-debug)
 
@@ -17,11 +19,11 @@ Supported Lua versions:
  * Jump to Lua source/line from Lua call stack frames
  * Function arguments, local variables and upvalues are displayed in the 'Locals' window
  * Lua expression evaluation in Watch, Immediate and similar elements
- * Numeric and user data values can be modified
+ * Numeric, string and user data values can be modified
  * Breakpoints
     * Up to 256 breakpoints are supported
  * Step Over, Step Into and Step Out
- * Conditional breakpoints
+ * Conditional breakpoints (not supported in LuaJIT)
  * Quick Info tooltip display with variable value evaluation on mouse over in the code window
  * External C function/closure pointer display with 'Go To Source' provided by Visual Studio
  * Assertion failure, 'error' call and runtime errors are displayed as unhandled exceptions ('Break on Error' option)

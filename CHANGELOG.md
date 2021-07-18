@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.9.8] - 2021-07-17
+
+### Added
+- Mouse hover evaluation over members access after array indexing
+- Added support for __index function evaluation
+    - Mouse hover performs this by default. Evaluation could have side-effects, new menu item can be used to disable auto-evaluation
+
+### Changed
+- Fixed inability to open files from temp folder which have spaces in the name
+- Fixed helper library load from paths with non-ASCII characters
+- Table indexing will no longer lookup members of a metatable, __index will be used immediately
+- Fixed value writes in Lua 5.1
+- Fixed written string type tag in Lua 5.2/5.3/5.4 to include 'collectible' flag
+- Array length operator will report element count until first 'nil'
+- Improvements for LuaJIT support (2.0.5 x86/x64, 2.1.0 x86/x64):
+    - Global variable lookup
+    - Fixed breaking on internal runtime errors
+    - Breakpoint and stepping support in multiple global states
+    - Fixed missing call stack in error handling
+    - Additional internal LuaJIT functions are hidden
+    - Value write support
+    - Fixed launch without 'Compatibility Mode' enabled
+    - Function upvalue lookup support
+    - Stability improvements
+
 ## [0.9.7] - 2021-06-14
 
 ### Added
