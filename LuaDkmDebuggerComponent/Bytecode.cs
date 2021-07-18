@@ -1837,7 +1837,7 @@ namespace LuaDkmDebuggerComponent
         {
             if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
             {
-                funcAddress = address;
+                funcAddress = Schema.Luajit.fullPointer ? address - LuaHelpers.GetValueSize(process) : address;
 
                 stackBaseAddress = address + LuaHelpers.GetValueSize(process);
             }
