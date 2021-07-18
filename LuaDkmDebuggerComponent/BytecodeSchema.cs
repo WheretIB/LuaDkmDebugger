@@ -637,8 +637,7 @@ namespace LuaDkmDebuggerComponent
                 int optional = 0;
                 upvalueDataOffset = Helper.ReadOptional(inspectionSession, thread, frame, "GCupval", "v", "used in LuaJIT", ref optional);
 
-                if (mrefSize == 8 && gcrefSize == 8)
-                    fullPointer = true;
+                fullPointer = mrefSize == 8 && gcrefSize == 8;
             }
         }
 
