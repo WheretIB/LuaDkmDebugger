@@ -618,6 +618,13 @@ namespace LuaDkmDebuggerComponent
                 return;
             }
 
+            if (processData.luaVersion == LuaHelpers.luaVersionLuajit)
+            {
+                stop = true;
+                errorText = "Conditional breakpoints are not supported with LuaJIT";
+                return;
+            }
+
             DkmInspectionSession inspectionSession = DkmInspectionSession.Create(process, null);
 
             ulong stateAddress = DebugHelpers.ReadPointerVariable(process, processData.locations.helperBreakHitLuaStateAddress).GetValueOrDefault(0);
