@@ -3519,7 +3519,8 @@ namespace LuaDkmDebuggerComponent
 
                         scriptName = $"unnamed_{processData.unnamedScriptId++}";
 
-                        stateSymbols.unnamedScriptMapping.Add(badScriptName, scriptName);
+                        if (!stateSymbols.unnamedScriptMapping.ContainsKey(badScriptName))
+                            stateSymbols.unnamedScriptMapping.Add(badScriptName, scriptName);
                     }
                 }
                 else
