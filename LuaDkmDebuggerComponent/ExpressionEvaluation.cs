@@ -402,7 +402,7 @@ namespace LuaDkmDebuggerComponent
 
             if (processData.luaPcallAddress != 0)
             {
-                status = EvaluationHelpers.TryEvaluateNumberExpression($"((int(*)(void*,int,int,int)){processData.luaPcallAddress})({stateAddress}, {args.Length - 1}, 1, 0)", inspectionSession, stackFrame.Thread, parentFrameData.originalFrame, DkmEvaluationFlags.ForceRealFuncEval);
+                status = EvaluationHelpers.TryEvaluateNumberExpression($"((int(*)(void*,int,int,int)){processData.luaPcallAddress})({stateAddress}, {args.Length - 1}, 1, 0)", inspectionSession, stackFrame.Thread, parentFrameData.originalFrame, DkmEvaluationFlags.None);
             }
             else if (processData.luaPcallkAddress != 0)
             {
@@ -412,7 +412,10 @@ namespace LuaDkmDebuggerComponent
             DkmCustomMessage.Create(process.Connection, process, MessageToRemote.guid, MessageToRemote.resumeBreakpoints, null, null).SendLower();
 
             if (!status.HasValue)
+            {
+                DebugHelpers.TryWritePointerVariable(process, topAddress, originalTop);
                 return Report($"Can't evaluate function - failed");
+            }
 
             var result = LuaHelpers.ReadValue(process, originalTop);
 
