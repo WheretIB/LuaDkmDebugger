@@ -616,6 +616,8 @@ namespace LuaDkmDebuggerComponent
             public static long gcrefSize = 0;
             public static long luaStateSize = 0;
 
+            public static ulong? upvalueDataOffset;
+
             public static bool fullPointer = false;
 
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
@@ -631,6 +633,9 @@ namespace LuaDkmDebuggerComponent
                 mrefSize = Helper.GetSize(inspectionSession, thread, frame, "MRef", ref dummy);
                 gcrefSize = Helper.GetSize(inspectionSession, thread, frame, "GCRef", ref dummy);
                 luaStateSize = Helper.GetSize(inspectionSession, thread, frame, "lua_State", ref dummy);
+
+                int optional = 0;
+                upvalueDataOffset = Helper.ReadOptional(inspectionSession, thread, frame, "GCupval", "v", "used in LuaJIT", ref optional);
 
                 if (mrefSize == 8 && gcrefSize == 8)
                     fullPointer = true;

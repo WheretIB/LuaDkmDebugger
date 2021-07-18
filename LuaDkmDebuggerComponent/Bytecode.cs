@@ -1203,7 +1203,11 @@ namespace LuaDkmDebuggerComponent
 
         public void ReadFrom(DkmProcess process, ulong address)
         {
-            if (Schema.LuaUpvalueData.available)
+            if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+            {
+                valueAddress = LuajitHelpers.ReadMrefVariable(process, address + Schema.Luajit.upvalueDataOffset.GetValueOrDefault(0)).GetValueOrDefault(0);
+            }
+            else if (Schema.LuaUpvalueData.available)
             {
                 valueAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaUpvalueData.valueAddress.GetValueOrDefault(0)).GetValueOrDefault(0);
             }
@@ -1542,7 +1546,7 @@ namespace LuaDkmDebuggerComponent
                     // Based on debug_varname
                     ulong p = localVariableDataAddress;
                     int lastpc = 0;
-                    while(localVariableSize < 1024)
+                    while(locals.Count < 1024)
                     {
                         LuaLocalVariableData local = new LuaLocalVariableData();
 
@@ -1782,9 +1786,24 @@ namespace LuaDkmDebuggerComponent
 
             upvalues = new List<LuaUpvalueDescriptionData>();
 
+            if (upvalueDataAddress == 0)
+                return;
+
             // Not supported for Luajit yet
             if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
-                return;
+            {
+                ulong p = upvalueDataAddress;
+
+                for (int i = 0; i < upvalueSize; i++)
+                {
+                    LuaUpvalueDescriptionData upvalue = new LuaUpvalueDescriptionData();
+
+                    upvalue.name = DebugHelpers.ReadStringVariable(process, p, 1024);
+                    p += (ulong)upvalue.name.Length + 1;
+
+                    upvalues.Add(upvalue);
+                }
+            }
 
             for (int i = 0; i < upvalueSize; i++)
             {
@@ -2624,7 +2643,16 @@ namespace LuaDkmDebuggerComponent
             if (upvalues[index] != null)
                 return upvalues[index];
 
-            ulong upvalueAddress = DebugHelpers.ReadPointerVariable(process, firstUpvaluePointerAddress + (ulong)(index * DebugHelpers.GetPointerSize(process))).GetValueOrDefault(0);
+            ulong upvalueAddress;
+
+            if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
+            {
+                upvalueAddress = LuaHelpers.ReadGCobjAddress(process, firstUpvaluePointerAddress + (ulong)(index * DebugHelpers.GetPointerSize(process))).GetValueOrDefault(0);
+            }
+            else
+            {
+                upvalueAddress = DebugHelpers.ReadPointerVariable(process, firstUpvaluePointerAddress + (ulong)(index * DebugHelpers.GetPointerSize(process))).GetValueOrDefault(0);
+            }
 
             if (upvalueAddress == 0)
                 return null;
