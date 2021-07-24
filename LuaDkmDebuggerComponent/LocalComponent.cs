@@ -2040,6 +2040,15 @@ namespace LuaDkmDebuggerComponent
 
                         string name = function.activeLocals[index].name;
 
+                        for (int k = index + 1; k < function.activeLocals.Count; k++)
+                        {
+                            if (function.activeLocals[k].name == name)
+                            {
+                                name += " (shadowed)";
+                                break;
+                            }
+                        }
+
                         results[i - startIndex] = EvaluationHelpers.EvaluateDataAtAddress(enumContext.InspectionContext, enumContext.StackFrame, name, name, address, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
                         continue;
                     }
