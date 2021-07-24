@@ -1546,7 +1546,7 @@ namespace LuaDkmDebuggerComponent
                     // Based on debug_varname
                     ulong p = localVariableDataAddress;
                     int lastpc = 0;
-                    while(locals.Count < 1024)
+                    while (locals.Count < 1024)
                     {
                         LuaLocalVariableData local = new LuaLocalVariableData();
 

@@ -2936,7 +2936,7 @@ namespace LuaDkmDebuggerComponent
                         processData.helperStackDepthAtCall = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperStackDepthAtCall");
                         processData.helperAsyncBreakCodeAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperAsyncBreakCode");
                         processData.helperAsyncBreakDataAddress = AttachmentHelpers.FindVariableAddress(nativeModuleInstance, "luaHelperAsyncBreakData");
-                        
+
                         // Hooks for compatibility mode
                         processData.helperHookFunctionAddress_5_234_compat = AttachmentHelpers.FindFunctionAddress(nativeModuleInstance, "LuaHelperHook_5_234_compat");
 

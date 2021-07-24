@@ -541,11 +541,11 @@ namespace LuaDkmDebuggerComponent
                         }
                         else if (indexMetaTableValue is LuaValueDataLuaFunction indexMetaTableValueLuaFunction)
                         {
-                            value = EvaluateCall(new LuaValueDataBase[]{ indexMetaTableValueLuaFunction, userData, new LuaValueDataString(name) });
+                            value = EvaluateCall(new LuaValueDataBase[] { indexMetaTableValueLuaFunction, userData, new LuaValueDataString(name) });
                         }
                         else if (indexMetaTableValue is LuaValueDataExternalClosure indexMetaTableValueExternalClosure)
                         {
-                            value = EvaluateCall(new LuaValueDataBase[]{ indexMetaTableValueExternalClosure, userData, new LuaValueDataString(name) });
+                            value = EvaluateCall(new LuaValueDataBase[] { indexMetaTableValueExternalClosure, userData, new LuaValueDataString(name) });
                         }
                     }
                     else
