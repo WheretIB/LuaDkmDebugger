@@ -3473,7 +3473,7 @@ namespace LuaDkmDebuggerComponent
 
                 if (LuaHelpers.luaVersion != 0)
                 {
-                    SendStatusMessage(process, 1, $"Lua: created ({LuaHelpers.luaVersion / 100}.0.{LuaHelpers.luaVersion % 10} {arch})");
+                    SendStatusMessage(process, 1, $"Lua: created ({LuaHelpers.luaVersion / 100}.{LuaHelpers.luaVersion % 10} {arch})");
                 }
                 else
                 {
