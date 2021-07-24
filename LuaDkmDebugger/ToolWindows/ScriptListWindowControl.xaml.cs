@@ -1,5 +1,6 @@
 ﻿using Microsoft.VisualStudio.Shell;
 using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
@@ -14,6 +15,8 @@ namespace LuaDkmDebugger.ToolWindows
     public partial class ScriptListWindowControl : UserControl
     {
         private ScriptListWindowState _state;
+        private GridViewColumnHeader _activeHeader;
+        private ListSortDirection _activeDirection = ListSortDirection.Ascending;
 
         public ScriptListWindowControl(ScriptListWindowState state)
         {
@@ -55,6 +58,30 @@ namespace LuaDkmDebugger.ToolWindows
                     {
                         Debug.WriteLine($"Failed to open file with: {e}");
                     }
+                }
+            }
+        }
+
+        private void ListViewItem_ColumnClick(object sender, RoutedEventArgs args)
+        {
+            // WPF doesn't provide auto-sortable lists...
+            if (args.OriginalSource is GridViewColumnHeader headerClicked)
+            {
+                if (headerClicked.Role != GridViewColumnHeaderRole.Padding)
+                {
+                    ListSortDirection direction = headerClicked != _activeHeader || _activeDirection == ListSortDirection.Descending ? ListSortDirection.Ascending : ListSortDirection.Descending;
+
+                    var columnBinding = headerClicked.Column.DisplayMemberBinding as Binding;
+                    var sortBy = columnBinding?.Path.Path ?? headerClicked.Column.Header as string;
+
+                    ICollectionView dataView = CollectionViewSource.GetDefaultView(ScriptList.ItemsSource);
+                    dataView.SortDescriptions.Clear();
+                    SortDescription sd = new SortDescription(sortBy, direction);
+                    dataView.SortDescriptions.Add(sd);
+                    dataView.Refresh();
+
+                    _activeHeader = headerClicked;
+                    _activeDirection = direction;
                 }
             }
         }

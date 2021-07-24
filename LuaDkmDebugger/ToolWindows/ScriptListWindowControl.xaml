@@ -26,7 +26,7 @@
             <Label Content="Filter:" HorizontalAlignment="Right" Margin="200,0"/>
             <TextBox Name="SearchTerm" Width="200" HorizontalAlignment="Right" VerticalAlignment="Center" TextChanged="SearchTerm_TextChanged"/>
         </Grid>
-        <ListView Name="ScriptList" Grid.Row="1">
+        <ListView Name="ScriptList" Grid.Row="1" GridViewColumnHeader.Click="ListViewItem_ColumnClick">
             <ListView.ItemContainerStyle>
                 <Style TargetType="ListViewItem">
                     <EventSetter Event="MouseDoubleClick" Handler="ListViewItem_DoubleClick"/>
