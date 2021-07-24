@@ -271,7 +271,7 @@ namespace LuaDkmDebuggerComponent
             if (process == null || functionData == null)
                 return Report($"Can't lookup variable - process memory is not available");
 
-            for (int i = 0; i < functionData.activeLocals.Count; i++)
+            for (int i = functionData.activeLocals.Count - 1; i >= 0; i--)
             {
                 var local = functionData.activeLocals[i];
 
