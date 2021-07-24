@@ -8,10 +8,25 @@
              d:DesignHeight="450" d:DesignWidth="800">
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="25" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="20" />
         </Grid.RowDefinitions>
-        <ListView Name="ScriptList" Grid.Row="0">
+        <Grid Grid.Row="0">
+            <StatusBar Name="Status" HorizontalAlignment="Left" VerticalAlignment="Top">
+                <StatusBarItem>
+                    <TextBlock Name="StatusText1">Lua: ---</TextBlock>
+                </StatusBarItem>
+                <StatusBarItem>
+                    <TextBlock>|</TextBlock>
+                </StatusBarItem>
+                <StatusBarItem>
+                    <TextBlock Name="StatusText2">Attach: ---</TextBlock>
+                </StatusBarItem>
+            </StatusBar>
+            <Label Content="Filter:" HorizontalAlignment="Right" Margin="200,0"/>
+            <TextBox Name="SearchTerm" Width="200" HorizontalAlignment="Right" VerticalAlignment="Center" TextChanged="SearchTerm_TextChanged"/>
+        </Grid>
+        <ListView Name="ScriptList" Grid.Row="1">
             <ListView.ItemContainerStyle>
                 <Style TargetType="ListViewItem">
                     <EventSetter Event="MouseDoubleClick" Handler="ListViewItem_DoubleClick"/>
@@ -25,16 +40,5 @@
                 </GridView>
             </ListView.View>
         </ListView>
-        <StatusBar Name="Status" Grid.Row="1" HorizontalAlignment="Left" VerticalAlignment="Top">
-            <StatusBarItem>
-                <TextBlock Name="StatusText1">Lua: ---</TextBlock>
-            </StatusBarItem>
-            <StatusBarItem>
-                <TextBlock>|</TextBlock>
-            </StatusBarItem>
-            <StatusBarItem>
-                <TextBlock Name="StatusText2">Attach: ---</TextBlock>
-            </StatusBarItem>
-        </StatusBar>
     </Grid>
 </UserControl>

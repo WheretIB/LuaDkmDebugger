@@ -2,9 +2,9 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 
 namespace LuaDkmDebugger.ToolWindows
 {
@@ -57,6 +57,18 @@ namespace LuaDkmDebugger.ToolWindows
                     }
                 }
             }
+        }
+
+        private void SearchTerm_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            CollectionView view = (CollectionView)CollectionViewSource.GetDefaultView(ScriptList.ItemsSource);
+            view.Filter = (item) =>
+            {
+                if (item is ScriptEntry scriptEntry)
+                    return scriptEntry.name.Contains(SearchTerm.Text) || scriptEntry.path.Contains(SearchTerm.Text);
+
+                return true;
+            };
         }
     }
 }
