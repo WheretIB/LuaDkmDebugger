@@ -2626,8 +2626,14 @@ namespace LuaDkmDebuggerComponent
             }
 
             log.Error($"IDkmSymbolDocumentCollectionQuery.FindDocuments failure {sourceFileId.DocumentName}");
-
-            return module.FindDocuments(sourceFileId);
+            try
+            {
+                return module.FindDocuments(sourceFileId);
+            }
+            cache
+            {
+                return null;
+            }
         }
 
         bool FindFunctionInstructionForLine(DkmProcess process, LuaFunctionData function, int startLine, int endLine, out LuaFunctionData targetFunction, out int targetInstructionPointer, out int targetLine)
