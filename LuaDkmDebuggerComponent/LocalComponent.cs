@@ -2531,95 +2531,95 @@ namespace LuaDkmDebuggerComponent
         {
             DkmCustomModuleInstance moduleInstance = module.GetModuleInstances().OfType<DkmCustomModuleInstance>().FirstOrDefault(el => el.Module.CompilerId.VendorId == Guids.luaCompilerGuid);
 
-            if (moduleInstance == null)
-                return module.FindDocuments(sourceFileId);
-
-            log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments begin ({sourceFileId.DocumentName})");
-
-            var process = moduleInstance.Process;
-            var processData = process.GetDataItem<LuaLocalProcessData>();
-
-            lock (processData.symbolStore)
+            if (moduleInstance != null)
             {
-                foreach (var state in processData.symbolStore.knownStates)
+                log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments begin ({sourceFileId.DocumentName})");
+
+                var process = moduleInstance.Process;
+                var processData = process.GetDataItem<LuaLocalProcessData>();
+
+                lock (processData.symbolStore)
                 {
-                    foreach (var source in state.Value.knownSources)
+                    foreach (var state in processData.symbolStore.knownStates)
                     {
-                        // Resolve script path if it's not resolved yet
-                        if (source.Value.resolvedFileName == null)
+                        foreach (var source in state.Value.knownSources)
                         {
-                            var scriptSource = processData.symbolStore.FetchScriptSource(source.Key);
-
-                            if (scriptSource?.resolvedFileName != null)
-                                source.Value.resolvedFileName = scriptSource.resolvedFileName;
-                            else
-                                source.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, source.Key, scriptSource?.scriptContent, true, out string loadStatus);
-
-                            if (source.Value.resolvedFileName != null)
-                                log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments Resolved {source.Value.sourceFileName} to {source.Value.resolvedFileName}");
-                        }
-
-                        var fileName = source.Value.resolvedFileName;
-
-                        if (sourceFileId.DocumentName == fileName)
-                        {
-                            var dataItem = new LuaResolvedDocumentItem
+                            // Resolve script path if it's not resolved yet
+                            if (source.Value.resolvedFileName == null)
                             {
-                                source = source.Value
-                            };
+                                var scriptSource = processData.symbolStore.FetchScriptSource(source.Key);
 
-                            log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments success (known source '{source}')");
+                                if (scriptSource?.resolvedFileName != null)
+                                    source.Value.resolvedFileName = scriptSource.resolvedFileName;
+                                else
+                                    source.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, source.Key, scriptSource?.scriptContent, true, out string loadStatus);
 
-                            return new DkmResolvedDocument[1] { DkmResolvedDocument.Create(module, sourceFileId.DocumentName, null, DkmDocumentMatchStrength.FullPath, DkmResolvedDocumentWarning.None, false, dataItem) };
+                                if (source.Value.resolvedFileName != null)
+                                    log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments Resolved {source.Value.sourceFileName} to {source.Value.resolvedFileName}");
+                            }
+
+                            var fileName = source.Value.resolvedFileName;
+
+                            if (sourceFileId.DocumentName == fileName)
+                            {
+                                var dataItem = new LuaResolvedDocumentItem
+                                {
+                                    source = source.Value
+                                };
+
+                                log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments success (known source '{source}')");
+
+                                return new DkmResolvedDocument[1] { DkmResolvedDocument.Create(module, sourceFileId.DocumentName, null, DkmDocumentMatchStrength.FullPath, DkmResolvedDocumentWarning.None, false, dataItem) };
+                            }
                         }
                     }
-                }
 
-                foreach (var state in processData.symbolStore.knownStates)
-                {
-                    foreach (var script in state.Value.knownScripts)
+                    foreach (var state in processData.symbolStore.knownStates)
                     {
-                        // Resolve script path if it's not resolved yet
-                        if (script.Value.resolvedFileName == null)
+                        foreach (var script in state.Value.knownScripts)
                         {
-                            // Check match based on hash
-                            if (sourceFileId.SHA1HashPart != null && script.Value.sha1Hash != null)
+                            // Resolve script path if it's not resolved yet
+                            if (script.Value.resolvedFileName == null)
                             {
-                                int value0 = (int)(((uint)script.Value.sha1Hash[3] << 24) | ((uint)script.Value.sha1Hash[2] << 16) | ((uint)script.Value.sha1Hash[1] << 8) | (uint)script.Value.sha1Hash[0]);
-                                int value1 = (int)(((uint)script.Value.sha1Hash[7] << 24) | ((uint)script.Value.sha1Hash[6] << 16) | ((uint)script.Value.sha1Hash[5] << 8) | (uint)script.Value.sha1Hash[4]);
-                                int value2 = (int)(((uint)script.Value.sha1Hash[11] << 24) | ((uint)script.Value.sha1Hash[10] << 16) | ((uint)script.Value.sha1Hash[9] << 8) | (uint)script.Value.sha1Hash[8]);
-                                int value3 = (int)(((uint)script.Value.sha1Hash[15] << 24) | ((uint)script.Value.sha1Hash[14] << 16) | ((uint)script.Value.sha1Hash[13] << 8) | (uint)script.Value.sha1Hash[12]);
-                                int value4 = (int)(((uint)script.Value.sha1Hash[19] << 24) | ((uint)script.Value.sha1Hash[18] << 16) | ((uint)script.Value.sha1Hash[17] << 8) | (uint)script.Value.sha1Hash[16]);
-
-                                if (sourceFileId.SHA1HashPart.Value.Value0 == value0 && sourceFileId.SHA1HashPart.Value.Value1 == value1 && sourceFileId.SHA1HashPart.Value.Value2 == value2 && sourceFileId.SHA1HashPart.Value.Value3 == value3 && sourceFileId.SHA1HashPart.Value.Value4 == value4)
+                                // Check match based on hash
+                                if (sourceFileId.SHA1HashPart != null && script.Value.sha1Hash != null)
                                 {
-                                    log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments Resolved {script.Value.sourceFileName} to {sourceFileId.DocumentName} based on SHA-1 hash");
+                                    int value0 = (int)(((uint)script.Value.sha1Hash[3] << 24) | ((uint)script.Value.sha1Hash[2] << 16) | ((uint)script.Value.sha1Hash[1] << 8) | (uint)script.Value.sha1Hash[0]);
+                                    int value1 = (int)(((uint)script.Value.sha1Hash[7] << 24) | ((uint)script.Value.sha1Hash[6] << 16) | ((uint)script.Value.sha1Hash[5] << 8) | (uint)script.Value.sha1Hash[4]);
+                                    int value2 = (int)(((uint)script.Value.sha1Hash[11] << 24) | ((uint)script.Value.sha1Hash[10] << 16) | ((uint)script.Value.sha1Hash[9] << 8) | (uint)script.Value.sha1Hash[8]);
+                                    int value3 = (int)(((uint)script.Value.sha1Hash[15] << 24) | ((uint)script.Value.sha1Hash[14] << 16) | ((uint)script.Value.sha1Hash[13] << 8) | (uint)script.Value.sha1Hash[12]);
+                                    int value4 = (int)(((uint)script.Value.sha1Hash[19] << 24) | ((uint)script.Value.sha1Hash[18] << 16) | ((uint)script.Value.sha1Hash[17] << 8) | (uint)script.Value.sha1Hash[16]);
 
-                                    script.Value.resolvedFileName = sourceFileId.DocumentName;
+                                    if (sourceFileId.SHA1HashPart.Value.Value0 == value0 && sourceFileId.SHA1HashPart.Value.Value1 == value1 && sourceFileId.SHA1HashPart.Value.Value2 == value2 && sourceFileId.SHA1HashPart.Value.Value3 == value3 && sourceFileId.SHA1HashPart.Value.Value4 == value4)
+                                    {
+                                        log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments Resolved {script.Value.sourceFileName} to {sourceFileId.DocumentName} based on SHA-1 hash");
+
+                                        script.Value.resolvedFileName = sourceFileId.DocumentName;
+                                    }
+                                }
+
+                                if (script.Value.resolvedFileName == null)
+                                {
+                                    script.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, script.Key, script.Value.scriptContent, true, out string loadStatus);
+
+                                    if (script.Value.resolvedFileName != null)
+                                        log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments Resolved {script.Value.sourceFileName} to {script.Value.resolvedFileName}");
                                 }
                             }
 
-                            if (script.Value.resolvedFileName == null)
-                            {
-                                script.Value.resolvedFileName = TryFindSourcePath(process.Path, processData, script.Key, script.Value.scriptContent, true, out string loadStatus);
+                            var fileName = script.Value.resolvedFileName;
 
-                                if (script.Value.resolvedFileName != null)
-                                    log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments Resolved {script.Value.sourceFileName} to {script.Value.resolvedFileName}");
+                            if (sourceFileId.DocumentName == fileName)
+                            {
+                                var dataItem = new LuaResolvedDocumentItem
+                                {
+                                    script = script.Value
+                                };
+
+                                log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments success (known script '{script}')");
+
+                                return new DkmResolvedDocument[1] { DkmResolvedDocument.Create(module, sourceFileId.DocumentName, null, DkmDocumentMatchStrength.FullPath, DkmResolvedDocumentWarning.None, false, dataItem) };
                             }
-                        }
-
-                        var fileName = script.Value.resolvedFileName;
-
-                        if (sourceFileId.DocumentName == fileName)
-                        {
-                            var dataItem = new LuaResolvedDocumentItem
-                            {
-                                script = script.Value
-                            };
-
-                            log.Debug($"IDkmSymbolDocumentCollectionQuery.FindDocuments success (known script '{script}')");
-
-                            return new DkmResolvedDocument[1] { DkmResolvedDocument.Create(module, sourceFileId.DocumentName, null, DkmDocumentMatchStrength.FullPath, DkmResolvedDocumentWarning.None, false, dataItem) };
                         }
                     }
                 }
