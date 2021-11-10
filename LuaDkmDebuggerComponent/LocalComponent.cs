@@ -2630,7 +2630,7 @@ namespace LuaDkmDebuggerComponent
             {
                 return module.FindDocuments(sourceFileId);
             }
-            cache
+            catch
             {
                 return null;
             }
