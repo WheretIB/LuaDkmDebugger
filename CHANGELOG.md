@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.9] - 2021-11-18
+
+### Added
+
+- Added filter to the script list panel
+- Columns in the script list are now sortable
+- Added support for Visual Studio 2022
+
+### Changed
+
+- Fixed the order of locals lookup to preserve shadowing
+
 ## [0.9.8] - 2021-07-17
 
 ### Added
