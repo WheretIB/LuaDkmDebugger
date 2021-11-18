@@ -5,8 +5,8 @@ namespace LuaDkmDebuggerComponent
 {
     public abstract class LuaValueDataBase
     {
-        public LuaBaseType baseType;
-        public LuaExtendedType extendedType;
+        public int baseType;
+        public int extendedType;
         public DkmEvaluationResultFlags evaluationFlags;
         public ulong tagAddress;
         public ulong originalAddress;
@@ -25,8 +25,8 @@ namespace LuaDkmDebuggerComponent
 
         public LuaValueDataError(string value, bool stoppedOnSideEffect = false)
         {
-            baseType = LuaBaseType.Nil;
-            extendedType = LuaExtendedType.Nil;
+            baseType = LuaBaseTypes.Nil();
+            extendedType = LuaExtendedTypes.Nil();
             evaluationFlags = DkmEvaluationResultFlags.ReadOnly;
             tagAddress = 0;
             originalAddress = 0;
@@ -63,8 +63,8 @@ namespace LuaDkmDebuggerComponent
     {
         public LuaValueDataNil()
         {
-            baseType = LuaBaseType.Nil;
-            extendedType = LuaExtendedType.Nil;
+            baseType = LuaBaseTypes.Nil();
+            extendedType = LuaExtendedTypes.Nil();
             evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
             tagAddress = 0;
             originalAddress = 0;
@@ -100,12 +100,12 @@ namespace LuaDkmDebuggerComponent
 
         public LuaValueDataBool(bool value)
         {
-            baseType = LuaBaseType.Boolean;
+            baseType = LuaBaseTypes.Boolean();
 
             if (LuaHelpers.luaVersion == 504)
-                extendedType = value ? LuaExtendedType.BooleanTrue : LuaExtendedType.Boolean;
+                extendedType = value ? LuaExtendedTypes.BooleanTrue() : LuaExtendedTypes.Boolean();
             else
-                extendedType = LuaExtendedType.Boolean;
+                extendedType = LuaExtendedTypes.Boolean();
 
             evaluationFlags = (value ? DkmEvaluationResultFlags.BooleanTrue : DkmEvaluationResultFlags.None) | DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.Boolean | DkmEvaluationResultFlags.ReadOnly;
             tagAddress = 0;
@@ -145,8 +145,8 @@ namespace LuaDkmDebuggerComponent
 
         public LuaValueDataLightUserData(ulong value)
         {
-            baseType = LuaBaseType.LightUserData;
-            extendedType = LuaExtendedType.LightUserData;
+            baseType = LuaBaseTypes.LightUserData();
+            extendedType = LuaExtendedTypes.LightUserData();
             evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
             tagAddress = 0;
             originalAddress = 0;
@@ -185,7 +185,7 @@ namespace LuaDkmDebuggerComponent
 
         public LuaValueDataNumber(int value)
         {
-            baseType = LuaBaseType.Number;
+            baseType = LuaBaseTypes.Number();
             extendedType = LuaHelpers.GetIntegerNumberExtendedType();
             evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
             tagAddress = 0;
@@ -195,7 +195,7 @@ namespace LuaDkmDebuggerComponent
 
         public LuaValueDataNumber(double value)
         {
-            baseType = LuaBaseType.Number;
+            baseType = LuaBaseTypes.Number();
             extendedType = LuaHelpers.GetFloatNumberExtendedType();
             evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
             tagAddress = 0;
@@ -243,8 +243,8 @@ namespace LuaDkmDebuggerComponent
 
         public LuaValueDataString(string value)
         {
-            baseType = LuaBaseType.String;
-            extendedType = LuaExtendedType.ShortString;
+            baseType = LuaBaseTypes.String();
+            extendedType = LuaExtendedTypes.ShortString();
             evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly;
             tagAddress = 0;
             originalAddress = 0;
@@ -263,7 +263,7 @@ namespace LuaDkmDebuggerComponent
 
         public override string GetLuaType()
         {
-            return extendedType == LuaExtendedType.ShortString ? "short_string" : "long_string";
+            return extendedType == LuaExtendedTypes.ShortString() ? "short_string" : "long_string";
         }
 
         public override string AsSimpleDisplayString(uint radix)

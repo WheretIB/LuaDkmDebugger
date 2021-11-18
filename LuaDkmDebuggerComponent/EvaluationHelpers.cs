@@ -208,7 +208,7 @@ namespace LuaDkmDebuggerComponent
             {
                 var value = valueBase as LuaValueDataString;
 
-                type = value.extendedType == LuaExtendedType.ShortString ? "short_string" : "long_string";
+                type = value.extendedType == LuaExtendedTypes.ShortString() ? "short_string" : "long_string";
 
                 flags |= DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.RawString;
                 editableValue = $"{value.value}";
@@ -473,8 +473,8 @@ namespace LuaDkmDebuggerComponent
             {
                 var metaTableValue = new LuaValueDataTable
                 {
-                    baseType = LuaBaseType.Table,
-                    extendedType = LuaExtendedType.Table,
+                    baseType = LuaBaseTypes.Table(),
+                    extendedType = LuaExtendedTypes.Table(),
                     evaluationFlags = DkmEvaluationResultFlags.ReadOnly,
                     originalAddress = 0, // Not available as TValue
                     value = value.GetMetaTable(process),

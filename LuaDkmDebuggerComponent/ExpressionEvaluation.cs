@@ -279,6 +279,9 @@ namespace LuaDkmDebuggerComponent
                 {
                     ulong address = frameBaseAddress + (ulong)i * LuaHelpers.GetValueSize(process);
 
+                    if (local.targetRegister_Luau.HasValue)
+                        address = frameBaseAddress + (ulong)local.targetRegister_Luau.Value * LuaHelpers.GetValueSize(process);
+
                     var result = LuaHelpers.ReadValue(process, address);
 
                     if (result == null)
@@ -744,7 +747,7 @@ namespace LuaDkmDebuggerComponent
 
                     for (int i = start; i < arrayElements.Count; i++)
                     {
-                        if (arrayElements[i] == null || arrayElements[i].baseType == LuaBaseType.Nil)
+                        if (arrayElements[i] == null || arrayElements[i].baseType == LuaBaseTypes.Nil())
                             return new LuaValueDataNumber(i - start);
                     }
 

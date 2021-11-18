@@ -9,39 +9,103 @@ using System.Text;
 
 namespace LuaDkmDebuggerComponent
 {
-    public enum LuaBaseType
+    static class LuaBaseTypes
     {
-        Nil,
-        Boolean,
-        LightUserData,
-        Number,
-        String,
-        Table,
-        Function,
-        UserData,
-        Thread
+        // TODO: setup dynamically
+        static bool hasVector = true;
+
+        internal static int Nil()
+        {
+            return 0;
+        }
+        internal static int Boolean()
+        {
+            return 1;
+        }
+        internal static int LightUserData()
+        {
+            return 2;
+        }
+        internal static int Number()
+        {
+            return 3;
+        }
+        internal static int String()
+        {
+            return 4 + (hasVector ? 1 : 0);
+        }
+        internal static int Table()
+        {
+            return 5 + (hasVector ? 1 : 0);
+        }
+        internal static int Function()
+        {
+            return 6 + (hasVector ? 1 : 0);
+        }
+        internal static int UserData()
+        {
+            return 7 + (hasVector ? 1 : 0);
+        }
+        internal static int Thread()
+        {
+            return 8 + (hasVector ? 1 : 0);
+        }
     }
 
-    public enum LuaExtendedType
+    static class LuaExtendedTypes
     {
-        Nil = LuaBaseType.Nil,
-
-        Boolean = LuaBaseType.Boolean,
-        BooleanTrue = LuaBaseType.Boolean + 16, // Lua 5.4
-
-        LightUserData = LuaBaseType.LightUserData,
-
-        ShortString = LuaBaseType.String,
-        LongString = LuaBaseType.String + 16,
-
-        Table = LuaBaseType.Table,
-
-        LuaFunction = LuaBaseType.Function,
-        ExternalFunction = LuaBaseType.Function + 16,
-        ExternalClosure = LuaBaseType.Function + 32,
-
-        UserData = LuaBaseType.UserData,
-        Thread = LuaBaseType.Thread,
+        internal static int Nil()
+        {
+            return LuaBaseTypes.Nil();
+        }
+        internal static int Boolean()
+        {
+            return LuaBaseTypes.Boolean();
+        }
+        internal static int BooleanTrue()
+        {
+            return LuaBaseTypes.Boolean() + 16;
+        }
+        internal static int LightUserData()
+        {
+            return LuaBaseTypes.LightUserData();
+        }
+        internal static int Number()
+        {
+            return LuaBaseTypes.Number();
+        }
+        internal static int ShortString()
+        {
+            return LuaBaseTypes.String();
+        }
+        internal static int LongString()
+        {
+            return LuaBaseTypes.String() + 16;
+        }
+        internal static int Table()
+        {
+            return LuaBaseTypes.Table();
+        }
+        internal static int LuaFunction()
+        {
+            return LuaBaseTypes.Function();
+        }
+        internal static int ExternalFunction()
+        {
+            return LuaBaseTypes.Function() + 16;
+        }
+        internal static int ExternalClosure()
+        {
+            return LuaBaseTypes.Function() + 32;
+        }
+        internal static int UserData()
+        {
+            return LuaBaseTypes.UserData();
+        }
+        internal static int Thread()
+        {
+            return LuaBaseTypes.Thread();
+        }
     }
 
     static class LuaHelpers
@@ -50,14 +114,14 @@ namespace LuaDkmDebuggerComponent
 
         public static int luaVersion = 0;
 
-        internal static LuaBaseType GetBaseType(int typeTag)
+        internal static int GetBaseType(int typeTag)
         {
-            return (LuaBaseType)(typeTag & 0xf);
+            return typeTag & 0xf;
         }
 
-        internal static LuaExtendedType GetExtendedType(int typeTag)
+        internal static int GetExtendedType(int typeTag)
         {
-            return (LuaExtendedType)(typeTag & 0x3f);
+            return typeTag & 0x3f;
         }
 
         internal static ulong GetStringDataOffset(DkmProcess process)
@@ -75,6 +139,9 @@ namespace LuaDkmDebuggerComponent
             {
                 if (Schema.LuaStringData.offsetToContent_5_4.HasValue)
                     return Schema.LuaStringData.offsetToContent_5_4.Value;
+
+                if (Schema.LuaStringData.offsetToContent_Luau.HasValue)
+                    return Schema.LuaStringData.offsetToContent_Luau.Value;
 
                 return (ulong)Schema.LuaStringData.structSize;
             }
@@ -128,20 +195,20 @@ namespace LuaDkmDebuggerComponent
             return 24u;
         }
 
-        internal static LuaExtendedType GetFloatNumberExtendedType()
+        internal static int GetFloatNumberExtendedType()
         {
             if (LuaHelpers.luaVersion == 504)
-                return (LuaExtendedType)(LuaBaseType.Number + 16);
+                return LuaBaseTypes.Number() + 16;
 
-            return (LuaExtendedType)LuaBaseType.Number;
+            return LuaBaseTypes.Number();
         }
 
-        internal static LuaExtendedType GetIntegerNumberExtendedType()
+        internal static int GetIntegerNumberExtendedType()
         {
             if (LuaHelpers.luaVersion == 504)
-                return (LuaExtendedType)LuaBaseType.Number;
+                return LuaBaseTypes.Number();
 
-            return (LuaExtendedType)(LuaBaseType.Number + 16);
+            return LuaBaseTypes.Number() + 16;
         }
 
         internal static bool HasIntegerNumberExtendedType()
@@ -219,16 +286,16 @@ namespace LuaDkmDebuggerComponent
                     }
 
                     // upvalue, proto, trace and cdata are not supported as values
-                    LuaExtendedType[] ljTypeTagMapping = { LuaExtendedType.Nil, LuaExtendedType.Boolean, LuaExtendedType.BooleanTrue, LuaExtendedType.LightUserData, LuaExtendedType.ShortString, LuaExtendedType.Nil, LuaExtendedType.Thread, LuaExtendedType.Nil, LuaExtendedType.LuaFunction, LuaExtendedType.Nil, LuaExtendedType.Nil, LuaExtendedType.Table, LuaExtendedType.UserData };
+                    int[] ljTypeTagMapping = { LuaExtendedTypes.Nil(), LuaExtendedTypes.Boolean(), LuaExtendedTypes.BooleanTrue(), LuaExtendedTypes.LightUserData(), LuaExtendedTypes.ShortString(), LuaExtendedTypes.Nil(), LuaExtendedTypes.Thread(), LuaExtendedTypes.Nil(), LuaExtendedTypes.LuaFunction(), LuaExtendedTypes.Nil(), LuaExtendedTypes.Nil(), LuaExtendedTypes.Table(), LuaExtendedTypes.UserData() };
 
                     if (ljTypeTag >= ljTypeTagMapping.Length)
                         return null;
 
-                    typeTag = (int)ljTypeTagMapping[ljTypeTag];
+                    typeTag = ljTypeTagMapping[ljTypeTag];
                 }
                 else
                 {
-                    typeTag = (int)GetFloatNumberExtendedType();
+                    typeTag = GetFloatNumberExtendedType();
                 }
             }
             else if (Schema.LuaValueData.available)
@@ -249,7 +316,7 @@ namespace LuaDkmDebuggerComponent
                     }
                     else
                     {
-                        typeTag = (int)GetFloatNumberExtendedType();
+                        typeTag = GetFloatNumberExtendedType();
                     }
                 }
                 else
@@ -276,7 +343,7 @@ namespace LuaDkmDebuggerComponent
                 }
                 else
                 {
-                    typeTag = (int)GetFloatNumberExtendedType();
+                    typeTag = GetFloatNumberExtendedType();
                 }
             }
             else
@@ -317,7 +384,7 @@ namespace LuaDkmDebuggerComponent
         {
             var extenedType = GetExtendedType(typeTag);
 
-            if (extenedType == LuaExtendedType.Nil)
+            if (extenedType == LuaExtendedTypes.Nil())
             {
                 return new LuaValueDataNil()
                 {
@@ -329,7 +396,7 @@ namespace LuaDkmDebuggerComponent
                 };
             }
 
-            if (extenedType == LuaExtendedType.Boolean)
+            if (extenedType == LuaExtendedTypes.Boolean())
             {
                 if (LuaHelpers.luaVersion == 504 || LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
                 {
@@ -369,7 +436,7 @@ namespace LuaDkmDebuggerComponent
                 };
             }
 
-            if (extenedType == LuaExtendedType.BooleanTrue)
+            if (extenedType == LuaExtendedTypes.BooleanTrue())
             {
                 if (LuaHelpers.luaVersion == 504 || LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
                 {
@@ -394,7 +461,7 @@ namespace LuaDkmDebuggerComponent
                 };
             }
 
-            if (extenedType == LuaExtendedType.LightUserData)
+            if (extenedType == LuaExtendedTypes.LightUserData())
             {
                 var value = DebugHelpers.ReadPointerVariable(process, address, batch);
 
@@ -475,7 +542,7 @@ namespace LuaDkmDebuggerComponent
                 };
             }
 
-            if (extenedType == LuaExtendedType.ShortString)
+            if (extenedType == LuaExtendedTypes.ShortString())
             {
                 var value = ReadGCobjAddress(process, address, batch);
 
@@ -510,7 +577,7 @@ namespace LuaDkmDebuggerComponent
                 };
             }
 
-            if (extenedType == LuaExtendedType.LongString)
+            if (extenedType == LuaExtendedTypes.LongString())
             {
                 var value = ReadGCobjAddress(process, address, batch);
 
@@ -545,7 +612,7 @@ namespace LuaDkmDebuggerComponent
                 };
             }
 
-            if (extenedType == LuaExtendedType.Table)
+            if (extenedType == LuaExtendedTypes.Table())
             {
                 var value = ReadGCobjAddress(process, address, batch);
 
@@ -577,7 +644,7 @@ namespace LuaDkmDebuggerComponent
                 };
             }
 
-            if (extenedType == LuaExtendedType.LuaFunction)
+            if (extenedType == LuaExtendedTypes.LuaFunction())
             {
                 var value = ReadGCobjAddress(process, address, batch);
 
@@ -597,7 +664,7 @@ namespace LuaDkmDebuggerComponent
                         return new LuaValueDataExternalClosure()
                         {
                             baseType = GetBaseType(typeTag),
-                            extendedType = LuaExtendedType.ExternalClosure,
+                            extendedType = LuaExtendedTypes.ExternalClosure(),
                             evaluationFlags = DkmEvaluationResultFlags.IsBuiltInType | DkmEvaluationResultFlags.ReadOnly,
                             tagAddress = tagAddress,
                             originalAddress = address,
@@ -628,7 +695,7 @@ namespace LuaDkmDebuggerComponent
                 };
             }
 
-            if (extenedType == LuaExtendedType.ExternalFunction)
+            if (extenedType == LuaExtendedTypes.ExternalFunction())
             {
                 var value = ReadGCobjAddress(process, address, batch);
 
@@ -655,7 +722,7 @@ namespace LuaDkmDebuggerComponent
                 };
             }
 
-            if (extenedType == LuaExtendedType.ExternalClosure)
+            if (extenedType == LuaExtendedTypes.ExternalClosure())
             {
                 var value = ReadGCobjAddress(process, address, batch);
 
@@ -687,7 +754,7 @@ namespace LuaDkmDebuggerComponent
                 };
             }
 
-            if (extenedType == LuaExtendedType.UserData)
+            if (extenedType == LuaExtendedTypes.UserData())
             {
                 var value = ReadGCobjAddress(process, address, batch);
 
@@ -719,7 +786,7 @@ namespace LuaDkmDebuggerComponent
                 };
             }
 
-            if (extenedType == LuaExtendedType.Thread)
+            if (extenedType == LuaExtendedTypes.Thread())
             {
                 var value = ReadGCobjAddress(process, address, batch);
 
@@ -751,56 +818,56 @@ namespace LuaDkmDebuggerComponent
 
         internal static uint? GetLuajitTag(int tagValue)
         {
-            uint ljTypeTag = 0;
+            int value = tagValue & ~64;
 
-            switch ((LuaExtendedType)(tagValue & ~64))
-            {
-                case LuaExtendedType.Nil:
-                    break;
-                case LuaExtendedType.Boolean:
-                    ljTypeTag = 1;
-                    break;
-                case LuaExtendedType.BooleanTrue:
-                    ljTypeTag = 2;
-                    break;
-                case LuaExtendedType.LightUserData:
-                    ljTypeTag = 3;
-                    break;
-                case LuaExtendedType.ShortString:
-                case LuaExtendedType.LongString:
-                    ljTypeTag = 4;
-                    break;
-                case LuaExtendedType.Table:
-                    ljTypeTag = 11;
-                    break;
-                case LuaExtendedType.LuaFunction:
-                case LuaExtendedType.ExternalClosure:
-                    ljTypeTag = 8;
-                    break;
-                case LuaExtendedType.ExternalFunction:
-                    return null;
-                case LuaExtendedType.UserData:
-                    ljTypeTag = 12;
-                    break;
-                case LuaExtendedType.Thread:
-                    ljTypeTag = 6;
-                    break;
-                default:
-                    return null;
-            }
+            if (value == LuaExtendedTypes.Nil())
+                return 0;
 
-            return ljTypeTag;
+            if (value == LuaExtendedTypes.Boolean())
+                return 1;
+
+            if (value == LuaExtendedTypes.BooleanTrue())
+                return 2;
+
+            if (value == LuaExtendedTypes.LightUserData())
+                return 3;
+
+            if (value == LuaExtendedTypes.ShortString())
+                return 4;
+
+            if (value == LuaExtendedTypes.LongString())
+                return 4;
+
+            if (value == LuaExtendedTypes.Table())
+                return 11;
+
+            if (value == LuaExtendedTypes.LuaFunction())
+                return 8;
+
+            if (value == LuaExtendedTypes.ExternalClosure())
+                return 8;
+
+            if (value == LuaExtendedTypes.ExternalFunction())
+                return null;
+
+            if (value == LuaExtendedTypes.UserData())
+                return 12;
+
+            if (value == LuaExtendedTypes.Thread())
+                return 6;
+
+            return null;
         }
 
         internal static bool WriteTypeTag(DkmProcess process, ulong tagAddress, int tagValue)
         {
             if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
             {
-                if ((LuaExtendedType)tagValue == GetFloatNumberExtendedType())
+                if (tagValue == GetFloatNumberExtendedType())
                     return true;
 
                 // Integer writes are not supported
-                if ((LuaExtendedType)tagValue == GetIntegerNumberExtendedType())
+                if (tagValue == GetIntegerNumberExtendedType())
                     return false;
 
                 // GC64 encoding is not supported
@@ -864,7 +931,7 @@ namespace LuaDkmDebuggerComponent
             {
                 if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit && Schema.Luajit.fullPointer)
                 {
-                    uint? ljTypeTag = GetLuajitTag((int)LuaExtendedType.Nil).GetValueOrDefault(0);
+                    uint? ljTypeTag = GetLuajitTag(LuaExtendedTypes.Nil()).GetValueOrDefault(0);
 
                     ulong encodedValue = ((ulong)~ljTypeTag.Value << 47) | 0x7fffffffffful;
 
@@ -873,7 +940,7 @@ namespace LuaDkmDebuggerComponent
                 }
                 else
                 {
-                    if (!WriteTypeTag(process, tagAddress, (int)LuaExtendedType.Nil))
+                    if (!WriteTypeTag(process, tagAddress, LuaExtendedTypes.Nil()))
                         return Failed("Failed to modify target process memory (tag)", out errorText);
 
                     if (!DebugHelpers.TryWriteIntVariable(process, valueAddress, 0))
@@ -887,7 +954,7 @@ namespace LuaDkmDebuggerComponent
             {
                 if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit && Schema.Luajit.fullPointer)
                 {
-                    uint? ljTypeTag = GetLuajitTag((int)(sourceBool.value ? LuaExtendedType.BooleanTrue : LuaExtendedType.Boolean)).GetValueOrDefault(0);
+                    uint? ljTypeTag = GetLuajitTag(sourceBool.value ? LuaExtendedTypes.BooleanTrue() : LuaExtendedTypes.Boolean()).GetValueOrDefault(0);
 
                     ulong encodedValue = ((ulong)~ljTypeTag.Value << 47) | 0x7fffffffffful;
 
@@ -898,7 +965,7 @@ namespace LuaDkmDebuggerComponent
                 {
                     if (LuaHelpers.luaVersion == 504 || LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
                     {
-                        if (!WriteTypeTag(process, tagAddress, (int)(sourceBool.value ? LuaExtendedType.BooleanTrue : LuaExtendedType.Boolean)))
+                        if (!WriteTypeTag(process, tagAddress, sourceBool.value ? LuaExtendedTypes.BooleanTrue() : LuaExtendedTypes.Boolean()))
                             return Failed("Failed to modify target process memory (tag)", out errorText);
 
                         if (!DebugHelpers.TryWriteIntVariable(process, valueAddress, 0))
@@ -906,7 +973,7 @@ namespace LuaDkmDebuggerComponent
                     }
                     else
                     {
-                        if (!WriteTypeTag(process, tagAddress, (int)LuaExtendedType.Boolean))
+                        if (!WriteTypeTag(process, tagAddress, LuaExtendedTypes.Boolean()))
                             return Failed("Failed to modify target process memory (tag)", out errorText);
 
                         if (!DebugHelpers.TryWriteIntVariable(process, valueAddress, sourceBool.value ? 1 : 0))
@@ -922,7 +989,7 @@ namespace LuaDkmDebuggerComponent
                 if (sourceNumber.extendedType == GetFloatNumberExtendedType() || !LuaHelpers.HasIntegerNumberExtendedType())
                 {
                     // Write tag first here, unioned value will go over it when neccessary
-                    if (!WriteTypeTag(process, tagAddress, (int)GetFloatNumberExtendedType()))
+                    if (!WriteTypeTag(process, tagAddress, GetFloatNumberExtendedType()))
                         return Failed("Failed to modify target process memory (tag)", out errorText);
 
                     if (!DebugHelpers.TryWriteDoubleVariable(process, valueAddress, sourceNumber.value))
@@ -934,7 +1001,7 @@ namespace LuaDkmDebuggerComponent
 
                 if (sourceNumber.extendedType == GetIntegerNumberExtendedType() && LuaHelpers.HasIntegerNumberExtendedType())
                 {
-                    if (!WriteTypeTag(process, tagAddress, (int)GetIntegerNumberExtendedType()))
+                    if (!WriteTypeTag(process, tagAddress, GetIntegerNumberExtendedType()))
                         return Failed("Failed to modify target process memory (tag)", out errorText);
 
                     if (!DebugHelpers.TryWriteIntVariable(process, valueAddress, (int)sourceNumber.value))
@@ -987,7 +1054,7 @@ namespace LuaDkmDebuggerComponent
 
                     if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit && Schema.Luajit.fullPointer)
                     {
-                        uint? ljTypeTag = GetLuajitTag((int)value.extendedType).GetValueOrDefault(0);
+                        uint? ljTypeTag = GetLuajitTag(value.extendedType).GetValueOrDefault(0);
 
                         ulong encodedPointer = ((ulong)~ljTypeTag.Value << 47) | (stringAddress.Value & 0x7fffffffffful);
 
@@ -996,7 +1063,7 @@ namespace LuaDkmDebuggerComponent
                     }
                     else
                     {
-                        int finalTag = LuaHelpers.luaVersion == 501 ? (int)value.baseType : (int)value.extendedType | 64;
+                        int finalTag = LuaHelpers.luaVersion == 501 ? value.baseType : value.extendedType | 64;
 
                         if (!WriteTypeTag(process, tagAddress, finalTag))
                             return Failed("Failed to modify target process memory (tag)", out errorText);
@@ -1007,7 +1074,7 @@ namespace LuaDkmDebuggerComponent
                 }
                 else
                 {
-                    int finalTag = LuaHelpers.luaVersion == 501 ? (int)value.baseType : (int)value.extendedType | 64;
+                    int finalTag = LuaHelpers.luaVersion == 501 ? value.baseType : value.extendedType | 64;
 
                     if (!WriteTypeTag(process, tagAddress, finalTag))
                         return Failed("Failed to modify target process memory (tag)", out errorText);
@@ -1046,7 +1113,7 @@ namespace LuaDkmDebuggerComponent
 
             if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit && Schema.Luajit.fullPointer)
             {
-                uint? ljTypeTag = GetLuajitTag((int)value.extendedType);
+                uint? ljTypeTag = GetLuajitTag(value.extendedType);
 
                 if (!ljTypeTag.HasValue)
                     return Failed("Unsupported type tag", out errorText);
@@ -1058,7 +1125,7 @@ namespace LuaDkmDebuggerComponent
             }
             else
             {
-                int finalTag = LuaHelpers.luaVersion == 501 ? (int)value.baseType : (int)value.extendedType | (collectable ? 64 : 0);
+                int finalTag = LuaHelpers.luaVersion == 501 ? value.baseType : value.extendedType | (collectable ? 64 : 0);
 
                 if (!WriteTypeTag(process, tagAddress, finalTag))
                     return Failed("Failed to modify target process memory (tag)", out errorText);
@@ -1080,6 +1147,8 @@ namespace LuaDkmDebuggerComponent
         public int lifetimeStartInstruction;
         public int lifetimeEndInstruction;
 
+        public byte? targetRegister_Luau;
+
         public static int StructSize(DkmProcess process)
         {
             Debug.Assert(LuaHelpers.luaVersion != LuaHelpers.luaVersionLuajit, "LuaLocalVariableData size is variable in Luajit");
@@ -1099,6 +1168,9 @@ namespace LuaDkmDebuggerComponent
                 nameAddress = DebugHelpers.ReadPointerVariable(process, address + Schema.LuaLocalVariableData.nameAddress.GetValueOrDefault(0), batch).GetValueOrDefault(0);
                 lifetimeStartInstruction = DebugHelpers.ReadIntVariable(process, address + Schema.LuaLocalVariableData.lifetimeStartInstruction.GetValueOrDefault(0), batch).GetValueOrDefault(0);
                 lifetimeEndInstruction = DebugHelpers.ReadIntVariable(process, address + Schema.LuaLocalVariableData.lifetimeEndInstruction.GetValueOrDefault(0), batch).GetValueOrDefault(0);
+
+                if (Schema.LuaLocalVariableData.targetRegister_Luau.HasValue)
+                    targetRegister_Luau = DebugHelpers.ReadByteVariable(process, address + Schema.LuaLocalVariableData.targetRegister_Luau.GetValueOrDefault(0), batch);
             }
             else
             {
@@ -1256,6 +1328,7 @@ namespace LuaDkmDebuggerComponent
         public int codeSize;
         public int lineInfoSize;
         public int? absLineInfoSize_5_4;
+        public int? linegaplog2_Luau;
         public int localFunctionSize;
         public int localVariableSize;
         public int definitionStartLine_opt;
@@ -1349,6 +1422,9 @@ namespace LuaDkmDebuggerComponent
                 if (Schema.LuaFunctionData.absLineInfoSize_5_4.HasValue)
                     absLineInfoSize_5_4 = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.absLineInfoSize_5_4.GetValueOrDefault(0));
 
+                if (Schema.LuaFunctionData.linegaplog2_Luau.HasValue)
+                    linegaplog2_Luau = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.linegaplog2_Luau.GetValueOrDefault(0));
+
                 localFunctionSize = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.localFunctionSize.GetValueOrDefault(0)).GetValueOrDefault(0);
                 localVariableSize = DebugHelpers.ReadIntVariable(process, address + Schema.LuaFunctionData.localVariableSize.GetValueOrDefault(0)).GetValueOrDefault(0);
 
@@ -1365,6 +1441,11 @@ namespace LuaDkmDebuggerComponent
 
                 if (Schema.LuaFunctionData.maxStackSize_opt.HasValue)
                     maxStackSize_opt = DebugHelpers.ReadByteVariable(process, address + Schema.LuaFunctionData.maxStackSize_opt.GetValueOrDefault(0)).GetValueOrDefault(0);
+
+                if (Schema.LuaFunctionData.linegaplog2_Luau.HasValue)
+                {
+                    definitionStartLine_opt = DebugHelpers.ReadIntVariable(process, absLineInfoDataAddress_5_4).GetValueOrDefault(0);
+                }
 
                 hasDefinitionLineInfo = Schema.LuaFunctionData.definitionStartLine_opt.HasValue && Schema.LuaFunctionData.definitionEndLine_opt.HasValue;
             }
@@ -1604,7 +1685,7 @@ namespace LuaDkmDebuggerComponent
 
                     locals.Add(local);
 
-                    if (i < argumentCount || instructionPointer == -1)
+                    if ((i < argumentCount && !linegaplog2_Luau.HasValue) || instructionPointer == -1)
                     {
                         activeLocals.Add(local);
                     }
@@ -1642,7 +1723,7 @@ namespace LuaDkmDebuggerComponent
                 }
                 else
                 {
-                    if (i < argumentCount || instructionPointer == -1)
+                    if ((i < argumentCount && !linegaplog2_Luau.HasValue) || instructionPointer == -1)
                     {
                         activeLocals.Add(local);
                     }
@@ -1694,6 +1775,12 @@ namespace LuaDkmDebuggerComponent
                 for (int i = 0; i < lineInfoSize; i++)
                     lineInfo[i] = DebugHelpers.ReadByteVariable(process, lineInfoDataAddress + (ulong)i).GetValueOrDefault(0);
             }
+            else if (linegaplog2_Luau.HasValue)
+            {
+                // TODO: block read
+                for (int i = 0; i < lineInfoSize; i++)
+                    lineInfo[i] = DebugHelpers.ReadByteVariable(process, lineInfoDataAddress + (ulong)i).GetValueOrDefault(0);
+            }
             else
             {
                 // TODO: block read
@@ -1709,16 +1796,31 @@ namespace LuaDkmDebuggerComponent
             if (absLineInfo != null)
                 return absLineInfo;
 
-            if (!absLineInfoSize_5_4.HasValue)
-                return null;
+            if (absLineInfoSize_5_4.HasValue)
+            {
+                absLineInfo = new int[absLineInfoSize_5_4.Value * 2];
 
-            absLineInfo = new int[absLineInfoSize_5_4.Value * 2];
+                // TODO: block read
+                for (int i = 0; i < absLineInfoSize_5_4.Value * 2; i++)
+                    absLineInfo[i] = DebugHelpers.ReadIntVariable(process, absLineInfoDataAddress_5_4 + (ulong)i * 4u).GetValueOrDefault(0);
 
-            // TODO: block read
-            for (int i = 0; i < absLineInfoSize_5_4.Value * 2; i++)
-                absLineInfo[i] = DebugHelpers.ReadIntVariable(process, absLineInfoDataAddress_5_4 + (ulong)i * 4u).GetValueOrDefault(0);
+                return absLineInfo;
+            }
 
-            return absLineInfo;
+            if (linegaplog2_Luau.HasValue)
+            {
+                int absoluteLineCount = ((codeSize - 1) >> linegaplog2_Luau.Value) + 1;
+
+                absLineInfo = new int[absoluteLineCount];
+
+                // TODO: block read
+                for (int i = 0; i < absoluteLineCount; i++)
+                    absLineInfo[i] = DebugHelpers.ReadIntVariable(process, absLineInfoDataAddress_5_4 + (ulong)i * 4u).GetValueOrDefault(0);
+
+                return absLineInfo;
+            }
+
+            return null;
         }
 
         public int ReadLineInfoFor(DkmProcess process, int instructionPointer)
@@ -1763,6 +1865,18 @@ namespace LuaDkmDebuggerComponent
                     baseLine += (sbyte)lineInfo[baseInstructionPointer];
 
                 return baseLine;
+            }
+
+            if (linegaplog2_Luau.HasValue)
+            {
+                if (lineInfoSize == 0)
+                    return 0;
+
+                // We need all data for this
+                ReadLineInfo(process);
+                ReadAbsoluteLineInfo(process);
+
+                return absLineInfo[instructionPointer >> linegaplog2_Luau.Value] + lineInfo[instructionPointer];
             }
 
             return DebugHelpers.ReadIntVariable(process, lineInfoDataAddress + (ulong)instructionPointer * 4).GetValueOrDefault(0);
@@ -1944,7 +2058,7 @@ namespace LuaDkmDebuggerComponent
 
             if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
             {
-                func = LuaHelpers.ReadValueOfType(process, (int)LuaExtendedType.LuaFunction, 0, funcAddress);
+                func = LuaHelpers.ReadValueOfType(process, LuaExtendedTypes.LuaFunction(), 0, funcAddress);
             }
             else
             {
@@ -2152,8 +2266,16 @@ namespace LuaDkmDebuggerComponent
             if (keyValueDataAddress == 0)
                 return null;
 
-            // Same in Lua 5.1, 5.2, 5.3 and 5.4
-            key = LuaHelpers.ReadValueOfType(process, keyTypeTag.GetValueOrDefault(0), keyValueTagAddress, keyValueDataAddress, batch);
+            if (Schema.LuaStringData.offsetToContent_Luau.HasValue) // TODO: explicit version check
+            {
+                // TODO: we need to mark result somehow so that updates will not break linking
+                key = LuaHelpers.ReadValueOfType(process, keyTypeTag.GetValueOrDefault(0) & 15, keyValueTagAddress, keyValueDataAddress, batch);
+            }
+            else
+            {
+                // Same in Lua 5.1, 5.2, 5.3 and 5.4
+                key = LuaHelpers.ReadValueOfType(process, keyTypeTag.GetValueOrDefault(0), keyValueTagAddress, keyValueDataAddress, batch);
+            }
 
             return key;
         }
@@ -2449,7 +2571,7 @@ namespace LuaDkmDebuggerComponent
 
                     node.ReadFromMetaOnly(process, address, batchNodeElementData);
 
-                    if (LuaHelpers.GetBaseType(node.keyTypeTag.GetValueOrDefault(0)) != LuaBaseType.Nil)
+                    if (LuaHelpers.GetBaseType(node.keyTypeTag.GetValueOrDefault(0)) != LuaBaseTypes.Nil())
                         nodeLazyElements.Add(node);
                 }
             }
@@ -2650,6 +2772,19 @@ namespace LuaDkmDebuggerComponent
             if (LuaHelpers.luaVersion == LuaHelpers.luaVersionLuajit)
             {
                 upvalueAddress = LuaHelpers.ReadGCobjAddress(process, firstUpvaluePointerAddress + (ulong)(index * DebugHelpers.GetPointerSize(process))).GetValueOrDefault(0);
+            }
+            else if (Schema.LuaStringData.offsetToContent_Luau.HasValue) // TODO: explicit version check
+            {
+                ulong address = firstUpvaluePointerAddress + (ulong)index * LuaHelpers.GetValueSize(process);
+
+                LuaUpvalueData data = new LuaUpvalueData();
+
+                data.valueAddress = address;
+                data.value = LuaHelpers.ReadValue(process, address);
+
+                upvalues[index] = data;
+
+                return data;
             }
             else
             {

@@ -109,6 +109,7 @@ namespace LuaDkmDebuggerComponent
             public static long structSize = 0;
 
             public static ulong? offsetToContent_5_4;
+            public static ulong? offsetToContent_Luau;
 
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
             {
@@ -120,6 +121,7 @@ namespace LuaDkmDebuggerComponent
                 structSize = Helper.GetSize(inspectionSession, thread, frame, "TString", ref available);
 
                 offsetToContent_5_4 = Helper.ReadOptional(inspectionSession, thread, frame, "TString", "contents", "used in 5.4", ref optional);
+                offsetToContent_Luau = Helper.ReadOptional(inspectionSession, thread, frame, "TString", "data", "used in Luau", ref optional);
 
                 if (Log.instance != null)
                     Log.instance.Debug($"LuaStringData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
@@ -169,6 +171,7 @@ namespace LuaDkmDebuggerComponent
             public static ulong? nameAddress;
             public static ulong? lifetimeStartInstruction;
             public static ulong? lifetimeEndInstruction;
+            public static ulong? targetRegister_Luau;
 
             public static void LoadSchema(DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame frame)
             {
@@ -182,6 +185,7 @@ namespace LuaDkmDebuggerComponent
                 nameAddress = Helper.Read(inspectionSession, thread, frame, "LocVar", "varname", ref available, ref success, ref failure);
                 lifetimeStartInstruction = Helper.Read(inspectionSession, thread, frame, "LocVar", "startpc", ref available, ref success, ref failure);
                 lifetimeEndInstruction = Helper.Read(inspectionSession, thread, frame, "LocVar", "endpc", ref available, ref success, ref failure);
+                targetRegister_Luau = Helper.ReadOptional(inspectionSession, thread, frame, "LocVar", "reg", "used in Luau", ref optional);
 
                 if (Log.instance != null)
                     Log.instance.Debug($"LuaLocalVariableData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");
@@ -259,6 +263,7 @@ namespace LuaDkmDebuggerComponent
             public static ulong? codeSize;
             public static ulong? lineInfoSize;
             public static ulong? absLineInfoSize_5_4;
+            public static ulong? linegaplog2_Luau;
             public static ulong? localFunctionSize;
             public static ulong? localVariableSize;
             public static ulong? definitionStartLine_opt;
@@ -290,6 +295,7 @@ namespace LuaDkmDebuggerComponent
                 codeSize = Helper.Read(inspectionSession, thread, frame, "Proto", "sizecode", ref available, ref success, ref failure);
                 lineInfoSize = Helper.Read(inspectionSession, thread, frame, "Proto", "sizelineinfo", ref available, ref success, ref failure);
                 absLineInfoSize_5_4 = Helper.ReadOptional(inspectionSession, thread, frame, "Proto", "sizeabslineinfo", "used in 5.4", ref optional);
+                linegaplog2_Luau = Helper.ReadOptional(inspectionSession, thread, frame, "Proto", "linegaplog2", "used in Luau", ref optional);
                 localFunctionSize = Helper.Read(inspectionSession, thread, frame, "Proto", "sizep", ref available, ref success, ref failure);
                 localVariableSize = Helper.Read(inspectionSession, thread, frame, "Proto", "sizelocvars", ref available, ref success, ref failure);
                 definitionStartLine_opt = Helper.ReadOptional(inspectionSession, thread, frame, "Proto", "linedefined", "used to detect main function", ref optional);
@@ -377,15 +383,24 @@ namespace LuaDkmDebuggerComponent
                 failure = 0;
                 optional = 0;
 
-                structSize = Helper.GetSize(inspectionSession, thread, frame, "Node", ref available);
+                string name = "Node";
 
-                valueDataAddress = Helper.Read(inspectionSession, thread, frame, "Node", "i_val", ref available, ref success, ref failure);
+                structSize = Helper.GetSize(inspectionSession, thread, frame, name, ref available);
 
-                keyDataTypeAddress_5_4 = Helper.ReadOptional(inspectionSession, thread, frame, "Node", "u.key_tt", "used in Lua 5.4", ref optional);
-                keyDataValueAddress_5_4 = Helper.ReadOptional(inspectionSession, thread, frame, "Node", "u.key_val", "used in Lua 5.4", ref optional);
+                // TODO: explicit Luau detection
+                if (!available || structSize == 0)
+                {
+                    name = "LuaNode";
+                    structSize = Helper.GetSize(inspectionSession, thread, frame, name, ref available);
+                }
+
+                valueDataAddress = Helper.Read(inspectionSession, thread, frame, name, new[] { "i_val", "val" }, ref available, ref success, ref failure);
+
+                keyDataTypeAddress_5_4 = Helper.ReadOptional(inspectionSession, thread, frame, name, "u.key_tt", "used in Lua 5.4", ref optional);
+                keyDataValueAddress_5_4 = Helper.ReadOptional(inspectionSession, thread, frame, name, "u.key_val", "used in Lua 5.4", ref optional);
 
                 if (!keyDataTypeAddress_5_4.HasValue || !keyDataValueAddress_5_4.HasValue)
-                    keyDataAddress_5_123 = Helper.Read(inspectionSession, thread, frame, "Node", "i_key", ref available, ref success, ref failure);
+                    keyDataAddress_5_123 = Helper.Read(inspectionSession, thread, frame, name, new[] { "i_key", "key" }, ref available, ref success, ref failure);
                 else
                     keyDataAddress_5_123 = null;
 
@@ -457,13 +472,22 @@ namespace LuaDkmDebuggerComponent
                 failure = 0;
                 optional = 0;
 
-                structSize = Helper.GetSize(inspectionSession, thread, frame, "LClosure", ref available);
+                string name = "LClosure";
 
-                isC_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "LClosure", "isC", "used in 5.1", ref optional);
-                upvalueSize_opt = Helper.ReadOptional(inspectionSession, thread, frame, "LClosure", "nupvalues", "used if avaiable", ref optional);
-                envTableDataAddress_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, "LClosure", "env", "used in 5.1", ref optional);
-                functionAddress = Helper.Read(inspectionSession, thread, frame, "LClosure", "p", ref available, ref success, ref failure);
-                firstUpvaluePointerAddress = Helper.Read(inspectionSession, thread, frame, "LClosure", "upvals", ref available, ref success, ref failure);
+                structSize = Helper.GetSize(inspectionSession, thread, frame, name, ref available);
+
+                // TODO: explicit Luau detection
+                if (!available || structSize == 0)
+                {
+                    name = "Closure";
+                    structSize = Helper.GetSize(inspectionSession, thread, frame, name, ref available);
+                }
+
+                isC_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, name, "isC", "used in 5.1", ref optional);
+                upvalueSize_opt = Helper.ReadOptional(inspectionSession, thread, frame, name, "nupvalues", "used if avaiable", ref optional);
+                envTableDataAddress_5_1 = Helper.ReadOptional(inspectionSession, thread, frame, name, "env", "used in 5.1", ref optional);
+                functionAddress = Helper.Read(inspectionSession, thread, frame, name, new[] { "p", "l.p" }, ref available, ref success, ref failure);
+                firstUpvaluePointerAddress = Helper.Read(inspectionSession, thread, frame, name, new[] { "upvals", "l.uprefs" }, ref available, ref success, ref failure);
 
                 if (Log.instance != null)
                     Log.instance.Debug($"LuaClosureData schema {(available ? "available" : "not available")} with {success} successes and {failure} failures and {optional} optional");

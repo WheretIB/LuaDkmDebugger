@@ -709,7 +709,7 @@ namespace LuaDkmDebuggerComponent
                 return;
             }
 
-            if (callInfoData.func.extendedType != LuaExtendedType.LuaFunction)
+            if (callInfoData.func.extendedType != LuaExtendedTypes.LuaFunction())
             {
                 inspectionSession.Close();
 
@@ -773,7 +773,7 @@ namespace LuaDkmDebuggerComponent
                 return;
             }
 
-            if (result.baseType == LuaBaseType.Nil)
+            if (result.baseType == LuaBaseTypes.Nil())
             {
                 inspectionSession.Close();
 
