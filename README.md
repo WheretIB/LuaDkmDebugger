@@ -36,6 +36,14 @@ Supported Lua versions:
 
  ![Assertion Failure and User Data display](https://github.com/WheretIB/LuaDkmDebugger/blob/master/resource/front_image_3.png?raw=true)
 
+## Requirements
+
+This extension relies on debug information for the Lua library itself. This means that debug information has to be provided for the Lua source files. This is different from other Lua debuggers that use the built-in `debug.` package.
+
+When using pre-compiled Lua libraries (static .lib or a .dll) a .pdb file has to be available as well. You can build Lua or LuaJIT with debug information with or without optimizations.
+
+If Lua source files are included in the project in your solution, debug information should be available by default. If not, you can enable it in the project settings even if building in Release configuration (without affecting performance).
+
 ## Additional configuration
 
 In the default configuration, debugger searches for script files in current working directory and application executable directory.
