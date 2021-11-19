@@ -19,7 +19,16 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LuaDebugHelper_x64", "LuaDe
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LuaDebugAttacher_x64", "LuaDebugAttacher_x64\LuaDebugAttacher_x64.vcxproj", "{4D877B09-CA72-4416-B2F9-B4E243C0D51F}"
 EndProject
+Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "LuaDkmDebuggerCommon", "LuaDkmDebuggerCommon\LuaDkmDebuggerCommon.shproj", "{0E812732-115F-4F38-A162-7C335EEE87BC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LuaDkmDebugger17", "LuaDkmDebugger17\LuaDkmDebugger17.csproj", "{2979BE80-DC0A-4096-8A07-439FEA4E4080}"
+EndProject
 Global
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		LuaDkmDebuggerCommon\LuaDkmDebuggerCommon.projitems*{0e812732-115f-4f38-a162-7c335eee87bc}*SharedItemsImports = 13
+		LuaDkmDebuggerCommon\LuaDkmDebuggerCommon.projitems*{2979be80-dc0a-4096-8a07-439fea4e4080}*SharedItemsImports = 4
+		LuaDkmDebuggerCommon\LuaDkmDebuggerCommon.projitems*{c3330bb3-cdce-40b5-9dc0-c19db8eb0987}*SharedItemsImports = 4
+	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Debug|x64 = Debug|x64
@@ -101,6 +110,18 @@ Global
 		{4D877B09-CA72-4416-B2F9-B4E243C0D51F}.Release|x64.Build.0 = Release|x64
 		{4D877B09-CA72-4416-B2F9-B4E243C0D51F}.Release|x86.ActiveCfg = Release|x64
 		{4D877B09-CA72-4416-B2F9-B4E243C0D51F}.Release|x86.Build.0 = Release|x64
+		{2979BE80-DC0A-4096-8A07-439FEA4E4080}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2979BE80-DC0A-4096-8A07-439FEA4E4080}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2979BE80-DC0A-4096-8A07-439FEA4E4080}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{2979BE80-DC0A-4096-8A07-439FEA4E4080}.Debug|x64.Build.0 = Debug|Any CPU
+		{2979BE80-DC0A-4096-8A07-439FEA4E4080}.Debug|x86.ActiveCfg = Debug|x86
+		{2979BE80-DC0A-4096-8A07-439FEA4E4080}.Debug|x86.Build.0 = Debug|x86
+		{2979BE80-DC0A-4096-8A07-439FEA4E4080}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2979BE80-DC0A-4096-8A07-439FEA4E4080}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2979BE80-DC0A-4096-8A07-439FEA4E4080}.Release|x64.ActiveCfg = Release|Any CPU
+		{2979BE80-DC0A-4096-8A07-439FEA4E4080}.Release|x64.Build.0 = Release|Any CPU
+		{2979BE80-DC0A-4096-8A07-439FEA4E4080}.Release|x86.ActiveCfg = Release|x86
+		{2979BE80-DC0A-4096-8A07-439FEA4E4080}.Release|x86.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

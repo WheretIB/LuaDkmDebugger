@@ -433,7 +433,7 @@ namespace LuaDkmDebugger
                             }
                         }
 
-                        TextExtent leftExtent = textStructureNavigator.GetExtentOfWord(new SnapshotPoint(textBuffer.CurrentSnapshot, lineStartPosition + localPosition - 1));
+                        TextExtent leftExtent = textStructureNavigator.GetExtentOfWord(new SnapshotPoint(textBuffer.CurrentSnapshot, lineStartPosition + localPosition - 2));
                         SnapshotSpan leftExtentSpan = leftExtent.Span;
 
                         if (leftExtentSpan.Start.Position >= lineStartPosition)

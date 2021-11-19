@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
-    <MinimumVisualStudioVersion>16.0</MinimumVisualStudioVersion>
+    <MinimumVisualStudioVersion>17.0</MinimumVisualStudioVersion>
     <VSToolsPath Condition="'$(VSToolsPath)' == ''">$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)</VSToolsPath>
   </PropertyGroup>
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
@@ -10,11 +10,11 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectTypeGuids>{82b43b9b-a64c-4715-b499-d71e9ca2bd60};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
-    <ProjectGuid>{C3330BB3-CDCE-40B5-9DC0-C19DB8EB0987}</ProjectGuid>
+    <ProjectGuid>{2979BE80-DC0A-4096-8A07-439FEA4E4080}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>LuaDkmDebugger</RootNamespace>
-    <AssemblyName>LuaDkmDebugger</AssemblyName>
+    <RootNamespace>LuaDkmDebugger17</RootNamespace>
+    <AssemblyName>LuaDkmDebugger17</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <GeneratePkgDefFile>true</GeneratePkgDefFile>
     <UseCodebase>true</UseCodebase>
@@ -62,28 +62,8 @@
     <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="EnvDTE100">
-      <Version>10.0.3</Version>
-    </PackageReference>
-    <PackageReference Include="Microsoft.VisualStudio.Debugger.Interop.11.0">
-      <Version>11.0.50728</Version>
-    </PackageReference>
-    <PackageReference Include="Microsoft.VisualStudio.Language">
-      <Version>15.8.525</Version>
-    </PackageReference>
-    <PackageReference Include="Microsoft.VisualStudio.Language.StandardClassification">
-      <Version>15.8.525</Version>
-    </PackageReference>
-    <PackageReference Include="Microsoft.VisualStudio.Shell.15.0">
-      <Version>15.9.28307</Version>
-    </PackageReference>
-    <PackageReference Include="Microsoft.VisualStudio.Text.UI">
-      <Version>15.8.525</Version>
-    </PackageReference>
-    <PackageReference Include="Microsoft.VisualStudio.Threading">
-      <Version>15.8.209</Version>
-    </PackageReference>
-    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="16.5.2047" />
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.0.31902.203" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.0.5233" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="..\LuaDkmDebuggerShared\.pkgdef">
