@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.IO;
 
 namespace LuaDkmDebuggerComponent
@@ -51,7 +50,7 @@ namespace LuaDkmDebuggerComponent
         {
             try
             {
-                string formatted = $"{text} at {(DateTime.Now.Ticks / 10000.0) - startTime}ms";
+                string formatted = $"[{(DateTime.Now.Ticks / 10000.0) - startTime}] {text}";
 
                 System.Diagnostics.Debug.WriteLine(formatted);
 

@@ -2609,8 +2609,11 @@ namespace LuaDkmDebuggerComponent
                         }
 
                         var fileName = script.Value.resolvedFileName;
+                        var sourceDocumentName = sourceFileId.DocumentName;
 
-                        if (sourceFileId.DocumentName == fileName)
+                        // Comparing file paths with ignoring case. 
+                        // OK for windows, by may be problematic with unix based operating systems.
+                        if (String.Equals(fileName, sourceDocumentName, StringComparison.OrdinalIgnoreCase))
                         {
                             var dataItem = new LuaResolvedDocumentItem
                             {
