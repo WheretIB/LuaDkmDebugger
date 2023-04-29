@@ -49,7 +49,8 @@ namespace LuaDkmDebugger.ToolWindows
 
                         var cmdobj = _state.dte.Commands.Item("File.OpenFile");
 
-                        string name = scriptEntry.path;
+                        // Support filenames and directories with whitespaces in path.
+                        string name = $"\"{scriptEntry.path}\"";
                         object none = null;
 
                         _state.dte.Commands.Raise(cmdobj.Guid, cmdobj.ID, name, none);
