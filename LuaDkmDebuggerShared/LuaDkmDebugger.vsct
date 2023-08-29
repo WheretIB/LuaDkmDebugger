@@ -96,6 +96,16 @@
 					<CommandName>LuaShowScriptListCommandId</CommandName>
 				</Strings>
 			</Button>
+			
+			<Button guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaShowInternalMethodsCommandId" priority="0x0108" type="Button">
+				<Parent guid="guidLuaDkmDebuggerPackageCmdSet" id="LuaMenuGroup" />
+				<CommandFlag>DontCache</CommandFlag>
+				<CommandFlag>DefaultDisabled</CommandFlag>
+				<Strings>
+					<ButtonText>Show internal lua metamethods (__call, __index, etc)</ButtonText>
+					<CommandName>LuaShowInternalMethodsCommandId</CommandName>
+				</Strings>
+			</Button>			
 		</Buttons>
 	</Commands>
 
@@ -113,6 +123,7 @@
 			<IDSymbol name="LuaInitializeCommandId" value="0x0170" />
 			<IDSymbol name="LuaShowScriptListCommandId" value="0x0180" />
 			<IDSymbol name="LuaEvalFuncOnHoverCommandId" value="0x0190" />
+			<IDSymbol name="LuaShowInternalMethodsCommandId" value="0x0200" />		
 		</GuidSymbol>
 	</Symbols>
 </CommandTable>
