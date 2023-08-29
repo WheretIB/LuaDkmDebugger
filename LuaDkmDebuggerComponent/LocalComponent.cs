@@ -2561,7 +2561,7 @@ namespace LuaDkmDebuggerComponent
 
                         var fileName = source.Value.resolvedFileName;
 
-                        if (sourceFileId.DocumentName == fileName)
+                        if (string.Compare(sourceFileId.DocumentName, fileName, true) == 0)
                         {
                             var dataItem = new LuaResolvedDocumentItem
                             {
@@ -2610,7 +2610,7 @@ namespace LuaDkmDebuggerComponent
 
                         var fileName = script.Value.resolvedFileName;
 
-                        if (sourceFileId.DocumentName == fileName)
+                        if (string.Compare(sourceFileId.DocumentName, fileName, true) == 0)
                         {
                             var dataItem = new LuaResolvedDocumentItem
                             {
