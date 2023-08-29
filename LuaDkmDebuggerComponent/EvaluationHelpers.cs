@@ -6,11 +6,51 @@ using Microsoft.VisualStudio.Debugger.Evaluation;
 using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Xml.Linq;
 
 namespace LuaDkmDebuggerComponent
 {
     internal class EvaluationHelpers
     {
+        public static bool IsInternalMember(string name)
+        {
+            if (name == "__index"
+                || (name == "__newindex")
+                || (name == "__mode")
+                || (name == "__call")
+                || (name == "__metatable")
+                || (name == "__tostring")
+                || (name == "__len")
+                || (name == "__name")
+                || (name == "__close")
+                || (name == "__gc")
+                //Mathematic Operators
+                || (name == "__unm")
+                || (name == "__add")
+                || (name == "__sub")
+                || (name == "__mul")
+                || (name == "__div")
+                || (name == "__idiv")
+                || (name == "__mod")
+                || (name == "__pow")
+                || (name == "__concat")
+                || (name == "__mod")
+                //Bitwise Operators
+                || (name == "__band")
+                || (name == "__bor")
+                || (name == "__bxor")
+                || (name == "__bnot")
+                || (name == "__shl")
+                || (name == "__shr")
+                //Equivalence Comparison Operators
+                || (name == "__eq")
+                || (name == "__lt")
+                || (name == "__le"))
+                return true;
+
+            return false;
+        }
+
         internal static DkmEvaluationResult ExecuteRawExpression(string expression, DkmInspectionSession inspectionSession, DkmThread thread, DkmStackWalkFrame input, DkmRuntimeInstance runtimeInstance, DkmEvaluationFlags flags)
         {
             var compilerId = new DkmCompilerId(DkmVendorId.Microsoft, DkmLanguageId.Cpp);
@@ -280,10 +320,13 @@ namespace LuaDkmDebuggerComponent
             {
                 var value = valueBase as LuaValueDataUserData;
 
-                type = "user_data";
+                string luabindClassName = null;
+                string toStringResult = null;
+
+                type = luabindClassName?.Length > 0 ? $"luabind class {luabindClassName} (user_data)" : "user_data";
 
                 flags |= DkmEvaluationResultFlags.ReadOnly | DkmEvaluationResultFlags.Expandable;
-                return $"0x{value.targetAddress:x}";
+                return toStringResult?.Length > 0 ? $"{toStringResult} (0x{value.targetAddress:x})" : $"0x{value.targetAddress:x}";
             }
 
             if (valueBase as LuaValueDataThread != null)
@@ -461,10 +504,15 @@ namespace LuaDkmDebuggerComponent
                     isIdentifierName = pos == name.Length;
                 }
 
-                if (isIdentifierName)
-                    return EvaluateDataAtLuaValue(inspectionContext, stackFrame, name, $"{fullName}.{name}", node.LoadValue(process, value.batchNodeElementData), DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+                var accessFlag = DkmEvaluationResultAccessType.None;
 
-                return EvaluateDataAtLuaValue(inspectionContext, stackFrame, $"\"{name}\"", $"{fullName}[\"{name}\"]", node.LoadValue(process, value.batchNodeElementData), DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+                if (IsInternalMember(name))
+                    accessFlag |= DkmEvaluationResultAccessType.Internal;
+
+                if (isIdentifierName)
+                    return EvaluateDataAtLuaValue(inspectionContext, stackFrame, name, $"{fullName}.{name}", node.LoadValue(process, value.batchNodeElementData), DkmEvaluationResultFlags.None, accessFlag, DkmEvaluationResultStorageType.None);
+
+                return EvaluateDataAtLuaValue(inspectionContext, stackFrame, $"\"{name}\"", $"{fullName}[\"{name}\"]", node.LoadValue(process, value.batchNodeElementData), DkmEvaluationResultFlags.None, accessFlag, DkmEvaluationResultStorageType.None);
             }
 
             index = index - nodeElementCount;

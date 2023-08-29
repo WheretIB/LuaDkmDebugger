@@ -61,6 +61,7 @@ namespace LuaDkmDebugger
         public const int LuaInitializeCommandId = 0x0170;
         public const int LuaShowScriptListCommandId = 0x0180;
         public const int LuaEvalFuncOnHoverCommandId = 0x0190;
+        public const int LuaShowInternalMethodsCommandId = 0x0200;
 
         public static readonly Guid CommandSet = new Guid("6EB675D6-C146-4843-990E-32D43B56706C");
 
@@ -75,6 +76,7 @@ namespace LuaDkmDebugger
         public static bool releaseDebugLogs = false;
         public static bool showHiddenFrames = false;
         public static bool useSchema = false;
+        public static bool showInternalMethods = false;
 
         private WritableSettingsStore configurationSettingsStore = null;
 
@@ -107,6 +109,7 @@ namespace LuaDkmDebugger
                 releaseDebugLogs = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "ReleaseDebugLogs", false);
                 showHiddenFrames = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "ShowHiddenFrames", false);
                 useSchema = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "UseSchema", false);
+                showInternalMethods = configurationSettingsStore.GetBoolean("LuaDkmDebugger", "ShowInternalMethods", false);
 
                 LuaDkmDebuggerComponent.LocalComponent.attachOnLaunch = attachOnLaunch;
                 LuaDkmDebuggerComponent.LocalComponent.breakOnError = breakOnError;
@@ -278,6 +281,26 @@ namespace LuaDkmDebugger
                                 cancellationToken: DisposalToken);
                         });
                     }, menuCommandID);
+
+                    commandService.AddCommand(menuItem);
+                }
+
+                {
+                    CommandID menuCommandID = new CommandID(CommandSet, LuaShowInternalMethodsCommandId);
+
+                    OleMenuCommand menuItem = new OleMenuCommand((object sender, EventArgs args) =>
+                    {
+                        HandleToggleMenuItem(sender, args, "ShowInternalMethods", ref LuaDkmDebuggerComponent.LocalComponent.showInternalMethods, ref showInternalMethods);
+                    }, menuCommandID);
+
+                    menuItem.BeforeQueryStatus += (object sender, EventArgs args) =>
+                    {
+                        if (sender is OleMenuCommand command)
+                            command.Checked = showInternalMethods;
+                    };
+
+                    menuItem.Enabled = true;
+                    menuItem.Checked = showInternalMethods;
 
                     commandService.AddCommand(menuItem);
                 }
