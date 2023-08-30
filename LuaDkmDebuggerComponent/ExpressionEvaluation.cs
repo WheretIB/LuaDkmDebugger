@@ -1,6 +1,7 @@
 using Microsoft.VisualStudio.Debugger;
 using Microsoft.VisualStudio.Debugger.CallStack;
 using Microsoft.VisualStudio.Debugger.Evaluation;
+using System.Collections.Generic;
 
 namespace LuaDkmDebuggerComponent
 {
@@ -201,8 +202,8 @@ namespace LuaDkmDebuggerComponent
                     return result;
             }
 
-            return Report($"Failed to find key '{name}' in table");
-        }
+                    return Report($"Failed to find key '{name}' in table");
+                }
 
         public LuaValueDataBase LookupTableElement(LuaValueDataTable table, LuaValueDataBase index)
         {
@@ -513,9 +514,73 @@ namespace LuaDkmDebuggerComponent
 
             return null;
         }
-
-        public LuaValueDataBase EvaluatePostExpressions(LuaValueDataBase value)
+        public LuaValueDataBase EvaluateCallExpressions(LuaValueDataBase value, LuaValueDataBase parentValue = null)
         {
+            var currentValue = value;
+            if (TryTakeToken("("))
+            {
+                var argsStart = pos;
+                if (expression.LastIndexOf(")") == -1)
+                    return Report("Failed to find ')' after '('");
+
+                if (process == null)
+                    return Report("Can't load table - process memory is not available");
+
+                if (value is LuaValueDataTable indexMetaTableValueTable) //Usefull??
+                {
+                    value = LookupTableMember(indexMetaTableValueTable, indexMetaTableValueTable.value, "__call");
+                }
+                else
+                {
+                    LuaValueDataBase[] arguments = null;
+                    if (argsStart + 1 != pos) // not a simple call like foo()
+                    {
+                        var savePos = pos = expression.LastIndexOf(")");
+                        var saveExpression = expression;
+
+                        var argsStr = expression.Substring(argsStart, pos - argsStart);
+                        var argsArray = argsStr.Split(new char[] { ',' }, System.StringSplitOptions.RemoveEmptyEntries);
+                        arguments = new LuaValueDataBase[argsArray.Length];
+                        for (int i = 0; i < argsArray.Length; i++)
+                        {
+                            arguments[i] = Evaluate(argsArray[i], allowSideEffects);
+                        }
+
+                        pos = savePos + 1;
+                        expression = saveExpression;
+                    }
+
+                    List<LuaValueDataBase> callArgs = new List<LuaValueDataBase> { value }; // function, (this), function args
+
+                    if (parentValue != null)
+                        callArgs.Add(parentValue);
+
+                    if (arguments != null)
+                        callArgs.AddRange(arguments);
+
+                    if (value is LuaValueDataLuaFunction)
+                    {
+                        value = EvaluateCall(callArgs.ToArray());
+                    }
+                    else if (value is LuaValueDataExternalClosure)
+                    {
+                        value = EvaluateCall(callArgs.ToArray());
+                    }
+                    else
+                        return Report("Failed to evaluate call");
+                }
+
+                if (value as LuaValueDataError != null)
+                    return value;
+
+                return EvaluatePostExpressions(value, currentValue);
+            }
+
+            return value;
+        }
+        public LuaValueDataBase EvaluatePostExpressions(LuaValueDataBase value, LuaValueDataBase parentValue = null)
+        {
+            var currentValue = value;
             if (TryTakeToken(".") || TryTakeToken(":"))
             {
                 string name = TryParseIdentifier();
@@ -557,7 +622,7 @@ namespace LuaDkmDebuggerComponent
                 if (value as LuaValueDataError != null)
                     return value;
 
-                return EvaluatePostExpressions(value);
+                return EvaluatePostExpressions(value, parentValue);
             }
 
             if (TryTakeToken("["))
@@ -583,10 +648,10 @@ namespace LuaDkmDebuggerComponent
                 if (value as LuaValueDataError != null)
                     return value;
 
-                return EvaluatePostExpressions(value);
+                return EvaluatePostExpressions(value, currentValue);
             }
 
-            return value;
+            return EvaluateCallExpressions(value, parentValue);
         }
 
         // group variable
@@ -1066,8 +1131,8 @@ namespace LuaDkmDebuggerComponent
 
             SkipSpace();
 
-            if (pos < expression.Length)
-                return Report(value, $"Failed to fully parse at '{expression.Substring(pos)}'");
+            if (this.pos < this.expression.Length)
+                return Report(value, $"Failed to fully parse at '{this.expression.Substring(this.pos)}'");
 
             return value;
         }

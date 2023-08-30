@@ -12,11 +12,13 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Web.Script.Serialization;
+using System.Xml.Linq;
 
 namespace LuaDkmDebuggerComponent
 {
@@ -234,13 +236,12 @@ namespace LuaDkmDebuggerComponent
         public static bool releaseDebugLogs = false;
         public static bool showHiddenFrames = false;
         public static bool useSchema = false;
-
+        public static bool showInternalMethods = false;
 #if DEBUG
         public static Log log = new Log(Log.LogLevel.Debug, true);
 #else
         public static Log log = new Log(Log.LogLevel.Error, true);
 #endif
-
         internal void LoadConfigurationFile(DkmProcess process, LuaLocalProcessData processData)
         {
             // Check if already loaded
@@ -1878,13 +1879,63 @@ namespace LuaDkmDebuggerComponent
                 if (parentFrameData != null)
                     nativeTypeName = value.value.GetNativeType(process);
 
+                //Luabind Ext
+                List<DkmEvaluationResult> finalResults = new List<DkmEvaluationResult>();
+                int luabindExtMembersCount = 0;
+                {
+                    // Load frame data from instruction
+                    var instructionAddress = result.StackFrame.InstructionAddress as DkmCustomInstructionAddress;
+
+                    Debug.Assert(instructionAddress != null);
+                    var frameData = new LuaFrameData();
+
+                    if (!frameData.ReadFrom(instructionAddress.AdditionalData.ToArray()))
+                    {
+                        log.Error($"IDkmLanguageExpressionEvaluator.EvaluateExpression failure (no frame data)");
+
+                        completionRoutine(new DkmGetChildrenAsyncResult(new DkmEvaluationResult[0], DkmEvaluationResultEnumContext.Create(0, result.StackFrame, inspectionContext, null)));
+                        return;
+                    }
+                    GetEvaluationSessionData(process, inspectionContext.InspectionSession, frameData, out LuaFunctionCallInfoData callInfoData, out LuaFunctionData functionData, out LuaClosureData closureData);
+                    ExpressionEvaluation evaluation = new ExpressionEvaluation(process, result.StackFrame, inspectionContext.InspectionSession, functionData, callInfoData.stackBaseAddress, closureData);
+
+                    var expr = $"class_info({result.FullName}).attributes";
+                    var luabindClassAttributes = evaluation.Evaluate(expr, true) as LuaValueDataTable;
+                    if(luabindClassAttributes != null)
+                    {
+                        luabindExtMembersCount = (int)(luabindClassAttributes?.value?.arraySize);
+
+                        if (luabindExtMembersCount > 0)
+                        {
+                            var attGetters = luabindClassAttributes.value.GetArrayElements(process);
+                            foreach (LuaValueDataBase getter in attGetters)
+                            {
+                                if (getter is LuaValueDataString luaName)
+                                {
+                                    var attribValue = evaluation.Evaluate($"{result.FullName}.{luaName.value}({result.FullName})", true);
+
+                                    luabindClassAttributes.value.GetNodeElements(process);
+                                    var dkmResult = EvaluationHelpers.EvaluateDataAtLuaValue(inspectionContext, result.StackFrame, luaName.value, $"{result.FullName}.{luaName.value}", attribValue, DkmEvaluationResultFlags.None, DkmEvaluationResultAccessType.None, DkmEvaluationResultStorageType.None);
+                                    finalResults.Add(dkmResult);
+                                }
+                            }
+                        }
+                    }
+                }
+                var totalResultsCount = finalResults.Count;
+
+                var currentRequestSize = initialRequestSize - finalResults.Count;
+                if(currentRequestSize < 0 )
+                {
+                    var removeCount = finalResults.Count - initialRequestSize;
+                    finalResults.RemoveRange(finalResults.Count - removeCount - 1, removeCount);
+                    currentRequestSize = 0;
+                }    
                 int actualSize = value.value.metaTable.GetArrayElementCount(process) + value.value.metaTable.GetNodeElementCount(process) + (nativeTypeName != null ? 1 : 0);
+                int finalInitialSize = currentRequestSize < actualSize ? currentRequestSize : actualSize;
 
-                int finalInitialSize = initialRequestSize < actualSize ? initialRequestSize : actualSize;
-
-                DkmEvaluationResult[] initialResults = new DkmEvaluationResult[finalInitialSize];
-
-                for (int i = 0; i < initialResults.Length; i++)
+                totalResultsCount += actualSize;
+                for (int i = 0; i < finalInitialSize; i++)
                 {
                     int index = i;
 
@@ -1892,19 +1943,19 @@ namespace LuaDkmDebuggerComponent
                     {
                         if (index == 0)
                         {
-                            initialResults[i] = GetNativeTypePseudoMember(inspectionContext, result.StackFrame, nativeTypeName, value.value.pointerAtValueStart);
+                            finalResults.Add(GetNativeTypePseudoMember(inspectionContext, result.StackFrame, nativeTypeName, value.value.pointerAtValueStart));
                             continue;
                         }
 
                         index -= 1;
                     }
 
-                    initialResults[i] = EvaluationHelpers.GetTableChildAtIndex(inspectionContext, result.StackFrame, result.FullName, value.value.metaTable, index);
+                    finalResults.Add(EvaluationHelpers.GetTableChildAtIndex(inspectionContext, result.StackFrame, result.FullName, value.value.metaTable, index));
                 }
 
-                var enumerator = DkmEvaluationResultEnumContext.Create(actualSize, result.StackFrame, inspectionContext, evalData);
+                var enumerator = DkmEvaluationResultEnumContext.Create(totalResultsCount, result.StackFrame, inspectionContext, evalData);
 
-                completionRoutine(new DkmGetChildrenAsyncResult(initialResults, enumerator));
+                completionRoutine(new DkmGetChildrenAsyncResult(finalResults.ToArray(), enumerator));
 
                 log.Debug($"IDkmLanguageExpressionEvaluator.GetChildren success (table)");
                 return;
@@ -2561,7 +2612,7 @@ namespace LuaDkmDebuggerComponent
 
                         var fileName = source.Value.resolvedFileName;
 
-                        if (sourceFileId.DocumentName == fileName)
+                        if (string.Compare(sourceFileId.DocumentName, fileName, true) == 0)
                         {
                             var dataItem = new LuaResolvedDocumentItem
                             {
@@ -2610,7 +2661,7 @@ namespace LuaDkmDebuggerComponent
 
                         var fileName = script.Value.resolvedFileName;
 
-                        if (sourceFileId.DocumentName == fileName)
+                        if (string.Compare(sourceFileId.DocumentName, fileName, true) == 0)
                         {
                             var dataItem = new LuaResolvedDocumentItem
                             {
